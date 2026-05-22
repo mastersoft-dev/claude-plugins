@@ -5,7 +5,6 @@ description: >-
   for large features or architectural decisions.
 tools: Read, Glob, Grep, TodoWrite, Task, AskUserQuestion, mcp__context7, mcp__deepwiki
 model: inherit
-permissionMode: acceptEdits
 maxTurns: 15
 memory: user
 ---

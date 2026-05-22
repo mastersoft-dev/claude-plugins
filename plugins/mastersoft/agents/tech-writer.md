@@ -6,8 +6,7 @@ description: >-
   architect delegates documentation tasks. Follows a structured 3-stage workflow: context gathering,
   iterative refinement, and reader testing via subagents.
 tools: Read, Write, Edit, Glob, Grep, Task, AskUserQuestion, mcp__context7, mcp__deepwiki
-model: sonnet
-permissionMode: acceptEdits
+model: inherit
 maxTurns: 25
 memory: user
 ---
