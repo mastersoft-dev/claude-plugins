@@ -1,11 +1,11 @@
 ---
-name: inspect
-description: Read-only code review with severity ratings (Blocker/Major/Minor). Use for inspecting diffs, checking before merge, or quality feedback. For security-only analysis use audit.
+name: vet
+description: Read-only code review with severity ratings (Blocker/Major/Minor). Use to vet diffs, check before merge, or get quality feedback. For security-only analysis use audit.
 allowed-tools: Read, Glob, Grep
 argument-hint: "files_or_folders"
 ---
 
-Task: Inspect the code contained in the appended files and list actionable feedback.
+Task: Vet the code contained in the appended files and list actionable feedback.
 
 Files or folders: $ARGUMENTS
 
@@ -45,7 +45,7 @@ For each finding:
 
 ## Worked Example
 
-User says: "Inspect the auth module changes"
+User says: "Vet the auth module changes"
 
 1. **Read** -- Open all modified files in `src/auth/`
 2. **Analyze** -- Check correctness, security, clarity, performance, style
@@ -56,12 +56,12 @@ Result: 1 Blocker + 2 Minor findings, each with file:line and concrete suggestio
 
 ## Common Issues
 
-### Inspection too noisy
+### Review too noisy
 **Cause:** Reporting style nits alongside real bugs.
 **Fix:** Focus on Blocker/Major items first; group Minor/Note items separately at the end.
 
 ### Missing broader context
-**Cause:** Inspecting a diff without understanding the module.
+**Cause:** Reviewing a diff without understanding the module.
 **Fix:** Read the full file and related imports before commenting.
 
 ## Additional Resources
@@ -71,11 +71,11 @@ Result: 1 Blocker + 2 Minor findings, each with file:line and concrete suggestio
 ## Help
 
 ### Synopsis
-Provide a focused, actionable code inspection.
+Provide a focused, actionable code review.
 
 ### Examples
-- `inspect src/ --files=services/user.ts,api/auth.ts`
-- `inspect ./patch.diff`
+- `vet src/ --files=services/user.ts,api/auth.ts`
+- `vet ./patch.diff`
 
 ### Checklist
 - Correctness: logic, invariants, edge cases.

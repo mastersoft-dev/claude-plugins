@@ -1,23 +1,23 @@
 # Troubleshooting
 
 ## Skill doesn't trigger
-**Symptom:** `inspect` is not selected for code inspection requests.
-**Cause:** Prompt asks for implementation instead of inspection feedback.
-**Solution:** Use explicit inspection phrasing:
-- "Inspect these files and list actionable issues."
-- "Code inspection only; no edits."
+**Symptom:** `vet` is not selected for code review requests.
+**Cause:** Prompt asks for implementation instead of review feedback.
+**Solution:** Use explicit review phrasing:
+- "Vet these files and list actionable issues."
+- "Code review only; no edits."
 - "Prioritize correctness and security findings."
 
 ## Skill triggers too often
-**Symptom:** `inspect` activates for tasks that require code changes.
-**Cause:** Prompt mixes inspection language with implementation intent.
+**Symptom:** `vet` activates for tasks that require code changes.
+**Cause:** Prompt mixes review language with implementation intent.
 **Solution:** Add anti-triggers:
 - "Fix these issues directly."
 - "Implement this feature."
 - "Refactor this module now."
 
 ## Tool/MCP connection errors
-**Symptom:** Inspection coverage is incomplete.
+**Symptom:** Review coverage is incomplete.
 **Cause:** Missing/invalid target paths or limited read scope.
 **Solution:**
 1. Validate file/folder paths before starting.
@@ -32,12 +32,12 @@
 # Test Protocols
 
 ## 1. Triggering Tests
-**Goal:** `inspect` should activate for feedback-only code inspection tasks and avoid implementation requests.
+**Goal:** `vet` should activate for feedback-only code review tasks and avoid implementation requests.
 
 **Should trigger:**
-- "Inspect `src/auth` and list high-severity correctness/security issues."
-- "Code inspection only for this patch; no edits."
-- "Inspect these files and prioritize blocking issues first."
+- "Vet `src/auth` and list high-severity correctness/security issues."
+- "Code review only for this patch; no edits."
+- "Vet these files and prioritize blocking issues first."
 
 **Should NOT trigger:**
 - "Fix the auth issues directly."
@@ -50,7 +50,7 @@
 **Given:**
 - Diff contains plaintext password comparison and unprotected admin route.
 
-**When:** User invokes: "Inspect these files for correctness and security; feedback only."
+**When:** User invokes: "Vet these files for correctness and security; feedback only."
 
 **Then:**
 - Report constant-time comparison risk for password checks with severity/impact.
@@ -60,7 +60,7 @@
 - Completes in <=5 turns.
 
 ## 3. Baseline Comparison
-**Scenario:** Inspect a medium patch touching auth and routing.
+**Scenario:** Vet a medium patch touching auth and routing.
 
 **Without skill:**
 - Messages: 8, User corrections: 3, Tokens: 3,400
