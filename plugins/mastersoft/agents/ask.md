@@ -5,7 +5,7 @@ description: >-
   Use to answer specific questions, look up definitions, find usages, or clarify behavior.
   Triggers on "what does X do", "where is Y defined", "how does Z work", or "quick question about".
   For deep root-cause analysis, use investigate. For code review feedback, use vet.
-tools: Read, Glob, Grep, mcp__context7, mcp__deepwiki
+tools: Read, Glob, Grep, Bash, mcp__context7, mcp__deepwiki
 model: haiku
 maxTurns: 20
 memory: user
