@@ -5,7 +5,7 @@ description: >-
   code changes or when quality assurance is needed.
 tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
 model: inherit
-maxTurns: 15
+maxTurns: 30
 memory: user
 ---
 

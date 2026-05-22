@@ -5,7 +5,7 @@ description: >-
   when security assessment is needed.
 tools: Read, Grep, Glob, Bash, mcp__context7, mcp__deepwiki
 model: inherit
-maxTurns: 15
+maxTurns: 30
 memory: user
 ---
 

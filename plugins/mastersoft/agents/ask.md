@@ -7,7 +7,7 @@ description: >-
   For deep root-cause analysis, use investigate. For code review feedback, use vet.
 tools: Read, Glob, Grep, Bash, mcp__context7, mcp__deepwiki
 model: haiku
-maxTurns: 20
+maxTurns: 15
 memory: user
 ---
 

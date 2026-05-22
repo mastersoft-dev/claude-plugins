@@ -7,7 +7,7 @@ description: >-
   iterative refinement, and reader testing via subagents.
 tools: Read, Write, Edit, Glob, Grep, Task, AskUserQuestion, mcp__context7, mcp__deepwiki
 model: inherit
-maxTurns: 25
+maxTurns: 40
 memory: user
 ---
 
