@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Security audit with severity ratings and mitigations. Read-only. For non-security code review use vet.
+description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. For non-security code review use vet.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), mcp__context7, mcp__deepwiki
@@ -11,7 +11,7 @@ Task: Identify security risks in the following files or folders: $ARGUMENTS
 
 ## Rules
 
-- List findings with severity (high/medium/low) and mitigation tips.
+- List findings with severity (Blocker/Critical/High/Medium/Low) and mitigation tips.
 - Do not modify code.
 
 ## Scan Methodology
@@ -38,6 +38,7 @@ Task: Identify security risks in the following files or folders: $ARGUMENTS
 
 | Severity | Criteria | Examples |
 |----------|----------|----------|
+| **Blocker** | Halts release/merge regardless of base severity | Hardcoded prod secret in repo, broken auth in production, data-loss bug |
 | **Critical** | Exploitable remotely, no auth required | SQLi, RCE, exposed secrets |
 | **High** | Exploitable with limited access | Stored XSS, IDOR, auth bypass |
 | **Medium** | Requires specific conditions | CSRF, open redirect, info leak |
@@ -47,7 +48,7 @@ Task: Identify security risks in the following files or folders: $ARGUMENTS
 
 For each finding, report:
 - **Location:** `file:line`
-- **Severity:** Critical / High / Medium / Low
+- **Severity:** Blocker / Critical / High / Medium / Low
 - **Category:** OWASP category or CWE
 - **Description:** What the vulnerability is
 - **Impact:** What an attacker could do
@@ -89,7 +90,7 @@ Identify security risks with severities and mitigations; no code edits.
 - `audit pkg/ --strict`
 
 ### Checklist
-- Catalog findings with High/Medium/Low severity.
+- Catalog findings with Blocker/Critical/High/Medium/Low severity.
 - Explain exploitability and practical impact.
 - Recommend specific mitigations or references.
 - Avoid noisy, generic advice; prefer actionable items.

@@ -1,6 +1,6 @@
 ---
 name: vet
-description: Read-only code review with severity ratings (Blocker/Major/Minor). Use to vet diffs, check before merge, or get quality feedback. For security-only analysis use audit.
+description: Read-only code review with severity ratings (Blocker/Critical/High/Medium/Low). Use to vet diffs, check before merge, or get quality feedback. For security-only analysis use audit.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep
@@ -31,10 +31,11 @@ Evaluate in priority order:
 
 | Level | Meaning | Action |
 |-------|---------|--------|
-| **Blocker** | Bug, security hole, data loss risk | Must fix before merge |
-| **Major** | Logic concern, poor error handling | Should fix before merge |
-| **Minor** | Readability, naming, style nit | Nice to fix; optional |
-| **Note** | Observation, suggestion, question | FYI; no action needed |
+| **Blocker** | Ship-stopper. Halts merge regardless of category. | Must fix before merge |
+| **Critical** | Severe bug / security hole / data-loss risk | Must fix before merge |
+| **High** | Logic concern, poor error handling, exploitable with limited access | Should fix before merge |
+| **Medium** | Conditional bug, readability impact, performance issue | Nice to fix; recommended |
+| **Low** | Style nit, observation, suggestion | FYI; optional |
 
 ## Output Format
 
@@ -54,13 +55,13 @@ User says: "Vet the auth module changes"
 3. **Find** -- `login.ts:42` password compared with `==` instead of timing-safe compare
 4. **Report** -- `### [login.ts:42] Blocker: Timing-safe comparison missing` with explanation and suggested fix
 
-Result: 1 Blocker + 2 Minor findings, each with file:line and concrete suggestion.
+Result: 1 Blocker + 2 Low findings, each with file:line and concrete suggestion.
 
 ## Common Issues
 
 ### Review too noisy
 **Cause:** Reporting style nits alongside real bugs.
-**Fix:** Focus on Blocker/Major items first; group Minor/Note items separately at the end.
+**Fix:** Focus on Blocker/Critical items first; group Medium/Low items separately at the end.
 
 ### Missing broader context
 **Cause:** Reviewing a diff without understanding the module.

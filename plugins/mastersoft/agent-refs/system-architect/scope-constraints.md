@@ -6,4 +6,4 @@ Before designing, capture:
 - Constraints (budget, timeline, team, existing tech)
 - Assumptions (document explicitly; each is a risk)
 
-Use `AskUserQuestion` to clarify ambiguities. Do not assume.
+When information is missing or ambiguous, make best-effort assumptions and flag each one with `**Assumption:**` prefix at the top of the relevant section. List unresolved questions at the end of the output under `## Open Questions` for the caller to resolve in a follow-up turn.

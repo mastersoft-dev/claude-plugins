@@ -1,7 +1,7 @@
 # QA Output Format
 
 For each finding, provide:
-- Severity: `Critical` (data loss / regression) / `High` (test failure) / `Medium` (edge case) / `Low` (style/coverage)
+- Severity: `Blocker` (ship-stopper, halts merge) / `Critical` (data loss / regression) / `High` (test failure) / `Medium` (edge case) / `Low` (style/coverage)
 - Location: `file:line` citation
 - Reproduction: minimal steps to trigger
 - Expected vs actual behavior

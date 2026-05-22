@@ -5,7 +5,7 @@ description: >-
   code changes or when quality assurance is needed.
 tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
 model: inherit
-maxTurns: 30
+maxTurns: 40
 memory: user
 ---
 
@@ -34,5 +34,12 @@ You MUST Read the relevant reference file before acting on its topic. Do not ans
 | Handle flaky tests | `${CLAUDE_PLUGIN_ROOT}/agent-refs/qa-specialist/flaky-tests.md` |
 | Compute / report coverage | `${CLAUDE_PLUGIN_ROOT}/agent-refs/qa-specialist/coverage.md` |
 | Format findings / regression report | `${CLAUDE_PLUGIN_ROOT}/agent-refs/qa-specialist/output-format.md` |
+
+## Subagent Ambiguity Handling
+
+When running as a subagent (no interactive user available), prefer best-effort interpretation over refusal. State assumptions explicitly at the start of output (e.g. "**Assumption:** caller meant the changed files in `src/`, not the whole repo"). Refuse only when:
+- Target is empty or genuinely undefined
+- Action would be destructive without explicit authorization
+- Required tool is unavailable
 
 Treat passing as the exception, not the assumption.
