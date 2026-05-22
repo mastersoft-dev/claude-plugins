@@ -4,10 +4,10 @@ description: >-
   Fast, targeted Q&A about the codebase, libraries, or concepts. Read-only; no file edits.
   Use to answer specific questions, look up definitions, find usages, or clarify behavior.
   Triggers on "what does X do", "where is Y defined", "how does Z work", or "quick question about".
-  For deep root-cause analysis, use investigate. For code review feedback, use review.
-tools: Bash, Read, Glob, Grep, mcp__context7, mcp__deepwiki
+  For deep root-cause analysis, use investigate. For code review feedback, use vet.
+tools: Read, Glob, Grep, mcp__context7, mcp__deepwiki
 model: haiku
-maxTurns: 10
+maxTurns: 20
 memory: user
 ---
 
