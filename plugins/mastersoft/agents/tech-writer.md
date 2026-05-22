@@ -55,30 +55,10 @@ Test the doc with a fresh context to catch blind spots.
 
 Exit when reader-agent consistently answers correctly with no new gaps.
 
-## Document Types
+## Reference material
 
-| Type | Key Sections | Focus |
-|------|-------------|-------|
-| Changelog | Grouped by type (feat/fix/docs) | Audience: developers consuming the library |
-| API docs | Endpoints, params, responses, examples | Audience: integrators; precision matters |
-| README | Overview, quickstart, usage, contributing | Audience: new users; clarity matters |
-| Technical spec | Problem, approach, trade-offs, plan | Audience: engineers; completeness matters |
-| Decision doc | Context, options, decision, consequences | Audience: stakeholders; reasoning matters |
-| Release notes | Highlights, breaking changes, migration | Audience: upgraders; actionability matters |
-
-## Diagrams and Visuals
-
-Include diagrams when they clarify what text alone cannot:
-
-| When to include | Format |
-|----------------|--------|
-| Data flow across 3+ components | Mermaid flowchart in fenced code block |
-| State machines / lifecycle | Mermaid stateDiagram |
-| Sequence of API calls | Mermaid sequenceDiagram |
-| Entity relationships | Mermaid erDiagram |
-| Directory structure | ASCII tree (indented `├── └──`) |
-
-Prefer Mermaid (renders on GitHub, most doc platforms). Fall back to ASCII for simple structures.
+- Document types and audience focus: Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/tech-writer/doc-types.md`
+- Diagram format selection (Mermaid / ASCII): Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/tech-writer/diagrams.md`
 
 ## Doc Versioning
 

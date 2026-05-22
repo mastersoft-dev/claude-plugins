@@ -44,27 +44,7 @@ Determine the project's risk profile before auditing. This controls which checks
 
 When profile is unclear, default to **Elevated** and note the assumption.
 
-### Profile-Specific Escalations
-
-**Critical profile** (finance/banking) — treat these as blockers regardless of base severity:
-- Any form of plaintext credential storage
-- Missing certificate pinning on API calls
-- Client-side-only validation for monetary operations
-- Session tokens without expiry or rotation
-- Missing audit trail for transactions
-- Jailbreak/root detection absence on mobile
-
-**High profile** (healthcare/PII) — treat these as blockers:
-- PII logged to console, crash reports, or analytics
-- Missing encryption for data at rest
-- Absent or permissive data retention
-- Missing access controls on patient/user records
-
-**Elevated profile** (auth/SaaS) — treat these as blockers:
-- Username enumeration via login/reset endpoints
-- Missing rate limiting on auth endpoints
-- CSRF on account-modifying operations
-- OAuth state parameter missing or unchecked
+For per-profile blocker lists (Critical / High / Elevated), Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/security-auditor/risk-profiles.md`.
 
 ## Scan Methodology
 
@@ -105,31 +85,7 @@ When profile is unclear, default to **Elevated** and note the assumption.
 
 ### 7. Mobile (Android / iOS)
 
-**Data Storage:**
-- Flag plaintext secrets in SharedPreferences, UserDefaults, or NSUserDefaults
-- Check for sensitive data in unencrypted SQLite/Realm databases
-- Verify Keystore (Android) / Keychain (iOS) usage for credentials and tokens
-- Scan for data leaking to app logs, backup archives, or clipboard
-
-**Transport:**
-- Verify certificate pinning implementation (OkHttp CertificatePinner, TrustKit, NSAppTransportSecurity)
-- Flag disabled or bypassed SSL verification (TrustManager accepting all certs, `NSAllowsArbitraryLoads`)
-- Check for cleartext traffic (HTTP) in `network_security_config.xml` or Info.plist
-
-**Binary and Build:**
-- Check for debug flags left enabled (`android:debuggable`, `DEBUG` preprocessor macros)
-- Verify ProGuard/R8 obfuscation (Android) or bitcode stripping (iOS)
-- Flag exported Activities/Services/ContentProviders without permission guards (Android)
-- Check URL scheme handlers and universal/app links for input validation
-
-**Platform-Specific:**
-- **Android**: Review `AndroidManifest.xml` for over-permissioned declarations, exported components, intent filter hijacking, WebView `setJavaScriptEnabled` + `addJavascriptInterface` risks
-- **iOS**: Review entitlements, App Transport Security exceptions, Keychain access groups, UIPasteboard exposure, background snapshot leaks
-
-**Client-Side Logic:**
-- Flag business logic or validation running only on client (bypassable)
-- Check for token/session storage in insecure locations
-- Verify deep link and custom scheme handlers sanitize parameters
+For mobile audit checks (data storage, transport, binary/build, platform-specific, client-side logic), Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/security-auditor/mobile.md`.
 
 ## Severity Framework
 
@@ -151,27 +107,4 @@ Adjust severity by risk profile, not by base severity alone.
 
 ## Output Format
 
-```
-## Security Audit Results
-
-**Risk Profile:** [Critical/High/Elevated/Standard] — [reason]
-**Severity adjustments applied:** [list any escalations from profile]
-
-### Critical
-- [CVE/CWE if applicable] `file:line` — Description + remediation
-
-### High
-- `file:line` — Description + remediation
-
-### Medium
-- `file:line` — Description + remediation
-
-### Dependencies
-- [package@version] — [CVE ID] — [severity] — [fix version or mitigation]
-
-### Infrastructure
-- [resource/file] — Description + remediation
-
-### Recommendations
-- Hardening suggestions
-```
+For the full audit output skeleton, Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/security-auditor/output-format.md`.

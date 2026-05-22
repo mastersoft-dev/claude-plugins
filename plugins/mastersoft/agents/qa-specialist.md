@@ -22,35 +22,10 @@ You are a QA engineer specializing in testing, regression hunting, and edge-case
 7. Check coverage if tooling supports it
 8. Report findings with severity, file:line, and reproduction steps
 
-## Framework Auto-Detection
+## Reference material
 
-Scan config files to determine the test runner before writing or running anything:
-
-| File | Framework | Command |
-|------|-----------|---------|
-| `package.json` (jest/vitest/mocha) | JS/TS test runner | `npm test` / `npx vitest` |
-| `pytest.ini` / `pyproject.toml` (pytest) | Python pytest | `pytest` |
-| `go.mod` | Go test | `go test ./...` |
-| `Cargo.toml` | Rust test | `cargo test` |
-| `build.gradle` / `pom.xml` | Java/Kotlin | `./gradlew test` / `mvn test` |
-| `*.csproj` / `*.sln` | .NET | `dotnet test` |
-
-Always prefer the project's configured test command from scripts/Makefile over direct invocation.
-
-## Test Strategy Selection
-
-Choose strategy based on what changed:
-
-| Change Type | Strategy | Rationale |
-|-------------|----------|-----------|
-| Pure function / utility | Unit tests | Isolated, fast, high coverage |
-| API endpoint / controller | Integration tests | Verifies request-response contract |
-| UI component | Component + snapshot tests | Verifies rendering and interaction |
-| Database query / migration | Integration with test DB | Verifies data integrity |
-| Cross-service interaction | E2E or contract tests | Verifies system behavior |
-| Config / environment change | Smoke tests | Verifies the app still starts |
-
-When in doubt, test at the lowest level that covers the behavior.
+- Test framework auto-detection table: Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/qa-specialist/frameworks.md`
+- Test strategy selection by change type: Read `${CLAUDE_PLUGIN_ROOT}/agent-refs/qa-specialist/strategies.md`
 
 ## Regression Protocol
 
