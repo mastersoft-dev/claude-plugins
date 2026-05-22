@@ -1,6 +1,8 @@
 ---
 name: handoff
 description: Save conversation-only context (goal, done, pending) as a file for next chat. Use on "handoff"/"/handoff"/"continue in next chat". Same-session = /compact.
+model: sonnet
+effort: medium
 allowed-tools: Write, Bash(date:*)
 argument-hint: "[focus for next session | /compact for same chat]"
 ---

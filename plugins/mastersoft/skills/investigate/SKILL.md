@@ -1,6 +1,8 @@
 ---
 name: investigate
 description: Read-only root-cause diagnosis, stack-trace triage, and code comprehension. Never modifies code. For quick lookups use ask.
+model: opus
+effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), Task, AskUserQuestion, mcp__context7, mcp__deepwiki
 argument-hint: "topic"
 ---

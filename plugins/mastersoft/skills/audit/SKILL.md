@@ -1,6 +1,8 @@
 ---
 name: audit
 description: Security audit with severity ratings and mitigations. Read-only. For non-security code review use vet.
+model: opus
+effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), mcp__context7, mcp__deepwiki
 argument-hint: "path"
 ---

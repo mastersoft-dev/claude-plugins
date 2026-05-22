@@ -1,6 +1,7 @@
 ---
 name: ask
 description: Fast Q&A about codebase, libraries, or concepts. Read-only. For deep root-cause analysis use investigate; for code review feedback use vet.
+model: haiku
 argument-hint: "question"
 ---
 

@@ -1,6 +1,8 @@
 ---
 name: tea
 description: Gitea/Forgejo CLI (tea) for PRs, issues, labels, repos, and auth. For local git ops use commit/release.
+model: sonnet
+effort: medium
 allowed-tools: Bash, Read, Glob, Grep
 argument-hint: "[subcommand] [flags]"
 ---

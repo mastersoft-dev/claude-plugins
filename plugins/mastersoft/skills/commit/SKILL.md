@@ -3,6 +3,7 @@ name: commit
 description: Atomic Conventional Commits with adaptive quality gates (format/lint/test) discovered from CLAUDE.md or project configs. For releases use release.
 disable-model-invocation: true
 model: sonnet
+effort: medium
 allowed-tools: Read, Glob, Grep, Bash(git:*)
 argument-hint: "[--max=N] [--no-checks] [--no-verify] [--signoff]"
 ---

@@ -5,6 +5,8 @@ description: >-
   Gradle, Espresso, Compose Test, JUnit, Robolectric, uiautomator, logcat,
   ".apk", "tap through", "test this screen", "drive the UI flow". Multi-screen
   flows require the 4-step protocol below.
+model: opus
+effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(adb *), Bash(./gradlew *), Bash(emulator *), Bash(${CLAUDE_SKILL_DIR}/scripts/*)
 argument-hint: "[intent or device serial]"
 hooks:

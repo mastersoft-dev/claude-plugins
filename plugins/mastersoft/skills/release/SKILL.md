@@ -2,6 +2,8 @@
 name: release
 description: Cut releases — version bump, changelog, signed tag, push, optional GitHub release. For regular commits use commit.
 disable-model-invocation: true
+model: sonnet
+effort: medium
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(gh:*)
 argument-hint: "[--version=x.y.z]"
 ---

@@ -1,6 +1,8 @@
 ---
 name: vet
 description: Read-only code review with severity ratings (Blocker/Major/Minor). Use to vet diffs, check before merge, or get quality feedback. For security-only analysis use audit.
+model: opus
+effort: xhigh
 allowed-tools: Read, Glob, Grep
 argument-hint: "files_or_folders"
 ---
