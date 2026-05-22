@@ -1,6 +1,6 @@
 {
   "name": "mastersoft",
-  "version": "2.4.2",
+  "version": "2.5.0",
   "description": "Shared Mastersoft Claude Code tooling: hooks, agents, skills, statusline",
   "author": {
     "name": "Mastersoft"

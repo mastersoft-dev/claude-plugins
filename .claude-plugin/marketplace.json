@@ -7,7 +7,7 @@
     {
       "name": "mastersoft",
       "source": "./plugins/mastersoft",
-      "version": "2.4.2",
+      "version": "2.5.0",
       "description": "Mastersoft shared Claude Code hooks, agents, skills and statusline"
     }
   ]
