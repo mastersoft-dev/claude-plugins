@@ -1,0 +1,14 @@
+{
+  "description": "Mastersoft shared hooks: load-brief, check_claude_md, load-catalog on UserPromptSubmit",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/load-brief.js" },
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/check_claude_md.js" },
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/load-catalog.js" }
+        ]
+      }
+    ]
+  }
+}

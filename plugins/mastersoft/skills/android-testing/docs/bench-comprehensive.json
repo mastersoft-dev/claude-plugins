@@ -1,0 +1,13 @@
+{"ops":[
+  {"op":"snapshot","args":{"only_clickable":false,"max_lines":5}},
+  {"op":"window_sig"},
+  {"op":"snapshot","args":{"only_clickable":true,"max_lines":3}},
+  {"op":"sleep","args":{"ms":50}},
+  {"op":"tap_point","args":{"x":540,"y":960}},
+  {"op":"snapshot","args":{"only_clickable":true,"max_lines":3}},
+  {"op":"screencap","args":{"path":"/tmp/b.jpg","backend":"u2","format":"jpeg"}},
+  {"op":"screencap","args":{"path":"/tmp/b.png","backend":"u2","format":"png"}},
+  {"op":"screencap","args":{"path":"/tmp/b_adb.png","backend":"adb"}},
+  {"op":"window_sig"},
+  {"op":"health"}
+]}
