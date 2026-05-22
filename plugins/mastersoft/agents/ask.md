@@ -1,8 +1,8 @@
 ---
 name: ask
 description: >-
-  Fast, targeted Q&A about the codebase, libraries, or concepts. Read-only; no file edits.
-  Use to answer specific questions, look up definitions, find usages, or clarify behavior.
+  Q&A specialist for codebase, libraries, or concepts. Read-only; no file edits.
+  Use proactively for quick lookups during exploration, definitions, or behavior clarifications.
   Triggers on "what does X do", "where is Y defined", "how does Z work", or "quick question about".
   For deep root-cause analysis, use investigate. For code review feedback, use vet.
 tools: Read, Glob, Grep, Bash, mcp__context7, mcp__deepwiki
