@@ -1,6 +1,13 @@
 {
-  "description": "Mastersoft shared hooks: load-brief, check_claude_md, load-catalog on UserPromptSubmit",
+  "description": "Mastersoft shared hooks: statusline wrapper install on SessionStart; load-brief, check_claude_md, load-catalog on UserPromptSubmit",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/install-statusline-wrapper.js" }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
