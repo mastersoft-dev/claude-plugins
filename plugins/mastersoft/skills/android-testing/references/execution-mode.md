@@ -138,5 +138,5 @@ EOF
 | Situation | Pattern |
 |---|---|
 | Next screen genuinely unknown — never tested this path before | Exploration mode: 1-3 ops ending with `snapshot`, then close the batch and write the real flow once shape is known |
-| Branching on data-dependent outcome (server returns N possible result screens) | `wait_for_any` with all branches, then a `describe` op to disambiguate; downstream ops conditional on the rc/out of that describe — currently requires a 2nd batch to react. Larger refactor planned. |
+| Branching on data-dependent outcome (server returns N possible result screens) | `wait_for_any` with all branches, then a `describe` op to disambiguate; downstream ops conditional on the rc/out of that describe — currently requires a 2nd batch to react. |
 | Activity boundary expected (deep link, FOREGROUND replacement) | Set `track_activity_stability: false` at batch root |

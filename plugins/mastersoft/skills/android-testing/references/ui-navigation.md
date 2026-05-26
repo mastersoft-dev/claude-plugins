@@ -131,13 +131,19 @@ Loosen the query OR switch tools (describe, window_sig).
 re-snapshot:
 
 ```bash
-adb -s "$SERIAL" shell input swipe 540 1700 540 700 300
+# Raw `adb shell input swipe` is hook-denied — use the daemon `swipe` op
+# inside a ui_run_flow.py batch, chained with wait_for:
+#   {"op":"swipe","args":{"x1":540,"y1":1700,"x2":540,"y2":700,"duration_ms":300}}
+# See references/flow-composition.md.
 scripts/ui_snapshot.py --query 'text~"target row"'
 ```
 
 **IME (soft keyboard)** — when up, the bottom of the activity is occluded but
 the dump still includes those nodes with their original bounds. A tap may
-land on the keyboard. Dismiss first with `KEYCODE_BACK` if needed.
+land on the keyboard. Dismiss with the `dismiss_ime` op (IME-aware; no-op when
+no keyboard is up). **Never** `key KEYCODE_BACK` to close the IME — BACK is
+double-overloaded and, with no IME visible, navigates back and silently pops
+the current wizard step (see `references/failure-modes.md` §14).
 
 **Permission dialogs** — `com.android.permissioncontroller` overlays the
 foreground app. Selectors like `text="Allow"` work directly. After granting,
@@ -178,7 +184,7 @@ inside `ui_run_flow.py` so no host-side gap exists.
 
 ## Five-step loop (exploratory UI driving)
 
-Snapshot once, act many, screenshot once at the end.
+Snapshot once, act many, confirm via a `--wait-for` anchor at the end.
 
 ```bash
 SERIAL=$(${CLAUDE_SKILL_DIR}/scripts/device_pick.sh)
@@ -192,7 +198,10 @@ ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" tap  'text="Sign in"'  
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" type 'class=EditText,id=email' "alice@example.com"
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" key  KEYCODE_ENTER --wait-for 'text~"Welcome"'
 
-adb -s "$SERIAL" exec-out screencap -p > result.png
+# Outcome is already confirmed by the --wait-for anchor above — the tree is
+# the observation channel. Raw screencap is hook-denied; for a genuine
+# forensic frame, read the BG trace ui_run_flow.py writes, or export
+# ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 to capture explicitly.
 kill -TERM $LOG_PID
 ```
 
@@ -216,6 +225,7 @@ scripts/ui_act.py key  KEYCODE_ENTER
 # read state without acting
 scripts/ui_snapshot.py --include-bounds=false --max-lines 60
 
-# confirm an outcome
-adb -s "$SERIAL" exec-out screencap -p > /tmp/result.png
+# confirm an outcome — assert the expected anchor (tree is the observation
+# channel; raw screencap is hook-denied, override only for a forensic frame)
+scripts/ui_snapshot.py --query 'text~"expected result"'
 ```

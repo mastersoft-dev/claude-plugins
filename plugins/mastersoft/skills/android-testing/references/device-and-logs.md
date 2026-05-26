@@ -77,7 +77,9 @@ adb -s "$SERIAL" shell am start -n com.example.app/.MainActivity
 # Grant a runtime permission without going through the dialog
 adb -s "$SERIAL" shell pm grant com.example.app android.permission.CAMERA
 
-# Take a screenshot (binary PNG, no base64 round-trip)
+# Take a screenshot — hook-denied by default (the accessibility tree is the
+# observation channel). For a genuine forensic frame, export the override
+# into the session first: export ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1
 adb -s "$SERIAL" exec-out screencap -p > /tmp/screen.png
 
 # Press a key

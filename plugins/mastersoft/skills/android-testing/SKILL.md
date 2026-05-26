@@ -3,8 +3,9 @@ name: android-testing
 description: >-
   Drive, build, test, install, debug Android. Triggers on adb, emulator, AVD,
   Gradle, Espresso, Compose Test, JUnit, Robolectric, uiautomator, logcat,
-  ".apk", "tap through", "test this screen", "drive the UI flow". Multi-screen
-  flows require the 4-step protocol below.
+  ".apk", "tap through an Android screen", "test this Android screen", "drive
+  the Android UI flow". Android only — for running tests on other platforms use
+  the qa-specialist agent. Multi-screen flows require the 4-step protocol below.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(adb *), Bash(./gradlew *), Bash(emulator *), Bash(${CLAUDE_SKILL_DIR}/scripts/*)
@@ -73,7 +74,7 @@ If ambiguous, ASK — one short question, not a guess.
 `scripts/android_skill_daemon.py` is a per-serial Unix-socket daemon that holds the u2 connection warm, caches XML by mutation generation, and accepts batched flows. Auto-spawns on first use, idle-exits after ~5 minutes, falls back transparently to direct `adb` if anything fails. `ui_act.py` / `ui_snapshot.py` / `ui_run_flow.py` route through it by default. Disable with `ANDROID_SKILL_USE_DAEMON=0` for CI determinism.
 
 Sub-op vocabulary for batches (every op accepts `wait_for` / `wait_for_any` / `wait_stable_ms` / `timeout_ms` / `fail_on_timeout`):
-`tap`, `tap_point`, `tap_macro`, `resolve_then_tap_sequence`, `swipe`, `long_press`, `sleep`, `type`, `key`, `snapshot`, `describe`, `window_sig`, `health`. Top-level `flow_timeout_ms` caps the whole flow.
+`tap`, `tap_point`, `tap_macro`, `resolve_then_tap_sequence`, `swipe`, `long_press`, `sleep`, `type`, `key`, `dismiss_ime`, `snapshot`, `describe`, `window_sig`, `health`. Top-level `flow_timeout_ms` caps the whole flow.
 
 `screencap` exists as a sub-op for forensic capture but is intentionally not advertised here — frames are not an observation channel. Use it only inside an explicit post-mortem session, never as part of a primary flow. See `references/flow-composition.md` for the full primitive inventory + recipes.
 

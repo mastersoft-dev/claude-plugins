@@ -45,8 +45,10 @@ let the same flow handle both success and error post-states.
 |---|---|---|
 | `sleep` | `ms` (clamped 0–10000) | Pause without polling. Use for **animation gaps** when `wait_for` doesn't suffice (Compose may render the new state before its click handler binds — explicit sleep covers that). |
 | `snapshot` | `only_clickable`, `query`, `max_lines`, `include_bounds`, `force_dump` | Dump the accessibility tree as text. Cache-aware: when no mutation since last dump, returns cached XML in ~50 ms (no live `uiautomator dump`). |
+| `describe` | `selectors`: `[str,...]` (required, non-empty), `only_clickable` | Dry-run resolve: per-selector `found`/coords, plus `nearby[]` on a miss. The "is X on screen?" probe — answers in ~100 bytes, no frame. Pre-flight a macro by confirming all targets resolve before committing. |
 | `screencap` | `path`, `backend: u2\|adb`, `format: png\|jpeg`, `quality` | Save a screenshot. Default `u2`+`png` — ~90 ms warm. JPEG via u2 is ~80 ms with substantially smaller file. |
 | `window_sig` | — | Cheap window-state hash. Use to detect activity / dialog / IME transitions cheaply. |
+| `dismiss_ime` | — | Hide the soft keyboard, IME-aware (no-op when none up); cache-safe by design. **The only sanctioned IME dismissal** — never `key KEYCODE_BACK`, which navigates back and pops the current wizard step when no IME is visible (`references/failure-modes.md` §14). |
 | `health` | — | Daemon liveness + counters. |
 
 ---

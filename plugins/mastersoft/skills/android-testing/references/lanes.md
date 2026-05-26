@@ -61,6 +61,10 @@ latest `diagnose_tree.py` re-probe.
 Per-action cost ~200 ms (one screencap + one tap + one verifier screencap).
 
 ```bash
+# Lane B is the sanctioned pixel lane. Raw screencap is hook-denied by
+# default; the hook reads the session env, so export the override first
+# (an inline VAR=1 prefix won't reach the hook process):
+export ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1
 adb -s "$SERIAL" exec-out screencap -p > /tmp/before.png
 # (model inspects /tmp/before.png, decides target is at 540,1200)
 BEFORE_HASH=$(${CLAUDE_SKILL_DIR}/scripts/screen_hash.sh --serial "$SERIAL")
