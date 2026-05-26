@@ -3,7 +3,7 @@ name: tea
 description: Gitea/Forgejo CLI (tea) for PRs, issues, labels, repos, and auth. For local git ops use commit/release.
 model: sonnet
 effort: medium
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 argument-hint: "[subcommand] [flags]"
 ---
 
@@ -287,17 +287,18 @@ Path varies by OS. The config stores login entries with their tokens under a `lo
 - **Linux / BSD** — `$XDG_CONFIG_HOME/tea/config.yml` (typically `~/.config/tea/config.yml`)
 - **Windows** — `%APPDATA%\tea\config.yml`
 
-**Extracting the token for API fallback** (macOS example — adapt path for other OSes):
+**Extracting the token for API fallback** (resolves the config path on macOS, Linux/BSD, and Windows — env-aware via `APPDATA` / `XDG_CONFIG_HOME`):
 
 ```bash
 python3 -c "
-import yaml
-with open('/Users/$USER/Library/Application Support/tea/config.yml') as f:
-    c = yaml.safe_load(f)
-for login in c.get('logins', []):
-    if 'your-host.example.com' in login.get('url', ''):
-        print(login.get('token', ''))
-        break
+import yaml, os
+cfg = next((p for p in (
+    os.path.join(os.environ.get('APPDATA',''), 'tea', 'config.yml'),                                      # Windows
+    os.path.expanduser('~/Library/Application Support/tea/config.yml'),                                     # macOS
+    os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'tea', 'config.yml') # Linux/BSD
+) if p and os.path.exists(p)), None)
+with open(cfg) as f: c = yaml.safe_load(f)
+print(next((l.get('token','') for l in c.get('logins', []) if 'your-host.example.com' in l.get('url','')), ''))
 "
 ```
 
@@ -624,8 +625,19 @@ When tea doesn't support an operation, use the Gitea API directly with the token
 ### Extract Token for a Login
 
 ```bash
-# Helper: extract token from tea config
-TEA_TOKEN=$(grep -A5 '<login-name>' ~/.config/tea/config.yml | grep token | awk '{print $2}')
+# Helper: extract a login's token. Use yaml.safe_load, never naive grep —
+# YAML nesting + special-char tokens break regex (see Configuration File above).
+# Resolves the config path on macOS, Linux/BSD, and Windows:
+TEA_TOKEN=$(python3 -c "
+import yaml, os
+cfg = next((p for p in (
+    os.path.join(os.environ.get('APPDATA',''), 'tea', 'config.yml'),
+    os.path.expanduser('~/Library/Application Support/tea/config.yml'),
+    os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'tea', 'config.yml')
+) if p and os.path.exists(p)), None)
+with open(cfg) as f: c = yaml.safe_load(f)
+print(next((l.get('token','') for l in c.get('logins', []) if '<login-name>' in l.get('url','')), ''))
+")
 ```
 
 Replace `<login-name>` with the login identifier (e.g., `git.example.com`). Use `$TEA_TOKEN` in API calls.
@@ -637,7 +649,16 @@ All examples use `$TEA_TOKEN` — extract once, reuse in multiple calls.
 #### Edit PR Description
 
 ```bash
-TEA_TOKEN=$(grep -A5 '<login>' ~/.config/tea/config.yml | grep token | awk '{print $2}')
+TEA_TOKEN=$(python3 -c "
+import yaml, os
+cfg = next((p for p in (
+    os.path.join(os.environ.get('APPDATA',''), 'tea', 'config.yml'),
+    os.path.expanduser('~/Library/Application Support/tea/config.yml'),
+    os.path.join(os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config'), 'tea', 'config.yml')
+) if p and os.path.exists(p)), None)
+with open(cfg) as f: c = yaml.safe_load(f)
+print(next((l.get('token','') for l in c.get('logins', []) if '<login>' in l.get('url','')), ''))
+")
 curl -s -X PATCH "https://<host>/api/v1/repos/<owner>/<repo>/pulls/<index>" \
   -H "Authorization: token $TEA_TOKEN" \
   -H "Content-Type: application/json" \
