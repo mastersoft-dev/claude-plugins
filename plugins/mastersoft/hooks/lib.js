@@ -2,20 +2,32 @@
 
 const fs = require('fs');
 
+const STDIN_TIMEOUT_MS = 2000;
+
 function readStdinJson() {
   try { return JSON.parse(fs.readFileSync(0, 'utf8')); }
   catch { return null; }
 }
 
-function readStdinJsonAsync() {
+function readStdinJsonAsync(timeoutMs = STDIN_TIMEOUT_MS) {
   return new Promise((resolve) => {
     const chunks = [];
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(val);
+    };
+    // Never hang the harness: if stdin is opened but never closed, bail out.
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    if (typeof timer.unref === 'function') timer.unref();
     process.stdin.on('data', (chunk) => chunks.push(chunk));
     process.stdin.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
-      catch { resolve(null); }
+      try { finish(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      catch { finish(null); }
     });
-    process.stdin.on('error', () => resolve(null));
+    process.stdin.on('error', () => finish(null));
   });
 }
 
@@ -33,7 +45,7 @@ function saveState(filePath, state, maxSessions) {
   }
   const tmp = filePath + '.' + process.pid + '.tmp';
   try {
-    fs.writeFileSync(tmp, JSON.stringify(state));
+    fs.writeFileSync(tmp, JSON.stringify(state), 'utf8');
     fs.renameSync(tmp, filePath);
   } catch {
     try { fs.unlinkSync(tmp); } catch {}

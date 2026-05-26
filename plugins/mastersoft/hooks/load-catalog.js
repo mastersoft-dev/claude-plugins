@@ -120,7 +120,7 @@ function main() {
   const input = readStdinJson();
   if (!input) process.exit(0);
 
-  const sessionId = input.sessionId || '';
+  const sessionId = input.session_id || '';
   if (!sessionId) process.exit(0);
 
   const state = loadState(STATE_FILE);
