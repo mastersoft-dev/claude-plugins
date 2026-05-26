@@ -47,7 +47,7 @@ Or declarative, in `~/.claude/settings.json`:
 
 | Type | Items |
 |------|-------|
-| **Skills** | `ask`, `audit`, `brief`, `codex`, `commit`, `handoff`, `inspect`, `investigate`, `release`, `tea`, `android-testing` |
+| **Skills** | `ask`, `audit`, `brief`, `codex`, `commit`, `handoff`, `investigate`, `release`, `tea`, `vet`, `android-testing` |
 | **Agents** | `ask`, `qa-specialist`, `security-auditor`, `system-architect`, `tech-writer` |
 | **Hooks** | `load-brief`, `check_claude_md`, `load-catalog` |
 | **Statusline** | Modular, configurable via env vars |

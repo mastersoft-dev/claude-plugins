@@ -1,8 +1,21 @@
 {
   "name": "mastersoft",
-  "version": "2.8.1",
+  "displayName": "Mastersoft",
+  "version": "2.8.2",
   "description": "Shared Mastersoft Claude Code tooling: hooks, agents, skills, statusline",
   "author": {
     "name": "Mastersoft"
-  }
+  },
+  "homepage": "https://github.com/mastersoft-dev/claude-plugins",
+  "repository": "https://github.com/mastersoft-dev/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "mastersoft",
+    "hooks",
+    "agents",
+    "skills",
+    "statusline",
+    "security-audit",
+    "code-review"
+  ]
 }
