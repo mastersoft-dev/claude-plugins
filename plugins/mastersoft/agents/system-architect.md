@@ -1,8 +1,10 @@
 ---
 name: system-architect
 description: >-
-  Use for system design, task decomposition, architecture review, and complex planning. Invoke
-  for large features or architectural decisions.
+  Use to design a new feature or system, decompose work into components/interfaces, or review
+  an architecture before building — e.g. "design the X subsystem", "how should I structure Y",
+  "review this architecture". For diagnosing or comprehending existing code, use the investigate
+  skill.
 tools: Read, Glob, Grep, TodoWrite, mcp__context7, mcp__deepwiki
 model: inherit
 maxTurns: 35

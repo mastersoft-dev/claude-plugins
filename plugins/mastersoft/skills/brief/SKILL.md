@@ -1,6 +1,6 @@
 ---
 name: brief
-description: Create or update BRIEF.md providing project context for Claude Code sessions. Includes tech stack, conventions, known issues, dependency sync.
+description: Create or update BRIEF.md providing project context for Claude Code sessions (tech stack, conventions, known issues, dependency sync). Use when onboarding Claude to a repo or when asked to "set up project context" or "create/update the brief".
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 

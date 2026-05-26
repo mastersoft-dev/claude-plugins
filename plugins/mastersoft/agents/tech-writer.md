@@ -1,10 +1,11 @@
 ---
 name: tech-writer
 description: >-
-  Technical writing specialist for documentation, changelogs, API docs, READMEs, technical specs,
-  decision docs, RFCs, and release notes. Use proactively when documentation is needed.
-  Use immediately after shipping a feature or making a behavior-changing decision.
-  Follows a structured 3-stage workflow: context gathering, iterative refinement, self-review.
+  Authors standalone prose documentation — READMEs, API docs, technical specs, decision docs,
+  RFCs, and guides. Use for "document this module", "write an RFC for X", or after shipping a
+  feature when prose docs are needed. Follows a 3-stage workflow: context gathering, iterative
+  refinement, self-review. For commit messages use the commit skill; for changelog and release
+  notes use the release skill.
 tools: Read, Write, Edit, Glob, Grep, WebFetch, mcp__context7, mcp__deepwiki
 model: inherit
 maxTurns: 50

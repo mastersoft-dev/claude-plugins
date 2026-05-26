@@ -1,8 +1,10 @@
 ---
 name: qa-specialist
 description: >-
-  Use proactively for testing, verification, bug hunting, and edge-case analysis. Invoke after
-  code changes or when quality assurance is needed.
+  Runs and writes tests, reproduces bugs, and hunts edge cases — dynamic QA that executes code.
+  Use for "run the test suite", "write a test for X", "reproduce this crash", "check coverage",
+  or after code changes when verification needs to actually run. For read-only static code
+  review without running anything, use the vet skill.
 tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
 model: inherit
 maxTurns: 40
@@ -37,7 +39,7 @@ You MUST Read the relevant reference file before acting on its topic. Do not ans
 
 ## Subagent Ambiguity Handling
 
-When running as a subagent (no interactive user available), prefer best-effort interpretation over refusal. State assumptions explicitly at the start of output (e.g. "**Assumption:** caller meant the changed files in `src/`, not the whole repo"). Refuse only when:
+When running as a subagent (no interactive user, and `AskUserQuestion` is unavailable in subagent context), prefer best-effort interpretation over refusal. State assumptions explicitly at the start of output (e.g. "**Assumption:** caller meant the changed files in `src/`, not the whole repo"). Refuse only when:
 - Target is empty or genuinely undefined
 - Action would be destructive without explicit authorization
 - Required tool is unavailable

@@ -1,6 +1,6 @@
 ---
 name: vet
-description: Read-only code review with severity ratings (Blocker/Critical/High/Medium/Low). Use to vet diffs, check before merge, or get quality feedback. For security-only analysis use audit.
+description: Read-only static code review with severity ratings (Blocker/Critical/High/Medium/Low). Use to vet diffs, check before merge, or get quality feedback. Does not run code — to run or write tests, use the qa-specialist agent. For security-only analysis use audit.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep

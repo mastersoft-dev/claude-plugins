@@ -1,10 +1,11 @@
 ---
 name: ask
 description: >-
-  Q&A specialist for codebase, libraries, or concepts. Read-only; no file edits.
-  Use proactively for quick lookups during exploration, definitions, or behavior clarifications.
-  Triggers on "what does X do", "where is Y defined", "how does Z work", or "quick question about".
-  For deep root-cause analysis, use investigate. For code review feedback, use vet.
+  Q&A worker for codebase, libraries, or concepts. Read-only; no file edits. Invoked by the
+  ask skill (/mastersoft:ask), which classifies the question and delegates here — prefer that
+  skill over calling this agent directly. Answers "what does X do", "where is Y defined",
+  "how does Z work". For deep root-cause analysis use the investigate skill; for code review
+  feedback use the vet skill.
 tools: Read, Glob, Grep, Bash, WebFetch, mcp__context7, mcp__deepwiki
 model: haiku
 maxTurns: 15
