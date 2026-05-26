@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { readStdinJsonAsync } = require('./lib');
 
-const GIT_TIMEOUT_MS = 300;
+const GIT_TIMEOUT_MS = 800;
 const DEFAULT_BRANCH_NAME = 'main';
 const DEFAULT_MODEL_LABEL = 'Model';
 const DEFAULT_USERNAME = 'user';
@@ -309,7 +309,7 @@ const PROJECTS_DIRS = [
   path.join(os.homedir(), '.config', 'claude', 'projects'),
 ];
 const BLOCK_CACHE_PATH = path.join(os.homedir(), '.claude', '.block-cache.json');
-const BLOCK_CACHE_TTL_MS = 5000;
+const BLOCK_CACHE_TTL_MS = 30000;
 
 function floorToHour(ms) {
   return ms - (ms % (60 * 60 * 1000));
@@ -405,7 +405,9 @@ function getBlockTimeLeft() {
     const result = computeBlockTimeLeft();
 
     try {
-      fs.writeFileSync(BLOCK_CACHE_PATH, JSON.stringify({ ts: Date.now(), result }));
+      const tmp = `${BLOCK_CACHE_PATH}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ ts: Date.now(), result }), 'utf8');
+      fs.renameSync(tmp, BLOCK_CACHE_PATH);
     } catch { /* skip */ }
 
     return result;
@@ -418,7 +420,65 @@ function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
+function getAncestorTtyWidth() {
+  // The statusline child has no controlling tty (Claude pipes its stdio), but
+  // an ancestor (Claude itself) owns the terminal pty, whose size tracks resize
+  // live. Walk up until a process with a real tty is found, then read that
+  // tty's size. Non-tmux equivalent of the tmux pane query.
+  const sttyFlag = process.platform === 'darwin' ? '-f' : '-F';
+  let pid = process.pid;
+  for (let level = 0; level < 6 && pid > 1; level++) {
+    let line;
+    try {
+      line = execFileSync('ps', ['-o', 'ppid=,tty=', '-p', String(pid)], {
+        encoding: 'utf8', timeout: 200, stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch { return null; }
+    const m = line.match(/^(\d+)\s+(\S+)$/);
+    if (!m) return null;
+    const ppid = parseInt(m[1], 10);
+    const tty = m[2];
+    if (tty && tty !== '?' && tty !== '??' && tty !== '-') {
+      const dev = tty.startsWith('/dev/') ? tty : `/dev/${tty}`;
+      try {
+        const out = execFileSync('stty', [sttyFlag, dev, 'size'], {
+          encoding: 'utf8', timeout: 200, stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        const cols = parseInt(out.split(/\s+/)[1], 10);
+        if (cols > 0) return cols;
+      } catch { /* tty unreadable — keep climbing */ }
+    }
+    pid = ppid;
+  }
+  return null;
+}
+
 function getTerminalWidth() {
+  // Explicit override wins — for setups where width can't be auto-detected
+  // (Claude captures the statusline's stdout, so the render spawn often has no
+  // controlling tty and no COLUMNS).
+  if (process.env.CLAUDE_STATUSLINE_COLS) {
+    const cols = parseInt(process.env.CLAUDE_STATUSLINE_COLS, 10);
+    if (cols > 0) return cols;
+  }
+  // Inside tmux, /dev/tty + `stty size` report the whole window, not this
+  // pane — in a split layout that over-packs the line and the pane hard-wraps
+  // mid-segment. Ask tmux for the actual pane width first, pinned to this
+  // process's pane ($TMUX_PANE) so a focus change can't report another pane.
+  // Gated on $TMUX: outside tmux, `display-message` would read an unrelated
+  // session's active pane from the running server.
+  if (process.env.TMUX) {
+    try {
+      const args = ['display-message', '-p'];
+      if (process.env.TMUX_PANE) args.push('-t', process.env.TMUX_PANE);
+      args.push('#{pane_width}');
+      const out = execFileSync('tmux', args, {
+        encoding: 'utf8', timeout: 200, stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      const cols = parseInt(out, 10);
+      if (cols > 0) return cols;
+    } catch { /* tmux unavailable or no server */ }
+  }
   try {
     const ttyFd = fs.openSync('/dev/tty', 'r');
     try {
@@ -430,9 +490,22 @@ function getTerminalWidth() {
       if (cols > 0) return cols;
     } finally { fs.closeSync(ttyFd); }
   } catch { /* /dev/tty unavailable */ }
-  if (process.stderr.columns) return process.stderr.columns;
-  if (process.env.COLUMNS) return parseInt(process.env.COLUMNS, 10) || 120;
-  return 120;
+  // Ancestor terminal pty — works when the child itself has no tty (the common
+  // case: Claude captures stdout). Tracks resize because the pty size is live.
+  const ancestorCols = getAncestorTtyWidth();
+  if (ancestorCols) return ancestorCols;
+  // Inherited tty streams — the statusline wrapper spawns with stdio inherit,
+  // so these reflect the terminal when Claude leaves them attached.
+  if (process.stdout && process.stdout.columns) return process.stdout.columns;
+  if (process.stderr && process.stderr.columns) return process.stderr.columns;
+  if (process.env.COLUMNS) {
+    const cols = parseInt(process.env.COLUMNS, 10);
+    if (cols > 0) return cols;
+  }
+  // Width genuinely unknown. Return null so the caller does NOT self-wrap at an
+  // arbitrary guess — it emits a single line and lets the host terminal wrap at
+  // its true width. Set CLAUDE_STATUSLINE_COLS to force a fixed wrap width.
+  return null;
 }
 
 function getHostname() {
@@ -611,6 +684,20 @@ function buildContext(data) {
   };
 }
 
+// Claude Code passes the usable render width in the statusline input on recent
+// versions (the subagentStatusLine input documents `columns`). Prefer it: it is
+// authoritative AND refreshes on every render, including terminal resize — so
+// the layout tracks width changes immediately, with no tty needed.
+function readJsonWidth(data) {
+  if (!data) return null;
+  const raw = data.columns
+    ?? (data.terminal && data.terminal.width)
+    ?? data.terminal_width
+    ?? (data.workspace && data.workspace.columns);
+  const n = parseInt(raw, 10);
+  return n > 0 ? n : null;
+}
+
 async function main() {
   const data = await readStdinJsonAsync();
 
@@ -622,7 +709,7 @@ async function main() {
   if (process.env.CLAUDE_STATUSLINE_DEBUG) {
     try {
       const _debugWidth = getTerminalWidth();
-      fs.writeFileSync(path.join(os.homedir(), '.claude', 'statusline_debug.json'), JSON.stringify({ _detectedWidth: _debugWidth, ...data }, null, 2));
+      fs.writeFileSync(path.join(os.homedir(), '.claude', 'statusline_debug.json'), JSON.stringify({ _detectedWidth: _debugWidth, ...data }, null, 2), 'utf8');
     } catch { /* skip */ }
   }
 
@@ -638,7 +725,7 @@ async function main() {
   }
 
   const SEP = '  ';
-  const termWidth = getTerminalWidth();
+  const termWidth = readJsonWidth(data) ?? getTerminalWidth();
   const sepLen = SEP.length;
   const lines = [];
   let currentLine = '';
@@ -648,7 +735,7 @@ async function main() {
     const elWidth = stripAnsi(el).length;
     const needed = currentWidth === 0 ? elWidth : sepLen + elWidth;
 
-    if (currentWidth > 0 && currentWidth + needed > termWidth) {
+    if (termWidth && currentWidth > 0 && currentWidth + needed > termWidth) {
       lines.push(currentLine + ANSI_RESET);
       currentLine = el;
       currentWidth = elWidth;
