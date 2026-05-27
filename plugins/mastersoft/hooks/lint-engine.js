@@ -397,8 +397,7 @@ function main() {
     return ackedCategories.has(category);
   }
 
-  const signals = [];
-  let signalSize = 0;
+  const signalCandidates = []; // { rendered, severity } — budget applied at output time
   let anyLintSignal = false;
   // Signals are emitted as a two-line bullet: a parseable `[SIGNAL …]` head
   // followed by a prose body indented two spaces. The head carries a stable
@@ -407,6 +406,9 @@ function main() {
   // `fix` is optional and typically a slash command. `category` (default
   // `rules`) scopes session-window ack so one concern's ack doesn't mute
   // another. Catalog of ids + categories lives in /mastersoft:help.
+  // Budget (SIGNAL_BUDGET_CHARS) is applied at output assembly after sorting
+  // by severity so high-severity signals are never dropped by earlier
+  // low-priority ones filling the cap first.
   function addSignal({ id, severity, fix, body, category }) {
     category = category || 'rules';
     if (quietLintsOnly || categorySuppressed(category)) return;
@@ -414,9 +416,7 @@ function main() {
     const fixPart = fix ? ` fix=${fix}` : '';
     const head = `[SIGNAL id=${id} severity=${severity}${fixPart}]`;
     const rendered = `${head}\n  ${body}`;
-    if (signalSize + rendered.length + 1 > SIGNAL_BUDGET_CHARS) return;
-    signals.push(rendered);
-    signalSize += rendered.length + 1;
+    signalCandidates.push({ rendered, severity: severity || 'info' });
   }
 
   // BRIEF.md deprecation is handled as a lint signal (emitted as a bootstrap
@@ -617,6 +617,23 @@ function main() {
   if (UNKNOWN_FRONTMATTER_KEYS.length && !sessionState.orgRulesUnknownKeysWarned) {
     unknownKeysMessage = `[Mastersoft] Unknown keys in ORG_RULES.md frontmatter: ${UNKNOWN_FRONTMATTER_KEYS.join(', ')}. Ignored — values fell back to builtin defaults. Check spelling against the known list in /mastersoft:help.`;
     sessionState.orgRulesUnknownKeysWarned = true;
+  }
+
+  // Apply severity-ordered budget: sort high→warn→info (JS sort is stable so
+  // insertion order is preserved within each tier), then greedily fill up to
+  // SIGNAL_BUDGET_CHARS. Ensures high-severity signals (e.g. security-audit-due)
+  // can't be silently dropped because earlier low-priority info signals
+  // exhausted the cap first.
+  const SEVERITY_RANK = { high: 0, warn: 1, info: 2 };
+  const signals = [];
+  let signalSize = 0;
+  for (const c of [...signalCandidates].sort(
+    (a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3)
+  )) {
+    if (signalSize + c.rendered.length + 1 <= SIGNAL_BUDGET_CHARS) {
+      signals.push(c.rendered);
+      signalSize += c.rendered.length + 1;
+    }
   }
 
   // User-visible notification: surface lint presence once per session, then
