@@ -46,11 +46,12 @@ Stable `id` values:
 | `refresh-overdue` | info | No `last-refresh-at` recorded within `refresh_interval_days` | `/mastersoft:refresh-rules` |
 | `security-audit-due` | high | Lockfile changed since last audit OR cadence elapsed | `/mastersoft:audit-deps` |
 | `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed | `/mastersoft:verify` |
-| `patterns-to-promote` | info | Auto-memory has `patterns_promote_threshold`+ uncodified feedback/project entries and the dir was touched since last triage | `/mastersoft:promote-patterns` |
+| `patterns-to-promote` | info | Auto-memory has `patterns_promote_threshold`+ uncodified entries (any topic file except the `MEMORY.md` index and `reference`-type pointers) and the dir was touched since last triage | `/mastersoft:promote-patterns` |
+| `memory-review-due` | info | Auto-memory has uncodified entries left untriaged longer than `memory_review_days` (clock: last triage, or dir mtime if never triaged); silent while `patterns-to-promote` is firing | `/mastersoft:promote-patterns` |
 | `rule-file-stale` | info | `CLAUDE.md`/`AGENTS.md`/@-import untouched > `rule_stale_commits`/`rule_stale_days` while repo moved | `/mastersoft:verify` |
 | `brief-deprecated` | info | `BRIEF.md` present in repo (deprecated pattern — no longer injected or linted by the plugin) | `/mastersoft:refresh-rules` |
 
-Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote), `verify` (verify-due), `migration` (brief-deprecated). `/mastersoft:ack-lints defer` with no extra args acks **all** categories; `defer rules` acks only the `rules` category and leaves `migration`, `audit`, `patterns`, and `verify` firing. This is why `/mastersoft:refresh-rules` uses `defer rules` — it must not silence orthogonal concerns.
+Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote, memory-review-due), `verify` (verify-due), `migration` (brief-deprecated). `/mastersoft:ack-lints defer` with no extra args acks **all** categories; `defer rules` acks only the `rules` category and leaves `migration`, `audit`, `patterns`, and `verify` firing. This is why `/mastersoft:refresh-rules` uses `defer rules` — it must not silence orthogonal concerns.
 
 ## Suppression mechanisms
 
@@ -75,6 +76,7 @@ Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `
 | `MASTERSOFT_LINTS_ACK_HOURS` | `lints_ack_hours` | `4` | TTL of `.mastersoft-lints-ack` defer. |
 | `MASTERSOFT_LINT_SCAN_MAX_AGE_MS` | — | `3600000` | Max age of the cached git lint scan before a re-scan (env only). |
 | `MASTERSOFT_PATTERNS_PROMOTE_THRESHOLD` | `patterns_promote_threshold` | `3` | Auto-memory entry count that triggers the `patterns-to-promote` signal. |
+| `MASTERSOFT_MEMORY_REVIEW_DAYS` | `memory_review_days` | `30` | Days an auto-memory entry may sit untriaged before `memory-review-due` fires. |
 | `MASTERSOFT_RULE_STALE_COMMITS` | `rule_stale_commits` | `40` | CLAUDE.md/AGENTS.md untouched commits → `rule-file-stale`. |
 | `MASTERSOFT_RULE_STALE_DAYS` | `rule_stale_days` | `120` | CLAUDE.md/AGENTS.md untouched days → `rule-file-stale`. |
 

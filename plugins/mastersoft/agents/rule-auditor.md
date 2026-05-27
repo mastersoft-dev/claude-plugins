@@ -56,7 +56,7 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 
    e. **New domain without rules.** Top-level dirs with >`M` (default 10) commits in last 30 days that no `.claude/rules/*` `paths:` glob matches. Flag.
 
-   f. **Memory promotion gap.** Resolve auto-memory path: `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js memory-path`. Read `MEMORY.md` + recent `feedback/*.md`; recurring pattern (3+ similar) not codified in rules → flag, marked **ADVISORY — auto-memory is per-user-per-machine; review locally before promoting.**
+   f. **Memory promotion gap.** Resolve auto-memory path: `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js memory-path`. Read `MEMORY.md` + recent topic files (every `*.md` except the index and `reference`-type pointers — both legacy `feedback_`/`project_`/`user_` prefixes and slug-style entries carrying `type:` in frontmatter); recurring pattern (3+ similar) not codified in rules → flag, marked **ADVISORY — auto-memory is per-user-per-machine; review locally before promoting.**
 
    g. **Style-claim mismatch.** Extract style claims (indent, quote style, line length); compare to `.editorconfig` / Prettier / lint config. Flag contradiction.
 

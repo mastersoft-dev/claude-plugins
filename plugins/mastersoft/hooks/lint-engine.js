@@ -74,6 +74,7 @@ const AUDIT_INTERVAL_DAYS = cfg('MASTERSOFT_AUDIT_INTERVAL_DAYS', 'audit_interva
 const AUDIT_ENABLED = cfg('MASTERSOFT_AUDIT_ENABLED', 'audit_enabled', true, v => v !== '0' && v !== 'false');
 const LINTS_ACK_HOURS = cfg('MASTERSOFT_LINTS_ACK_HOURS', 'lints_ack_hours', 4, Number);
 const PATTERNS_PROMOTE_THRESHOLD = cfg('MASTERSOFT_PATTERNS_PROMOTE_THRESHOLD', 'patterns_promote_threshold', 3, Number);
+const MEMORY_REVIEW_DAYS = cfg('MASTERSOFT_MEMORY_REVIEW_DAYS', 'memory_review_days', 30, Number);
 
 // Rule-file staleness (CLAUDE.md, AGENTS.md, and @-imported rule files).
 // Generous thresholds — rule files are stable by design and drift slowly.
@@ -94,6 +95,7 @@ const KNOWN_FRONTMATTER_KEYS = new Set([
   'audit_enabled',
   'lints_ack_hours',
   'patterns_promote_threshold',
+  'memory_review_days',
   'rule_stale_commits',
   'rule_stale_days',
 ]);
@@ -208,16 +210,28 @@ function findLockfile(repoRoot) {
 // Backslash is included for Windows native paths returned by
 // fs.realpathSync — without it, `C:\Users\…` would yield a slug missing all
 // separators and the resulting dir lookup would silently fail.
-// We count feedback_*.md and project_*.md topic files there as candidates for
-// promotion to repo rules or user-global CLAUDE.md. MEMORY.md (the index) and
-// reference_* (already explicit pointers) are excluded.
+// Every memory entry there is a promotion candidate except the MEMORY.md index
+// and `reference` entries (already explicit pointers, not patterns to codify).
+// Naming has two coexisting conventions on disk: legacy filename prefixes
+// (`feedback_`/`project_`/`user_`/`reference_`) and the current slug-style
+// (`<slug>.md` carrying `type:` in frontmatter, either top-level or nested
+// under `metadata:`). We therefore exclude a `reference` by EITHER cue and
+// count everything else — keying off the filename prefix alone would miss the
+// slug-style entries the current convention writes.
 //
-// Intentionally duplicated from scripts/state.js (same 1-line function). Hooks
-// run synchronously per-prompt; importing from scripts/ would add a require
-// path resolution that's not worth the few bytes saved. Keep both copies in
-// sync — if one changes, change the other.
+// claudeProjectSlug is intentionally duplicated from scripts/state.js (same
+// 1-line function). Hooks run synchronously per-prompt; importing from scripts/
+// would add a require path resolution that's not worth the few bytes saved.
+// Keep both copies in sync — if one changes, change the other.
 function claudeProjectSlug(repoRoot) {
   return repoRoot.replace(/[/._\\]/g, '-');
+}
+
+function isReferenceMemory(memDir, entry) {
+  if (entry.startsWith('reference_')) return true;
+  try {
+    return /^\s*type:\s*reference\s*$/m.test(fs.readFileSync(path.join(memDir, entry), 'utf8').slice(0, 600));
+  } catch { return false; }
 }
 
 function countAutoMemoryPatterns(repoRoot) {
@@ -228,7 +242,7 @@ function countAutoMemoryPatterns(repoRoot) {
   const candidates = entries.filter(e =>
     e.endsWith('.md')
     && e !== 'MEMORY.md'
-    && (e.startsWith('feedback_') || e.startsWith('project_'))
+    && !isReferenceMemory(memDir, e)
   );
   return { count: candidates.length, dir: memDir };
 }
@@ -416,7 +430,7 @@ function main() {
     const fixPart = fix ? ` fix=${fix}` : '';
     const head = `[SIGNAL id=${id} severity=${severity}${fixPart}]`;
     const rendered = `${head}\n  ${body}`;
-    signalCandidates.push({ rendered, severity: severity || 'info' });
+    signalCandidates.push({ rendered, severity: severity || 'info', id, fix });
   }
 
   // BRIEF.md deprecation is handled as a lint signal (emitted as a bootstrap
@@ -567,13 +581,26 @@ function main() {
     // Timestamp-reactive signals — cheap (readdir/stat/math), computed fresh so
     // they clear the moment the relevant skill records a new timestamp.
     const patterns = countAutoMemoryPatterns(repoRoot);
+    let memDirMtime = 0;
+    try { memDirMtime = fs.statSync(patterns.dir).mtimeMs; } catch {}
+    let promoteSignaled = false;
     if (patterns.count >= PATTERNS_PROMOTE_THRESHOLD) {
-      let memTouchedSinceCheck = true;
-      if (lastPromotionCheckAt) {
-        try { memTouchedSinceCheck = fs.statSync(patterns.dir).mtimeMs > lastPromotionCheckAt; }
-        catch { memTouchedSinceCheck = false; }
+      const memTouchedSinceCheck = lastPromotionCheckAt ? memDirMtime > lastPromotionCheckAt : true;
+      if (memTouchedSinceCheck) {
+        addSignal({ id: 'patterns-to-promote', severity: 'info', fix: '/mastersoft:promote-patterns', category: 'patterns', body: `${patterns.count} auto-memory pattern(s) in this repo not yet codified as rules. Triage to decide which belong in repo CLAUDE.md / .claude/rules vs user-global ~/.claude/CLAUDE.md.` });
+        promoteSignaled = true;
       }
-      if (memTouchedSinceCheck) addSignal({ id: 'patterns-to-promote', severity: 'info', fix: '/mastersoft:promote-patterns', category: 'patterns', body: `${patterns.count} auto-memory pattern(s) in this repo not yet codified as rules. Triage to decide which belong in repo CLAUDE.md / .claude/rules vs user-global ~/.claude/CLAUDE.md.` });
+    }
+
+    // Staleness nudge, complementary to the volume trigger above. Clock = time
+    // since last triage; if never triaged, time since the memory dir was last
+    // written (so a freshly-growing dir isn't flagged — the volume trigger owns
+    // that). Suppressed when patterns-to-promote already fired this pass.
+    if (!promoteSignaled && patterns.count > 0) {
+      const sinceTriageMs = lastPromotionCheckAt ? nowMs - lastPromotionCheckAt : (memDirMtime ? nowMs - memDirMtime : 0);
+      if (sinceTriageMs / 86400000 > MEMORY_REVIEW_DAYS) {
+        addSignal({ id: 'memory-review-due', severity: 'info', fix: '/mastersoft:promote-patterns', category: 'patterns', body: `Auto-memory in this repo has ${patterns.count} uncodified pattern(s) and hasn't been triaged in over ${MEMORY_REVIEW_DAYS}d. Review whether any belong in repo CLAUDE.md / .claude/rules vs user-global ~/.claude/CLAUDE.md.` });
+      }
     }
 
     if (claudeContent && (!lastRefreshAt || (nowMs - lastRefreshAt) / 86400000 > REFRESH_INTERVAL_DAYS)) {
@@ -625,28 +652,41 @@ function main() {
   // can't be silently dropped because earlier low-priority info signals
   // exhausted the cap first.
   const SEVERITY_RANK = { high: 0, warn: 1, info: 2 };
-  const signals = [];
+  const chosen = [];
   let signalSize = 0;
   for (const c of [...signalCandidates].sort(
     (a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3)
   )) {
     if (signalSize + c.rendered.length + 1 <= SIGNAL_BUDGET_CHARS) {
-      signals.push(c.rendered);
+      chosen.push(c);
       signalSize += c.rendered.length + 1;
     }
   }
+  const signals = chosen.map(c => c.rendered);
 
-  // User-visible notification: surface lint presence once per session, then
-  // point at the user-invoked skills. No auto-dialog — AskUserQuestion is
-  // reserved for flows the user themselves starts (/mastersoft:ack-lints,
-  // /mastersoft:refresh-rules). Suppressed re-fire avoids notification fatigue.
+  // User-visible notification: enumerate the active signals + each one's fix
+  // command, so the toast carries the actual lint content instead of a generic
+  // pointer. Surfaced once per session for info/warn (anti-fatigue), but
+  // re-surfaced while a high-severity signal is unaddressed — ack/suppress
+  // drops the signal from `chosen`, which clears hasHigh and ends the
+  // re-surface. No auto-dialog: AskUserQuestion is reserved for user-started
+  // flows (/mastersoft:ack-lints, /mastersoft:refresh-rules).
+  const hasHigh = chosen.some(c => c.severity === 'high');
   let systemMessage = null;
-  if (signals.length && !sessionState.lintsNoticeShown) {
-    // Route to the right skill: a repo with no CLAUDE.md needs init-rules
-    // (scaffold), not refresh-rules (there is nothing yet to refresh).
-    systemMessage = !claudeContent
-      ? '[Mastersoft] No CLAUDE.md in this repo — run /mastersoft:init-rules to scaffold project rules, or /mastersoft:ack-lints to silence.'
-      : '[Mastersoft] Rule-file lint signals in this repo — run /mastersoft:ack-lints to defer/suppress, or /mastersoft:refresh-rules to address.';
+  if (signals.length && (!sessionState.lintsNoticeShown || hasHigh)) {
+    if (!claudeContent) {
+      // A repo with no CLAUDE.md needs init-rules (scaffold), not the per-signal
+      // routing below (there is nothing yet to refresh).
+      systemMessage = '[Mastersoft] No CLAUDE.md in this repo — run /mastersoft:init-rules to scaffold project rules, or /mastersoft:ack-lints to silence.';
+    } else {
+      const lines = chosen.map(c =>
+        `  • ${c.id}${c.severity ? ` (${c.severity})` : ''}${c.fix ? ` → ${c.fix}` : ''}`);
+      systemMessage = [
+        `[Mastersoft] ${signals.length} lint signal(s) in this repo:`,
+        ...lines,
+        '  /mastersoft:ack-lints to defer/suppress.',
+      ].join('\n');
+    }
     sessionState.lintsNoticeShown = true;
   }
   if (unknownKeysMessage) {

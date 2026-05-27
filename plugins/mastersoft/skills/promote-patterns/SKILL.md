@@ -1,6 +1,6 @@
 ---
 name: promote-patterns
-description: Triage Claude Code auto-memory (feedback_*.md, project_*.md topic files) and decide whether each pattern belongs in repo rules (CLAUDE.md / .claude/rules/), in the user-global ~/.claude/CLAUDE.md, or stays in auto-memory. Use proactively when lint-engine signals `patterns-to-promote`, when the user asks to "promote patterns", "review auto memory", "turn corrections into rules", or after a long session with many corrections.
+description: Triage Claude Code auto-memory entries (any topic file except the MEMORY.md index and reference-type pointers) and decide whether each pattern belongs in repo rules (CLAUDE.md / .claude/rules/), in the user-global ~/.claude/CLAUDE.md, or stays in auto-memory. Use proactively when lint-engine signals `patterns-to-promote` or `memory-review-due`, when the user asks to "promote patterns", "review auto memory", "turn corrections into rules", or after a long session with many corrections.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(node:*), Bash(git:*), PowerShell, AskUserQuestion
 model: sonnet
 argument-hint: "[--user-only | --repo-only]"
@@ -36,10 +36,15 @@ Default (no flag): walk everything, classify per-pattern, ask user.
 
    Abort with one-line message if not in a git repo.
 
-2. **List candidate files.** Glob `${MEMDIR}/feedback_*.md` and
-   `${MEMDIR}/project_*.md`. Exclude `MEMORY.md` (it's the index) and
-   `reference_*.md` (already explicit pointers). If the dir is missing or
-   empty, print "No auto-memory patterns to triage in this repo." and stop.
+2. **List candidate files.** Glob `${MEMDIR}/*.md`. Exclude `MEMORY.md`
+   (it's the index) and any `reference` entry — detect those by EITHER a
+   `reference_` filename prefix OR `type: reference` in frontmatter (top-level
+   or nested under `metadata:`); they're already explicit pointers. Everything
+   else is a candidate, regardless of naming convention: both legacy
+   filename-prefix entries (`feedback_`/`project_`/`user_`) and current
+   slug-style entries (`<slug>.md` carrying `type:` in frontmatter). If the dir
+   is missing or empty, print "No auto-memory patterns to triage in this repo."
+   and stop.
 
 3. **Read repo rules + user-global rules for de-dup context.**
    - `<REPO>/CLAUDE.md`, `<REPO>/.claude/rules/**/*.md`

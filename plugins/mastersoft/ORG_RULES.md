@@ -24,10 +24,14 @@ audit_enabled: true                 # env: MASTERSOFT_AUDIT_ENABLED (0/1)
 lints_ack_hours: 4                  # env: MASTERSOFT_LINTS_ACK_HOURS
 
 # ─── Auto-memory pattern promotion ──────────────────────────────────
-# Number of uncodified feedback/project entries in Claude Code's
-# per-repo auto-memory that triggers the `patterns-to-promote` signal.
+# Uncodified auto-memory entries (everything except the MEMORY.md index and
+# `reference`-type pointers, across both filename-prefix and slug+frontmatter
+# naming). `patterns_promote_threshold`+ entries with new writes since the last
+# triage → `patterns-to-promote`. Separately, entries left untriaged longer
+# than `memory_review_days` → `memory-review-due` (staleness nudge).
 # Run /mastersoft:promote-patterns to triage.
 patterns_promote_threshold: 3       # env: MASTERSOFT_PATTERNS_PROMOTE_THRESHOLD
+memory_review_days: 30              # env: MASTERSOFT_MEMORY_REVIEW_DAYS
 
 # ─── Rule-file staleness ────────────────────────────────────────────
 # CLAUDE.md / AGENTS.md / @-imported rule files untouched while the
@@ -84,6 +88,7 @@ Operating posture for this agent:
 - Surgical changes. Touch only what the request requires; prefer Edit over rewrite; match existing style; don't reformat adjacent code. Remove only the symbols your change orphaned — flag other dead code, don't delete it. Every changed line should trace to the request.
 - Verify, don't assume done. Turn the task into a checkable goal (e.g. "add validation" → write failing tests for bad input, then make them pass). Run the check; loop until green. Report what ran and what was skipped. Before declaring done on substantial changes, review them — delegate to the code-reviewer agent.
 - Route questions by breadth. A scoped codebase or library question — a single-fact lookup, "where is X", "what does Y do", a small count — goes to the ask skill (cheap, isolated subcontext); the Explore agent is for broad multi-location fan-out, not quick facts.
+- Capture durable context to auto-memory. Project-specific environment and setup conventions the repo doesn't already record — e.g. e2e runs against a local mail catcher, not a real SMTP server; a service needs a local Redis to test — and corrections you'd otherwise re-explain next session are worth a memory note so future sessions inherit them. Skip what the code, git history, or rules files already state.
 
 <!-- tier:2 -->
 Mastersoft code hygiene standards:
