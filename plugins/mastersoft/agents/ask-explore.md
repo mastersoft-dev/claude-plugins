@@ -1,5 +1,5 @@
 ---
-name: ask
+name: ask-explore
 description: >-
   Q&A worker for codebase, libraries, or concepts. Read-only; no file edits. Invoked by the
   ask skill (/mastersoft:ask), which classifies the question and delegates here — prefer that

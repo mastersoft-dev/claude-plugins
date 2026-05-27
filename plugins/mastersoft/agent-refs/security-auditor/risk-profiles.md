@@ -3,7 +3,7 @@
 Determine the project's risk profile before auditing. This controls which checks are mandatory vs advisory and whether severity should be escalated.
 
 ## Detection signals — infer profile from:
-- BRIEF.md domain/description
+- CLAUDE.md domain/description
 - Package names (e.g., `com.bank.*`, healthcare libs, payment SDKs)
 - Dependencies (Stripe, Plaid, FHIR, OAuth/OIDC providers)
 - Regulatory markers in docs (GDPR, HIPAA, PCI-DSS, SOC2, PSD2)

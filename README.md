@@ -8,17 +8,18 @@ Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. 
 
 Plugin is auto-installed via org-managed settings. No marketplace add needed.
 
-Run the statusline installer once:
+Run the statusline installer once. Pass `--apply` to patch `~/.claude/settings.json`
+automatically (requires `jq`); without the flag it just copies the wrapper and
+prints the JSON block to paste manually.
 
 ```bash
-bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh
+bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply
 ```
 
-Then add this to your `~/.claude/settings.json`:
-
-```json
-"statusLine": { "type": "command", "command": "mastersoft-statusline", "padding": 0 }
-```
+The script is idempotent: re-running with `--apply` is a no-op once the
+mastersoft wrapper is already wired. If a different `statusLine` is already
+set, it refuses to overwrite — drop `~/.claude/statusline.local.json` with
+`{"command":"..."}` to override at runtime via the wrapper instead.
 
 (Statusline can't be merged from plugin or managed scope, so each user wires it once.)
 
@@ -47,10 +48,12 @@ Or declarative, in `~/.claude/settings.json`:
 
 | Type | Items |
 |------|-------|
-| **Skills** | `ask`, `audit`, `brief`, `codex`, `commit`, `handoff`, `investigate`, `release`, `tea`, `vet`, `android-testing` |
-| **Agents** | `ask`, `qa-specialist`, `security-auditor`, `system-architect`, `tech-writer` |
-| **Hooks** | `load-brief`, `check_claude_md`, `load-catalog` |
+| **Skills** | `ack-lints`, `android-testing`, `ask`, `audit`, `audit-deps`, `codex`, `commit`, `handoff`, `help`, `init-rules`, `investigate`, `refresh-rules`, `release`, `tea`, `verify`, `vet` |
+| **Agents** | `ask`, `code-reviewer`, `qa-specialist`, `rule-auditor`, `security-auditor`, `system-architect`, `tech-writer` |
+| **Hooks** | `install-statusline-wrapper` (SessionStart), `reset-session-state` (SessionStart clear + PostCompact), `lint-engine` + `inject-turn` (UserPromptSubmit), `suggest-push` (PreToolUse:Bash), `inject-org-rules` (SubagentStart) |
 | **Statusline** | Modular, configurable via env vars |
+
+> Run `/mastersoft:help` from inside a Claude session for the live signal catalog, env-var reference, and suppression mechanisms.
 
 ## Statusline
 
@@ -101,6 +104,15 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 /plugin marketplace update mastersoft
 /reload-plugins
 ```
+
+## Suppression
+
+| Mechanism | Scope | How |
+|---|---|---|
+| `MASTERSOFT_QUIET=1` (or `=all`, `=true`) | Shell process | Suppress preamble + signals entirely. CI-friendly. |
+| `MASTERSOFT_QUIET=lints` | Shell process | Keep ORG preamble; suppress lint signals only. |
+| `.claude/.mastersoft-lints-ack` | Per repo, ~4h TTL | Defer lint signals for the session window. Touched by `/mastersoft:ack-lints defer`. |
+| `.claude/.mastersoft-lints-suppress` | Per repo, indefinite | Disable lint signals in this repo until the file is deleted. |
 
 ## Contributing
 

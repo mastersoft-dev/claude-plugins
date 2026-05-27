@@ -1,8 +1,10 @@
 ---
 name: codex
-description: Orchestrate OpenAI Codex CLI non-interactively for code generation and review. Use when asked to "run this in Codex", "use Codex to…", or delegate generation/review to the Codex CLI. Routes to codex exec / exec review / exec resume / cloud with kill-recovery.
+description: Orchestrate OpenAI Codex CLI non-interactively for code generation and review. Use proactively when the user asks to "run this in Codex", "use Codex to…", or delegate generation/review to the Codex CLI (not on your own initiative — this spends OpenAI quota). Routes to codex exec / exec review / exec resume / cloud with kill-recovery.
 model: opus
 effort: high
+# Bash intentionally unscoped: this skill manages the codex process lifecycle
+# (codex/git/awk/find/kill + Monitor recovery), not a fixed command set.
 allowed-tools: Bash, Read, Glob, Grep
 argument-hint: "[subcommand] prompt_or_flags"
 ---

@@ -1,20 +1,53 @@
 {
-  "description": "Mastersoft shared hooks: statusline wrapper install on SessionStart; load-brief, check_claude_md, load-catalog on UserPromptSubmit",
+  "description": "Mastersoft shared hooks: statusline install on SessionStart(startup|resume); inject-session (org-rule tiers 1/2) on SessionStart(startup|resume|clear|compact); reset-session-state on SessionStart(clear) and PostCompact; lint-engine + inject-turn (org-rule tier 3) on UserPromptSubmit; suggest-push on PreToolUse(Bash); inject-org-rules on SubagentStart (org policy into plugin agents).",
   "hooks": {
+    "SubagentStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-org-rules.js" }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|resume",
         "hooks": [
           { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/install-statusline-wrapper.js" }
         ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-session.js" }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js" }
+        ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/load-brief.js" },
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/check_claude_md.js" },
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/load-catalog.js" }
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint-engine.js" },
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-turn.js" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/suggest-push.js" }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js" }
         ]
       }
     ]

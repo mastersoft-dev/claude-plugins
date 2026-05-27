@@ -4,7 +4,8 @@ description: >-
   Runs and writes tests, reproduces bugs, and hunts edge cases — dynamic QA that executes code.
   Use for "run the test suite", "write a test for X", "reproduce this crash", "check coverage",
   or after code changes when verification needs to actually run. For read-only static code
-  review without running anything, use the vet skill.
+  review without running anything, use the vet skill; for Android build/test/drive use the
+  android-testing skill.
 tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
 model: inherit
 maxTurns: 40

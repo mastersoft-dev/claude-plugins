@@ -1,9 +1,9 @@
 ---
 name: tea
-description: Gitea/Forgejo CLI (tea) for PRs, issues, labels, repos, and auth. For local git ops use commit/release.
+description: Gitea/Forgejo CLI (tea) for PRs, issues, labels, repos, and auth. Use proactively when the user asks to open a PR, file/triage an issue, or manage Gitea (not on your own initiative — these publish). For local git ops use commit/release.
 model: sonnet
 effort: medium
-allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(tea:*), Bash(git:*), Bash(command:*), Read, Glob, Grep, AskUserQuestion
 argument-hint: "[subcommand] [flags]"
 ---
 

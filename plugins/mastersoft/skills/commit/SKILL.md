@@ -1,10 +1,9 @@
 ---
 name: commit
-description: Atomic Conventional Commits with adaptive quality gates (format/lint/test) discovered from CLAUDE.md or project configs. For releases use release.
-disable-model-invocation: true
+description: Atomic Conventional Commits with adaptive quality gates (format/lint/test) discovered from CLAUDE.md or project configs. Use proactively when the user asks to commit or save changes (not on your own initiative — commit only when asked). For releases use release.
 model: sonnet
 effort: medium
-allowed-tools: Read, Glob, Grep, Bash(git:*)
+allowed-tools: Read, Glob, Grep, Bash(git:*), PowerShell
 argument-hint: "[--max=N] [--no-checks] [--no-verify] [--signoff]"
 ---
 
@@ -36,7 +35,7 @@ Always attempt discovery. Skip silently if nothing found — no prompt, no warni
 
 ### Discovery (first hit wins)
 
-1. `quality-gates:` YAML block in `./CLAUDE.md`, `./.claude/CLAUDE.md`, `./AGENTS.md`, or `./BRIEF.md`
+1. `quality-gates:` YAML block in `./CLAUDE.md`, `./.claude/CLAUDE.md`, or `./AGENTS.md`
 2. Else scan `package.json` scripts, `Makefile` targets, `pyproject.toml`, `Cargo.toml`, `go.mod` for known names (`format`, `lint`, `typecheck`, `check`, `test`)
 3. Else: no gates → commit straight
 

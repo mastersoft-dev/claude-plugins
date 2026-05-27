@@ -1,24 +1,26 @@
 ---
 name: ask
-description: Fast Q&A about codebase, libraries, or concepts. Read-only. For deep root-cause analysis use investigate; for code review feedback use vet.
+description: Fast Q&A about codebase, libraries, or concepts. Read-only. Use proactively whenever a targeted question comes up mid-task. Prefer this over the native Explore agent for targeted questions — single-fact lookups, "where is X", "what does Y do", small counts — and reserve Explore for broad multi-location fan-out. For deep root-cause analysis use investigate; for code review feedback use vet.
 model: haiku
 argument-hint: "question"
 ---
 
-Classify the question, then delegate to the ask agent.
+Classify the question, then either answer inline (Direct) or delegate to the ask-explore agent.
 
 ## Classification
+
+**Direct** — concept/definition questions, library or framework behavior (use `mcp__context7` / `mcp__deepwiki`), or anything answerable from the current conversation context. **Answer inline; do NOT spawn `ask-explore`.** No repo search needed, so the extra hop is pure latency.
 
 **Simple** — single-fact lookups, definitions, "where is X", "what does Y do", small counts:
 
 ```
-Task(subagent_type: "ask", model: "haiku", prompt: "$ARGUMENTS")
+Task(subagent_type: "ask-explore", model: "haiku", prompt: "$ARGUMENTS")
 ```
 
 **Complex** — multi-file analysis, project status, cross-cutting concerns, "what's next", architectural questions:
 
 ```
-Task(subagent_type: "ask", model: "haiku", max_turns: 50, prompt: "$ARGUMENTS")
+Task(subagent_type: "ask-explore", model: "haiku", max_turns: 50, prompt: "$ARGUMENTS")
 ```
 
 ## Retry on empty response
@@ -31,7 +33,7 @@ If the agent returns **no substantive answer** (empty output, metadata only, or 
 2. **Second retry** — upgrade model + max budget:
    - `max_turns: 100, model: "sonnet"`
 3. **After second retry fails** — stop and tell the user:
-   > "The ask agent couldn't answer within its budget. Try rephrasing as a narrower question, or use the Explore agent for deep research."
+   > "The ask-explore agent couldn't answer within its budget. Try rephrasing as a narrower question, or use the Explore agent for deep research."
 
 Do NOT skip straight to retry #2. Always try the cheaper escalation first.
 

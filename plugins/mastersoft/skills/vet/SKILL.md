@@ -1,15 +1,32 @@
 ---
 name: vet
-description: Read-only static code review with severity ratings (Blocker/Critical/High/Medium/Low). Use to vet diffs, check before merge, or get quality feedback. Does not run code — to run or write tests, use the qa-specialist agent. For security-only analysis use audit.
+description: Read-only static code review with severity ratings (Blocker/Critical/High/Medium/Low). Use proactively to vet a diff after changes or before merge, or for quality feedback. Does not run code — to run or write tests, use the qa-specialist agent. For security-only analysis use audit. For delegated/parallel review in an isolated subcontext, use the code-reviewer agent.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep
-argument-hint: "files_or_folders"
+argument-hint: "files_or_folders [--terse]"
 ---
 
 Task: Vet the code contained in the appended files and list actionable feedback.
 
 Files or folders: $ARGUMENTS
+
+## Output mode
+
+Default = full format (below): per-finding explanation + concrete suggestion.
+
+If `--terse` is in $ARGUMENTS, switch to the compressed one-line grammar instead
+(same severity tiers, no explanation prose) — for quick pre-merge passes where
+scannability beats depth:
+
+```
+path:line: <Blocker|Critical|High|Medium|Low>: <problem>. <fix>.
+totals: N Blocker, N Critical, N High, N Medium, N Low
+```
+
+One line per finding, file order, ascending line numbers. Zero findings →
+`No issues.` (For delegated/parallel review, prefer the `code-reviewer` agent
+which is haiku-backed and built for this compressed form.)
 
 ## Guidelines
 

@@ -4,8 +4,9 @@ description: >-
   Drive, build, test, install, debug Android. Triggers on adb, emulator, AVD,
   Gradle, Espresso, Compose Test, JUnit, Robolectric, uiautomator, logcat,
   ".apk", "tap through an Android screen", "test this Android screen", "drive
-  the Android UI flow". Android only — for running tests on other platforms use
-  the qa-specialist agent. Multi-screen flows require the 4-step protocol below.
+  the Android UI flow". Use proactively whenever a task involves an Android
+  build, test run, device, or UI flow. Android only — for running tests on other
+  platforms use the qa-specialist agent. Multi-screen flows require the 4-step protocol below.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep, Bash(adb *), Bash(./gradlew *), Bash(emulator *), Bash(${CLAUDE_SKILL_DIR}/scripts/*)
