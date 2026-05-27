@@ -6,22 +6,14 @@ Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. 
 
 ### Mastersoft team members
 
-Plugin is auto-installed via org-managed settings. No marketplace add needed.
+Everything is automatic via org-managed settings — no marketplace add, no manual
+steps. The org distributes `statusLine.command` (it points at the wrapper), and the
+plugin's SessionStart hook keeps `~/.claude/mastersoft-statusline-wrapper.js`
+refreshed on every launch. The status line appears on its own.
 
-Run the statusline installer once. Pass `--apply` to patch `~/.claude/settings.json`
-automatically (requires `jq`); without the flag it just copies the wrapper and
-prints the JSON block to paste manually.
-
-```bash
-bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply
-```
-
-The script is idempotent: re-running with `--apply` is a no-op once the
-mastersoft wrapper is already wired. If a different `statusLine` is already
-set, it refuses to overwrite — drop `~/.claude/statusline.local.json` with
-`{"command":"..."}` to override at runtime via the wrapper instead.
-
-(Statusline can't be merged from plugin or managed scope, so each user wires it once.)
+Want your own status line instead of the mastersoft default? Drop
+`~/.claude/statusline.local.json` with `{"command":"..."}` — the wrapper honors it
+over the default. Delete the file to revert.
 
 ### External users
 
@@ -43,6 +35,19 @@ Or declarative, in `~/.claude/settings.json`:
   "enabledPlugins": { "mastersoft@mastersoft": true }
 }
 ```
+
+Without org-managed settings the status line isn't wired automatically — wire it
+once. `--apply` patches `~/.claude/settings.json` (requires `jq`); without the flag
+the wrapper is copied and the JSON block is printed to paste manually:
+
+```bash
+bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply
+```
+
+Idempotent: re-running with `--apply` is a no-op once wired. If a different
+`statusLine` is already set, it refuses to overwrite — use
+`~/.claude/statusline.local.json` with `{"command":"..."}` to override at runtime
+via the wrapper instead.
 
 ## Contents
 
