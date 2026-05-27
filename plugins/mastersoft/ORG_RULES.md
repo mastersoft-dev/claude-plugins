@@ -92,7 +92,7 @@ Mastersoft code hygiene standards:
 - No magic values / hardcoded env. Named constants; URLs/paths/ports/timeouts in config; never inline secrets or keys.
 - Concurrency & resources. Every async call has a timeout + cancellation; bounded retries with backoff + jitter; no blocking I/O in an async runtime; close/release files, sockets, cursors.
 - Tests. Hit real adapters where feasible, mock only external I/O; one behavior per test; never weaken an assertion to make it pass.
-- Comments. Explain WHY, not WHAT — code self-documents the what. Reserve comments for non-obvious rationale, docstrings, and public-API/reference docs. No commented-out code; no TODO / FIXME / XXX in merged diffs (track those in issues).
+- Comments. No comments in the code body — neither block nor trailing. Code self-documents the what; the WHY lives in the commit message, a doc, or a docstring. Docstrings and public-API/reference docs are the only allowed form. No commented-out code; no TODO / FIXME / XXX in merged diffs (track those in issues).
 - Shape & security. Functional-core / imperative-shell; composition over inheritance; no dead code; parameterized queries; encode outputs by context; least privilege; never log secrets or PII.
 
 <!-- tier:3 -->
