@@ -419,9 +419,10 @@ function main() {
     signalSize += rendered.length + 1;
   }
 
-  // BRIEF.md deprecation is handled as a lint signal (emitted inside the
-  // emitSignals block below) so the model receives it in additionalContext
-  // and can act on it. No per-session gate needed — standard ack/suppress.
+  // BRIEF.md deprecation is handled as a lint signal (emitted as a bootstrap
+  // signal below, exempt from the first-prompt diet) so the model receives it
+  // in additionalContext and can act on it. No per-session gate needed —
+  // standard ack/suppress.
 
   // Resolve @import chains starting from CLAUDE.md. Per Claude Code memory
   // docs, `@path/to/file.md` references in CLAUDE.md load additional files on
@@ -512,6 +513,15 @@ function main() {
     addSignal({ id: 'no-rules-file', severity: 'info', fix: '/mastersoft:init-rules', category: 'rules', body });
   }
 
+  // Bootstrap signal — EXEMPT from the first-prompt diet, same as no-rules-file
+  // above. BRIEF.md deprecation is presence-based (cheap fileExists) and most
+  // actionable on prompt #1 of a session; it also replaces a systemMessage
+  // notice that fired on prompt #1, so gating it behind emitSignals regressed
+  // that. Not timestamp-reactive — do not move it into emitSignals.
+  if (briefPresent) {
+    addSignal({ id: 'brief-deprecated', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'BRIEF.md is deprecated — no longer injected or linted. Migrate: stable conventions → CLAUDE.md, settled decisions → docs/adr/, drop ephemeral state. Then remove BRIEF.md.' });
+  }
+
   if (emitSignals) {
     // Cheap change-signature: HEAD sha (1 git call, no enumeration) + mtimes of
     // every input the scan reads. Any relevant change flips the signature and
@@ -556,10 +566,6 @@ function main() {
 
     // Timestamp-reactive signals — cheap (readdir/stat/math), computed fresh so
     // they clear the moment the relevant skill records a new timestamp.
-    if (briefPresent) {
-      addSignal({ id: 'brief-deprecated', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'BRIEF.md is deprecated — no longer injected or linted. Migrate: stable conventions → CLAUDE.md, settled decisions → docs/adr/, drop ephemeral state. Then remove BRIEF.md.' });
-    }
-
     const patterns = countAutoMemoryPatterns(repoRoot);
     if (patterns.count >= PATTERNS_PROMOTE_THRESHOLD) {
       let memTouchedSinceCheck = true;
