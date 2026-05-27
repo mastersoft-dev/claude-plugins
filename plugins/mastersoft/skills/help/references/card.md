@@ -7,6 +7,7 @@
 | Skill | Purpose |
 |---|---|
 | `/mastersoft:ack-lints` | Defer / suppress / clear lint signals for the current repo. |
+| `/mastersoft:adversary` | Red-team / pre-mortem of a plan or decision: strongest case against, ranked by likelihood × impact. Delegates to the `devils-advocate` agent. |
 | `/mastersoft:android-testing` | Build, install, test, drive Android apps via skill tools (not raw `adb`). |
 | `/mastersoft:ask` | Fast read-only Q&A about codebase / libraries / concepts. |
 | `/mastersoft:audit` | Static security audit with severity ratings + mitigations. |
