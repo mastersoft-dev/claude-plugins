@@ -48,7 +48,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 
    d. **Claim refresh** — for each stale claim the auditor flagged in CLAUDE.md / `.claude/rules` (Known State bullets, counts, symbols, paths), update or remove the entry to match code. **Audit every flagged entry, not just append new ones.**
 
-   e. **Misplaced content → docs** — for each placement finding (settled decision squatting in CLAUDE.md, or a deprecated `BRIEF.md` still present), offer to promote it to `docs/adr/` via `/mastersoft:doc adr` (and migrate + remove BRIEF.md), or leave in place. Respect the split: CLAUDE.md = stable conventions, settled decisions = `docs/adr/`, ephemeral state not tracked as a file.
+   e. **Misplaced content → docs** — for each placement finding (settled decision squatting in CLAUDE.md, or a `brief-deprecated` signal active), drive migration: stable conventions → CLAUDE.md, settled decisions → `docs/adr/` via `/mastersoft:doc adr`, ephemeral state → drop. After content is migrated, offer to delete BRIEF.md. Respect the split: CLAUDE.md = stable conventions, settled decisions = `docs/adr/`, ephemeral state not tracked as a file.
 
    f. **Promote recurring patterns from auto-memory** — label **ADVISORY — auto-memory is per-user-per-machine. Confirm pattern applies team-wide before promoting.** Surface for review; do NOT auto-apply.
 

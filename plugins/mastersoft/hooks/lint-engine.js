@@ -143,29 +143,60 @@ function dirExists(p) {
 
 // Security audit lint: detect dependency lockfile per language; flag if it's
 // been touched since the last recorded audit OR if cadence elapsed.
+// Order matters: more-specific entries (poetry.lock, uv.lock) before generic
+// fallbacks (requirements.txt, pyproject.toml) so the best probe wins.
 const LOCKFILES = [
   { file: 'package-lock.json', stack: 'npm' },
   { file: 'pnpm-lock.yaml', stack: 'pnpm' },
   { file: 'yarn.lock', stack: 'yarn' },
+  { file: 'bun.lock', stack: 'bun' },
   { file: 'bun.lockb', stack: 'bun' },
+  { file: 'uv.lock', stack: 'uv' },
   { file: 'poetry.lock', stack: 'poetry' },
-  { file: 'requirements.txt', stack: 'pip' },
   { file: 'Pipfile.lock', stack: 'pipenv' },
+  { file: 'requirements.txt', stack: 'pip' },
+  { file: 'pyproject.toml', stack: 'pip' },
   { file: 'Cargo.lock', stack: 'cargo' },
   { file: 'Gemfile.lock', stack: 'bundler' },
   { file: 'go.sum', stack: 'go' },
   { file: 'composer.lock', stack: 'composer' },
   { file: 'mix.lock', stack: 'mix' },
   { file: 'pubspec.lock', stack: 'dart' },
+  { file: 'gradle/libs.versions.toml', stack: 'gradle' },
+  { file: 'build.gradle.kts', stack: 'gradle' },
+  { file: 'build.gradle', stack: 'gradle' },
+  { file: 'Package.resolved', stack: 'swift' },
+  { file: 'pdm.lock', stack: 'pdm' },
+  { file: 'conda-lock.yml', stack: 'conda' },
+  { file: 'environment.yml', stack: 'conda' },
 ];
 
+// Search root first, then immediate subdirs (depth 1), then their children
+// (depth 2) — covers monorepos and backend/frontend splits without a full-tree
+// walk. Returns the first match; root wins over nested.
 function findLockfile(repoRoot) {
-  for (const lk of LOCKFILES) {
-    const p = path.join(repoRoot, lk.file);
-    try {
-      const st = fs.statSync(p);
-      if (st.isFile()) return { ...lk, path: p, mtime: st.mtimeMs };
-    } catch {}
+  const dirsToSearch = [repoRoot];
+  try {
+    for (const entry of fs.readdirSync(repoRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      const sub = path.join(repoRoot, entry.name);
+      dirsToSearch.push(sub);
+      try {
+        for (const sub2 of fs.readdirSync(sub, { withFileTypes: true })) {
+          if (!sub2.isDirectory() || sub2.name.startsWith('.') || sub2.name === 'node_modules') continue;
+          dirsToSearch.push(path.join(sub, sub2.name));
+        }
+      } catch {}
+    }
+  } catch {}
+  for (const dir of dirsToSearch) {
+    for (const lk of LOCKFILES) {
+      const p = path.join(dir, lk.file);
+      try {
+        const st = fs.statSync(p);
+        if (st.isFile()) return { ...lk, path: p, mtime: st.mtimeMs };
+      } catch {}
+    }
   }
   return null;
 }
@@ -388,11 +419,9 @@ function main() {
     signalSize += rendered.length + 1;
   }
 
-  // BRIEF.md is deprecated. If present, surface a once-per-session migration
-  // nudge (emitted as systemMessage below) until the user removes the file.
-  const briefDeprecatedNotice = (briefPresent && !sessionState.briefDeprecationShown)
-    ? '[Mastersoft] BRIEF.md is deprecated and no longer injected or linted. Fold stable rules into CLAUDE.md, settled decisions into docs/adr/, drop ephemeral state, then remove BRIEF.md.'
-    : null;
+  // BRIEF.md deprecation is handled as a lint signal (emitted inside the
+  // emitSignals block below) so the model receives it in additionalContext
+  // and can act on it. No per-session gate needed — standard ack/suppress.
 
   // Resolve @import chains starting from CLAUDE.md. Per Claude Code memory
   // docs, `@path/to/file.md` references in CLAUDE.md load additional files on
@@ -527,6 +556,10 @@ function main() {
 
     // Timestamp-reactive signals — cheap (readdir/stat/math), computed fresh so
     // they clear the moment the relevant skill records a new timestamp.
+    if (briefPresent) {
+      addSignal({ id: 'brief-deprecated', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'BRIEF.md is deprecated — no longer injected or linted. Migrate: stable conventions → CLAUDE.md, settled decisions → docs/adr/, drop ephemeral state. Then remove BRIEF.md.' });
+    }
+
     const patterns = countAutoMemoryPatterns(repoRoot);
     if (patterns.count >= PATTERNS_PROMOTE_THRESHOLD) {
       let memTouchedSinceCheck = true;
@@ -595,10 +628,6 @@ function main() {
   }
   if (unknownKeysMessage) {
     systemMessage = systemMessage ? `${unknownKeysMessage}\n${systemMessage}` : unknownKeysMessage;
-  }
-  if (briefDeprecatedNotice) {
-    systemMessage = systemMessage ? `${briefDeprecatedNotice}\n${systemMessage}` : briefDeprecatedNotice;
-    sessionState.briefDeprecationShown = true;
   }
 
   // Persist state (after all sessionState mutations).

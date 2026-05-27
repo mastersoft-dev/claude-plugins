@@ -48,6 +48,7 @@ Stable `id` values:
 | `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed | `/mastersoft:verify` |
 | `patterns-to-promote` | info | Auto-memory has `patterns_promote_threshold`+ uncodified feedback/project entries and the dir was touched since last triage | `/mastersoft:promote-patterns` |
 | `rule-file-stale` | info | `CLAUDE.md`/`AGENTS.md`/@-import untouched > `rule_stale_commits`/`rule_stale_days` while repo moved | `/mastersoft:verify` |
+| `brief-deprecated` | info | `BRIEF.md` present in repo (deprecated pattern — no longer injected or linted by the plugin) | `/mastersoft:refresh-rules` |
 
 Signal **categories** (classify each signal; shown in the `id`): `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote), `verify` (verify-due). `/mastersoft:ack-lints defer` acks the whole repo's signals for the session window — it is not category-scoped.
 

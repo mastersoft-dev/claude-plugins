@@ -28,8 +28,7 @@ function main() {
   delete ss.orgRulesUnknownKeysWarned;
   delete ss.midSessionEditNoticed;
   delete ss.lintsNoticeShown; // re-surface the once-per-session lint notice after reset
-  delete ss.briefDeprecationShown; // re-surface the BRIEF.md deprecation nudge after reset
-  // Reset the mid-session-edit baseline. Without this, a user who edited
+// Reset the mid-session-edit baseline. Without this, a user who edited
   // CLAUDE.md then ran /clear or /compact (precisely to make edits apply)
   // would have the next prompt re-fire the "edited mid-session" lint
   // because the file mtime still exceeds the original sessionStartMs.
