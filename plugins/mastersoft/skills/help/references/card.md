@@ -20,7 +20,7 @@
 | `/mastersoft:investigate` | Read-only root-cause diagnosis + stack-trace triage. |
 | `/mastersoft:promote-patterns` | Triage Claude Code auto-memory entries; route each to repo rules, user-global rules, or leave in auto-memory. |
 | `/mastersoft:refresh-rules` | Audit + refresh rule files via the `rule-auditor` agent; section-by-section diff gated by `AskUserQuestion`, then a final re-audit pass over edited entries. |
-| `/mastersoft:release` | Version bump + changelog + tag + optional Gitea release. |
+| `/mastersoft:release` | Version bump + changelog + adaptive workflow: tagged (git tag + Gitea release) or untagged/changelog-anchored, auto-detected and recorded in the rules file. |
 | `/mastersoft:tea` | Gitea/Forgejo `tea` CLI for PRs, issues, labels, repos, auth. |
 | `/mastersoft:verify` | Semantic verify of rule files against actual repo state via the read-only `rule-auditor` agent (Haiku). |
 | `/mastersoft:vet` | Read-only static code review with severity ratings. |
