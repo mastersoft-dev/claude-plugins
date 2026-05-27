@@ -1,0 +1,57 @@
+# `.claude/rules/`
+
+Topic-scoped rules. Each file is a markdown doc with optional YAML frontmatter.
+
+## Why this directory exists
+
+Root `CLAUDE.md` is loaded once at session start and cached in memory — mid-session edits don't apply until `/compact` or restart. Path-scoped rules in this directory load **on demand** when Claude reads a matching file, so edits take effect on the next matching read.
+
+Use this directory once `CLAUDE.md` exceeds ~200 lines, or when a rule only applies to a specific file type / sub-area.
+
+## File layout
+
+```
+.claude/rules/
+├── README.md           # this file (advisory; loads at session start because it has no paths:)
+├── testing.md          # scoped to test files
+├── api.md              # scoped to API code
+└── frontend/
+    └── react.md        # nested layout works too — discovered recursively
+```
+
+## Format
+
+Always-on rule (loads at session start, like CLAUDE.md):
+
+```markdown
+# Testing conventions
+
+- Always run `pnpm test` before claiming work done.
+- Test files live next to source: `foo.ts` → `foo.test.ts`.
+```
+
+Path-scoped rule — only loads when Claude reads a matching file:
+
+```markdown
+---
+paths:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+---
+
+# Test file conventions
+
+- Mock external dependencies, not internal modules.
+- One behaviour per test.
+- Clean up side effects in `afterEach`.
+```
+
+## Caveats
+
+- Path-scoped rules trigger when matching files are **read**, not on every tool use. Bash-generated edits or `Write` to new files won't trigger them — keep must-follow rules unscoped (in root `CLAUDE.md` or unscoped here).
+- After `/compact`, path-scoped rules are dropped from history until another matching file is read.
+- Globs use `.gitignore`-style patterns. Test with `git ls-files` to confirm matches.
+
+## Linting
+
+`/mastersoft:verify` (Haiku-backed) checks rule glob coverage, broken refs, and contradictions with the actual codebase. Triggered when load-brief flags issues.

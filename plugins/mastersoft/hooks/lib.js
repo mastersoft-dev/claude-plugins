@@ -37,10 +37,16 @@ function loadState(filePath) {
 }
 
 function saveState(filePath, state, maxSessions) {
-  const keys = Object.keys(state);
-  if (keys.length > maxSessions) {
+  // `__repos` is not a session — it holds per-repo timestamps (last_audit_at,
+  // last_refresh_at, …) + the lint scan cache, inserted once and never moved in
+  // key order. Excluding it from the LRU trim keeps it from aging out once the
+  // shared state file accumulates > maxSessions session keys (which would silently
+  // reset every cadence timestamp the hygiene layer depends on).
+  const sessionKeys = Object.keys(state).filter((k) => k !== '__repos');
+  if (sessionKeys.length > maxSessions) {
     const trimmed = {};
-    for (const k of keys.slice(-maxSessions)) trimmed[k] = state[k];
+    if (state.__repos !== undefined) trimmed.__repos = state.__repos;
+    for (const k of sessionKeys.slice(-maxSessions)) trimmed[k] = state[k];
     state = trimmed;
   }
   const tmp = filePath + '.' + process.pid + '.tmp';

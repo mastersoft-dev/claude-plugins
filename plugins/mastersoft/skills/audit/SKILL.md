@@ -1,9 +1,9 @@
 ---
 name: audit
-description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. For non-security code review use vet.
+description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
 model: opus
 effort: xhigh
-allowed-tools: Task, Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), mcp__context7, mcp__deepwiki
+allowed-tools: Task, Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), mcp__context7, mcp__deepwiki, PowerShell
 argument-hint: "path"
 ---
 

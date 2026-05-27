@@ -5,7 +5,7 @@ description: >-
   RFCs, and guides. Use for "document this module", "write an RFC for X", or after shipping a
   feature when prose docs are needed. Follows a 3-stage workflow: context gathering, iterative
   refinement, self-review. For commit messages use the commit skill; for changelog and release
-  notes use the release skill.
+  notes use the release skill; for templated ADR/PRD docs use the doc skill.
 tools: Read, Write, Edit, Glob, Grep, WebFetch, mcp__context7, mcp__deepwiki
 model: inherit
 maxTurns: 50

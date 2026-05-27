@@ -1,0 +1,56 @@
+# Product Requirements Documents
+
+One file per feature / initiative. Living docs — update as scope clarifies, archive when shipped.
+
+## File naming
+
+`<slug>.md` — e.g. `search-v2.md`, `oauth-migration.md`. No numbering required.
+
+## Template
+
+```markdown
+# PRD: <feature>
+
+- **Status**: Draft | Review | Approved | Shipped | Cancelled
+- **Owner**: <name>
+- **Last updated**: YYYY-MM-DD
+
+## Goal
+
+One sentence: what user problem does this solve?
+
+## Non-goals
+
+What this explicitly does NOT do. Bound the scope.
+
+## User stories
+
+- As a <role>, I want <action> so that <outcome>.
+- …
+
+## Success metrics
+
+How will we know it worked? Concrete, measurable.
+
+## Constraints
+
+Tech, time, compliance, dependency constraints.
+
+## Open questions
+
+Decisions still needed. Move to a Decisions section once resolved (or split into ADRs).
+
+## Linked artifacts
+
+- Design / mockups
+- Related ADRs
+- Tracking issue / ticket
+```
+
+## Workflow
+
+1. Draft a PRD before substantial implementation work.
+2. Spawn ADRs from open questions as design decisions get made.
+3. On ship, update Status, leave the file as a historical artifact.
+
+PRDs answer "what + why". ADRs answer "how + why we chose this how".

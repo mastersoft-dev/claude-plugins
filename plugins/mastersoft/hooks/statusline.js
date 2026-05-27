@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { readStdinJsonAsync } = require('./lib');
+const { writeContextUsagePercent } = require('./lib-org-rules');
 
 const GIT_TIMEOUT_MS = 800;
 const DEFAULT_BRANCH_NAME = 'main';
@@ -714,6 +715,14 @@ async function main() {
   }
 
   const ctx = buildContext(data);
+
+  // Persist live context-window usage for the org-rule tier-2 distance gate
+  // (inject-turn.js reads it). Always runs, regardless of which segments render.
+  try {
+    const ci = ctx.context;
+    if (ci && typeof ci.usedPercent === 'number') writeContextUsagePercent(ci.usedPercent);
+  } catch { /* never break the statusline */ }
+
   const segmentNames = parseSegmentList(process.env.CLAUDE_STATUSLINE_SEGMENTS);
 
   const elements = [];

@@ -1,0 +1,53 @@
+# Architecture Decision Records
+
+One file per significant decision. Sequentially numbered, immutable once accepted.
+
+## File naming
+
+`NNNN-short-title.md` — e.g. `0001-switch-to-pnpm.md`, `0007-use-redis-for-rate-limit.md`. Auto-numbered; never renumber existing files.
+
+## Template
+
+```markdown
+# ADR-NNNN: <title>
+
+- **Status**: Proposed | Accepted | Deprecated | Superseded by ADR-MMMM
+- **Date**: YYYY-MM-DD
+- **Deciders**: <names>
+
+## Context
+
+Why we need to decide something. Forces at play. Constraints.
+
+## Decision
+
+What we decided. State it as a fact, present tense.
+
+## Alternatives considered
+
+- **Option A**: pros / cons
+- **Option B**: pros / cons
+
+## Consequences
+
+Positive, negative, neutral. What becomes easier; what becomes harder.
+
+## References
+
+- Links to related ADRs, PRDs, RFCs, issues.
+```
+
+## When to write one
+
+Future-you would ask "why did we do that?" — that's an ADR. Examples:
+
+- Switching frameworks / DB / package manager / auth strategy.
+- Choosing one library over equivalent alternatives.
+- Setting a non-obvious architectural boundary.
+- Deprecating a previous approach.
+
+Bug fixes, refactors, and feature implementations are NOT ADRs.
+
+## Index
+
+ADRs are sequential and immutable once Accepted. Browse this directory, or reference a specific ADR from the relevant CLAUDE.md rule where the decision applies.

@@ -1,9 +1,9 @@
 ---
 name: investigate
-description: Read-only root-cause diagnosis, stack-trace triage, and code comprehension. Never modifies code. For quick single-fact lookups use the ask skill.
+description: Read-only root-cause diagnosis, stack-trace triage, and code comprehension. Never modifies code. Use proactively when a bug, crash, failing test, or unexpected behavior needs its root cause found. For quick single-fact lookups use the ask skill.
 model: opus
 effort: xhigh
-allowed-tools: Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), Task, AskUserQuestion, mcp__context7, mcp__deepwiki
+allowed-tools: Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), Task, AskUserQuestion, mcp__context7, mcp__deepwiki, PowerShell
 argument-hint: "topic"
 ---
 

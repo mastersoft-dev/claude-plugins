@@ -19,8 +19,8 @@ Only the latest minor release line of the `mastersoft` plugin receives security 
 
 | Version | Supported |
 |---------|-----------|
-| 2.8.x   | yes       |
-| < 2.8   | no        |
+| 3.0.x   | yes       |
+| < 3.0   | no        |
 
 ## Scope
 
