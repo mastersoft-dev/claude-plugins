@@ -8,6 +8,7 @@ description: >-
   android-testing skill.
 tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
 model: inherit
+effort: xhigh
 maxTurns: 40
 memory: user
 ---

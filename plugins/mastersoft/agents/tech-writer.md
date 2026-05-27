@@ -8,6 +8,7 @@ description: >-
   notes use the release skill; for templated ADR/PRD docs use the doc skill.
 tools: Read, Write, Edit, Glob, Grep, WebFetch, mcp__context7, mcp__deepwiki
 model: inherit
+effort: xhigh
 maxTurns: 50
 memory: user
 ---

@@ -7,7 +7,8 @@ description: >-
   audit skill (/mastersoft:audit) for deep scanning — for a user-run security audit, use that
   skill rather than calling this agent directly.
 tools: Read, Grep, Glob, Bash, mcp__context7, mcp__deepwiki
-model: inherit
+model: opus
+effort: xhigh
 maxTurns: 50
 memory: user
 ---

@@ -6,7 +6,8 @@ description: >-
   "review this architecture". For diagnosing or comprehending existing code, use the investigate
   skill.
 tools: Read, Glob, Grep, TodoWrite, mcp__context7, mcp__deepwiki
-model: inherit
+model: opus
+effort: xhigh
 maxTurns: 35
 memory: user
 ---

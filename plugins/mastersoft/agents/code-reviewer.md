@@ -8,7 +8,7 @@ description: >-
   (/mastersoft:vet); for security-only analysis use the audit skill or security-auditor agent;
   for running or writing tests use the qa-specialist agent.
 tools: Read, Grep, Bash
-model: haiku
+model: sonnet
 maxTurns: 25
 ---
 

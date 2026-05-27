@@ -10,7 +10,7 @@ description: >-
   longer match code) plus file-placement violations (settled decisions squatting in CLAUDE.md that
   belong in docs/). Never edits — outputs evidence-backed findings only.
 tools: Read, Glob, Grep, Bash
-model: haiku
+model: sonnet
 maxTurns: 30
 memory: user
 ---
