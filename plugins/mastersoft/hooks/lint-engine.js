@@ -519,7 +519,7 @@ function main() {
   // notice that fired on prompt #1, so gating it behind emitSignals regressed
   // that. Not timestamp-reactive — do not move it into emitSignals.
   if (briefPresent) {
-    addSignal({ id: 'brief-deprecated', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'BRIEF.md is deprecated — no longer injected or linted. Migrate: stable conventions → CLAUDE.md, settled decisions → docs/adr/, drop ephemeral state. Then remove BRIEF.md.' });
+    addSignal({ id: 'brief-deprecated', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'migration', body: 'BRIEF.md is deprecated — no longer injected or linted. Migrate: stable conventions → CLAUDE.md, settled decisions → docs/adr/, drop ephemeral state. Then remove BRIEF.md.' });
   }
 
   if (emitSignals) {

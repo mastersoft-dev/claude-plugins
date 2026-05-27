@@ -50,7 +50,7 @@ Stable `id` values:
 | `rule-file-stale` | info | `CLAUDE.md`/`AGENTS.md`/@-import untouched > `rule_stale_commits`/`rule_stale_days` while repo moved | `/mastersoft:verify` |
 | `brief-deprecated` | info | `BRIEF.md` present in repo (deprecated pattern — no longer injected or linted by the plugin) | `/mastersoft:refresh-rules` |
 
-Signal **categories** (classify each signal; shown in the `id`): `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote), `verify` (verify-due). `/mastersoft:ack-lints defer` acks the whole repo's signals for the session window — it is not category-scoped.
+Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote), `verify` (verify-due), `migration` (brief-deprecated). `/mastersoft:ack-lints defer` with no extra args acks **all** categories; `defer rules` acks only the `rules` category and leaves `migration`, `audit`, `patterns`, and `verify` firing. This is why `/mastersoft:refresh-rules` uses `defer rules` — it must not silence orthogonal concerns.
 
 ## Suppression mechanisms
 
