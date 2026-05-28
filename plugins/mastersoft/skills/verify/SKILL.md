@@ -53,4 +53,4 @@ Thin orchestrator. Delegates the analysis to the read-only `rule-auditor` agent 
 
 - **Read-only by design.** This skill and the agent never `Edit`/`Write`. Findings that imply a change point at `/mastersoft:refresh-rules` for the user-gated apply path.
 - **The agent is the single source of check logic** — `refresh-rules` spawns the same agent (seeded with live lint signals). Keep check classes in the agent, not duplicated here.
-- **Cost ceiling.** The agent is Haiku and rare-fire. Do not chain other skills.
+- **Cost ceiling.** The agent is Sonnet and rare-fire. Do not chain other skills.

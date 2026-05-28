@@ -621,8 +621,8 @@ function main() {
       }
     }
 
-    // Verify-due gate (chain to Haiku) — must run after the others so it can
-    // see whether any lint fired this prompt.
+    // Verify-due gate (chain to the rule-auditor agent) — must run after the
+    // others so it can see whether any lint fired this prompt.
     const verifyAgeDays = lastVerifyAt ? (nowMs - lastVerifyAt) / 86400000 : Infinity;
     const inCI = process.env.CLAUDE_CODE_REMOTE === 'true';
     if (anyLintSignal && verifyAgeDays > VERIFY_MIN_AGE_DAYS && VERIFY_MODE !== 'off' && !inCI) {

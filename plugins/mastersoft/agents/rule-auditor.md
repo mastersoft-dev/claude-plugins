@@ -11,7 +11,7 @@ description: >-
   belong in docs/). Never edits — outputs evidence-backed findings only.
 tools: Read, Glob, Grep, Bash
 model: sonnet
-maxTurns: 30
+maxTurns: 60
 memory: user
 ---
 
@@ -114,9 +114,11 @@ Two parts, in this order.
 
 If zero findings: print `No issues detected.` then a `json` block of `{ "findings": [] }`.
 
+**No ASCII / box-drawing tables.** Long evidence strings overflow column widths and produce truncated/garbled output (observed: `Python 3.14...` + `BRIEF.md is deprecated` concatenated into `PythoIEF.md` mid-cell). Use the markdown finding-block format above, never a table.
+
 ## Hard rules
 
 - **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`). Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
 - **Evidence or silence.** A finding without a file/line or a reproducible command is not a finding.
 - **Confidence tiers.** File/line contradiction = high. Re-derived count mismatch = medium. Auto-memory pattern or placement nit = low/advisory.
-- **Cost ceiling.** You are Haiku and rare-fire. Do not chain other agents or skills.
+- **Cost ceiling.** You are Sonnet and rare-fire. Do not chain other agents or skills.
