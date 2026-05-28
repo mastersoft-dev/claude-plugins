@@ -68,31 +68,34 @@ quality-gates:
 
 ### Commit Message Format
 
-- Subject: `<type>: concise summary` (<=72 chars)
-- **Body is optional.** Omit for trivial changes. Add only when the *why* is non-obvious or logic is substantial.
-- When written: blank line after subject, body wrapped at 72 chars, 3-6 lines max. State motivation/impact, not a file list.
-- **When multiple files**: subject describes the overall change. Body (if present) may mention affected areas.
-- Allowed types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `style`
-- **Do not include scopes** (no `(auth)` or `(ui)`).
+- Subject: `<type>(<scope>): concise summary` (<=72 chars). Scope optional, match repo convention.
+- **Default: subject only. No body.** Most commits — even non-trivial ones — ship with subject alone.
 - **Do not include file names in the summary** unless it's a single-file change.
+- Allowed types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `style`
 - Language: English -> present tense ("add", "remove", "fix")
 - Language: Italian -> past participle ("aggiunto", "rimosso", "modificato")
 - If no previous commits: `"Initial commit"` or `"Setup project"`. Otherwise match language of recent commits.
 
 ### Body Decision Heuristic
 
-**Omit body** when:
+**Default = no body.** Write one only when ALL three hold:
 
-- Diff < ~20 LOC
-- Subject self-explanatory (typo, rename, version bump, formatting, dep update, doc tweak)
-- No business-logic shift
+1. The WHY is non-obvious from subject + diff (workaround for a specific bug, hidden constraint, surprising decision).
+2. Without it, a reviewer would likely ask "why".
+3. You can explain it in **≤3 short lines** (~150 chars total).
 
-**Add short body (3-6 lines)** when:
+Otherwise omit. "Touches business logic" / "touches an API" is **not** enough — that describes most commits.
 
-- Touches business logic, public API, or migrations
-- Fixes a non-obvious bug (explain root cause)
-- Performance tradeoff or refactor needing rationale
-- Breaking change (use `BREAKING CHANGE:` trailer)
+When written: blank line after subject, wrapped at 72 chars, **max 3 lines**. State the WHY only.
+
+**Never put in the body** (these violations are routine and must stop):
+
+- File / module / package lists (the diff is the file list).
+- "What changed" bullet rundowns (the subject is the summary).
+- Validation or test results (those belong in PR descriptions or CI output).
+- Rationale that just paraphrases the subject in more words.
+
+**Breaking changes**: use a `BREAKING CHANGE:` trailer — this is required metadata, not a "body".
 
 ### Grouping Logic
 
@@ -117,11 +120,26 @@ User says: "Commit my changes"
 1. **Detect** — `git status`: 3 modified files in `src/auth/`, 1 new file in `src/utils/`
 2. **Group** — Auth changes = 1 logical unit (login fix); utils file = separate (new helper)
 3. **Stage** — `git add src/auth/login.ts src/auth/middleware.ts src/auth/types.ts`
-4. **Commit** — `fix: resolve null check in login flow`
+4. **Commit** — `fix(auth): resolve null check in login flow` (subject only — the diff shows the fix)
 5. **Stage** — `git add src/utils/format.ts`
-6. **Commit** — `feat: add currency formatting helper`
+6. **Commit** — `feat(utils): add currency formatting helper` (subject only)
 
-Result: 2 atomic commits with proper conventional types.
+Result: 2 atomic commits, no bodies. Bodies would only appear if e.g. the null fix were a workaround for a specific upstream bug worth flagging in ≤3 lines.
+
+### Counter-example (what NOT to do)
+
+```
+feat(glab): add GitLab CLI skill and migrate release workflow
+
+- new skill plugins/mastersoft/skills/glab/ (SKILL.md, references,
+  assets: issue/MR templates, labels, gitlab-repo-templates) covering
+  MRs, issues, labels, CI/CD pipelines, releases, auth
+- release skill: switch tagged-release flow from Gitea to GitLab
+- help card: replace /mastersoft:tea entry with /mastersoft:glab
+- bump marketplace.json + plugin.json to 3.3.0
+```
+
+The subject is fine. The body is a file/change list — exactly the diff itself, re-stated in prose. Drop the body; ship subject only.
 
 ## Common Issues
 

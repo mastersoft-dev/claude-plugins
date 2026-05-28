@@ -379,16 +379,18 @@ If user says "to dev" or "against staging" in the initial request, use that bran
 
 ## MR Description Guidelines
 
-When creating an MR, prefer a repo-committed template at `.gitlab/merge_request_templates/<name>.md` (pass `--template <name>`). If absent, build the body from `assets/pr-template.md`.
+**Default: minimal body.** Title + commits already show *what* and *which files*. Do not assemble a multi-section AI-style description unless the user explicitly asks for one, or there is a non-obvious tradeoff a reviewer cannot infer from the diff.
 
 ### Principles
 
-- **Concise over verbose.** Every sentence must earn its place.
-- **Title**: Short, imperative, describes the outcome — not the implementation. Same conventions as commit summaries (`feat:`, `fix:`, etc.) but scoped to the whole MR.
-- **Body focuses on the "why"**: commits already explain *what* changed and in *which files*. The MR body adds motivation, trade-offs, and reviewer guidance.
-- **Never repeat commit messages** or list files changed.
-- **Link to issues** with GitLab autoclose syntax: `Closes #42`.
-- **Omit empty sections.**
+- **Title**: short, imperative, describes the outcome. Same conventions as commit subjects (`feat:`, `fix:`, etc.) — scope optional.
+- **Body**: default empty or 1-2 lines. Add sections **only** when:
+  1. The user explicitly requested a detailed description.
+  2. There is a non-obvious decision, tradeoff, or constraint a reviewer cannot infer from title + commits.
+  3. There is a breaking change, migration step, or follow-up to flag.
+- **Never** restate commit subjects, list changed files, or re-summarize the diff. The MR view already shows all of that.
+- **Link issues** with `Closes #N` when relevant — that's worth one line on its own.
+- **Omit empty sections.** A body with empty "Approach" / "Verification" / "Notes" headings is worse than no body.
 
 ### Title Examples
 
@@ -398,16 +400,7 @@ When creating an MR, prefer a repo-committed template at `.gitlab/merge_request_
 | `Fix bug` | `fix: prevent double-charge on retry` |
 | `Changes for review` | `refactor: extract validation into shared module` |
 
-### Body Structure
-
-Follow `assets/pr-template.md`:
-
-1. **Context** — Why does this change exist? Link issue if applicable.
-2. **Approach** — Why this solution? Key decisions and trade-offs. Skip if obvious.
-3. **Verification** — How was it tested? Specific enough to reproduce.
-4. **Notes** — Reviewer attention points, uncertainties, follow-ups, breaking changes. Omit if nothing to flag.
-
-### Worked Example
+### Worked Examples
 
 User says: "Create an MR from my current branch" or "Open an MR".
 
@@ -416,55 +409,44 @@ User says: "Create an MR from my current branch" or "Open an MR".
 3. **Ask for target branch** — User chooses (`main`, `dev`, `develop`, etc.). Never assume.
 4. **Detect commits** — `git log <base>..HEAD --oneline`
 5. **Labels** — `glab label list`; infer applicable labels from change scope
-6. **Template check** — If `.gitlab/merge_request_templates/` exists in repo, prefer `--template <name>`; otherwise build body from `assets/pr-template.md`
-7. **Draft** — Title from overall intent; body focuses on why
-8. **Confirm** — Present target branch, title, body, and labels before creating
-9. **Execute** — non-interactive `glab mr create`
+6. **Decide body**:
+   - Default → `--fill` (title + body from commits, no extra prose) or `--description "1-2 lines"` if a single line of WHY helps.
+   - Repo has `.gitlab/merge_request_templates/<name>.md` → `--template <name>` (the repo decided the structure, follow it).
+   - User explicitly asked for a detailed description, or a real tradeoff needs flagging → build sections from `assets/pr-template.md`.
+7. **Confirm** — Present target branch, title, body, and labels before creating
+8. **Execute** — non-interactive `glab mr create`
 
-**Feature MR:**
+**Default (most MRs) — auto-fill from commits, no extra prose:**
 
 ```bash
-glab mr create --target-branch main --source-branch feat/session-auth \
+glab mr create --target-branch main --fill --yes
+```
+
+**One-line WHY when it adds something the commits don't:**
+
+```bash
+glab mr create --target-branch main \
   --title "feat: add session-based authentication" \
   --label "type/feature,topic/api" \
-  --description "## Context
-Server-side sessions for immediate token revocation on password change. Closes #42.
-
-## Approach
-Redis-backed over DB to avoid write amplification per request. TTL matches existing JWT expiry (24h).
-
-## Verification
-- [x] Auth test suite passes
-- [x] Added integration test for revocation flow" \
+  --description "Server-side sessions for immediate token revocation on password change. Closes #42." \
   --yes
 ```
 
-**Bug-fix MR:**
+**Multi-section description — only on explicit user request or genuine tradeoff to flag:**
 
 ```bash
-glab mr create --target-branch main --source-branch fix/duplicate-key \
-  --title "fix: GeoFenceStateFactory duplicate key on signal-created rows" \
-  --label "type/bug,topic/api" \
-  --description "## Context
-Factory raises IntegrityError when a signal creates a GeoFenceState row before the management command runs. Closes #41.
+glab mr create --target-branch main \
+  --title "refactor: switch session store from Postgres to Redis" \
+  --label "type/refactoring,topic/api,pr/breaking" \
+  --description "## Why
+Per-request write amplification under load (see #87). Redis TTL matches existing JWT expiry (24h).
 
-## Approach
-Switch to get_or_create with a unique constraint check instead of bulk_create.
-
-## Verification
-- [x] Reproduced with concurrent signal + management command
-- [x] No IntegrityError after fix" \
+## Notes
+Breaking: existing sessions invalidated on deploy — coordinate with mobile rollout." \
   --yes
 ```
 
-**Fast path — auto-fill from commits:**
-
-```bash
-glab mr create --target-branch main --fill --fill-commit-body \
-  --label "type/refactoring" --yes
-```
-
-Use only when the latest commit subject + bodies already form a coherent MR description.
+If you reach for multi-section and it is **not** one of these two cases, default back to `--fill` or a one-liner.
 
 ## Issue Description Guidelines
 
