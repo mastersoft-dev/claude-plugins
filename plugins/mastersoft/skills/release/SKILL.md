@@ -1,9 +1,9 @@
 ---
 name: release
-description: Cut releases — version bump, changelog, and either a tagged release (git tag + Gitea release) or an untagged, changelog-anchored one. Auto-detects which workflow the repo uses and records the decision in the rules file. Use proactively when the user asks to cut a release, bump the version, or publish (not on your own initiative). For regular commits use commit.
+description: Cut releases — version bump, changelog, and either a tagged release (git tag + GitLab release) or an untagged, changelog-anchored one. Auto-detects which workflow the repo uses and records the decision in the rules file. Use proactively when the user asks to cut a release, bump the version, or publish (not on your own initiative). For regular commits use commit.
 model: sonnet
 effort: medium
-allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(tea:*), PowerShell
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(glab:*), PowerShell
 argument-hint: "[--version=x.y.z] [--workflow=tagged|untagged]"
 ---
 
@@ -25,11 +25,11 @@ Task: Prepare and publish a release for $ARGUMENTS with proper versioning and a 
 
 ## Workflow
 
-Releases use Gitea (via the `tea` skill), not GitHub. A release is one of two
+Releases use GitLab (via the `glab` skill), not GitHub. A release is one of two
 shapes; **detect which the repo uses before acting**:
 
-- **Tagged** — version anchored by an annotated `git tag`, optional published Gitea release. The default.
-- **Untagged** — version anchored in the changelog by a `**Commit:** <sha>` line; no git tag, no Gitea release. Publish (if any) is a project hook (e.g. a `publish_changelog` management command).
+- **Tagged** — version anchored by an annotated `git tag`, optional published GitLab release. The default.
+- **Untagged** — version anchored in the changelog by a `**Commit:** <sha>` line; no git tag, no GitLab release. Publish (if any) is a project hook (e.g. a `publish_changelog` management command).
 
 ### Step 0 — Determine the workflow (do this first)
 
@@ -38,7 +38,7 @@ shapes; **detect which the repo uses before acting**:
 3. **Else detect from local signals** (Context block — no network call):
    - Changelog has `**Commit:**` anchors, or a publish hook is present → **untagged**.
    - Semver tags exist and the changelog has no commit anchors → **tagged**.
-   - Ambiguous or nothing detected → **ask** with `AskUserQuestion`, **tagged recommended**. Only run `tea release list` here if you still need to break the tie.
+   - Ambiguous or nothing detected → **ask** with `AskUserQuestion`, **tagged recommended**. Only run `glab release list` here if you still need to break the tie.
 4. **Respect, don't migrate.** When detection is clear, proceed in that workflow — do not suggest switching an established untagged repo to tagged.
 5. **Record the decision** so future runs skip detection. **Edit the file with the `Edit`/`Write` tool — never shell-append (`>>`/`echo`).** Read it first; if a `## Release` section or a `Release workflow:` line already exists, update it in place; otherwise insert a `## Release` section with one line, matching the file's heading style:
    `Release workflow: <tagged|untagged> — <one-line reason>.`
@@ -52,10 +52,13 @@ shapes; **detect which the repo uses before acting**:
 4. **Commit changelog** — via the `commit` skill (e.g. `chore(release): v1.6.0 changelog`).
 5. **Create annotated tag** — `git tag -a v<version> -m "v<version>"`. Add `-s` only when the project signs releases.
 6. **Push — confirm first** — outward-facing; ask, then `git push && git push --tags`.
-7. **Publish Gitea release (optional)** — via the `tea` skill (resolves login from the remote):
+7. **Publish GitLab release (optional)** — via the `glab` skill (auto-resolves the host from the remote):
    ```bash
-   tea release create --tag v<version> --title "v<version>" --note "<release notes>" [--draft]
+   glab release create v<version> --name "v<version>" --notes "<release notes>"
+   # or, for notes from a file
+   glab release create v<version> --name "v<version>" --notes-file <path>
    ```
+   The `<tag>` is positional in glab (not a `--tag` flag); `--notes` is plural; `--name` replaces `--title`. GitLab does not have a CLI-exposed `--draft` flag — for "scheduled" releases, set `--released-at` to a future ISO 8601 timestamp.
 
 ### Untagged workflow
 
@@ -64,7 +67,7 @@ shapes; **detect which the repo uses before acting**:
 3. **Write the changelog entry** — draft + format per `references/changelog.md`; then read the file and insert the entry at the top of the entry list with the `Edit` tool (never a shell append/prepend), matching the existing style.
 4. **Commit** — via the `commit` skill (e.g. `chore(release): v0.23.0 changelog`). **No `git tag`.**
 5. **Push — confirm first** — ask, then `git push` (no `--tags`).
-6. **Publish (optional)** — if a publish hook exists (Context "Publish hook present"), offer to run it (dry-run first, then for real). Do **not** create a Gitea release.
+6. **Publish (optional)** — if a publish hook exists (Context "Publish hook present"), offer to run it (dry-run first, then for real). Do **not** create a GitLab release.
 
 ## Version Determination
 
@@ -84,6 +87,6 @@ When `--version` is not provided, derive from conventional commits in the releas
 - `--version=<x.y.z>` Explicit version to release
 - `--workflow=<tagged|untagged>` Force the workflow, skip detection
 - `--notes=<path>` Path to additional release notes to append
-- `--draft` Create the Gitea release as a draft (tagged only)
+- `--released-at=<iso8601>` Set a future timestamp to publish as an "Upcoming Release" (GitLab shows an Upcoming Release badge until the date passes). Replaces the old `--draft` flag — GitLab releases have no draft state.
 - `--chore` Prefer "chore" type for maintenance updates
 - `--signoff` Add Signed-off-by to the release commit

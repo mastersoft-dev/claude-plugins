@@ -6,7 +6,7 @@
 **Solution:** Use explicit release intent:
 - "Cut a release with changelog and tag."
 - "Release version `x.y.z`."
-- "Prepare Gitea release notes and publish."
+- "Prepare GitLab release notes and publish."
 
 ## Skill triggers too often
 **Symptom:** `release` activates for routine development tasks.
@@ -18,11 +18,11 @@
 
 ## Tool/MCP connection errors
 **Symptom:** Release pipeline fails on tagging/publishing.
-**Cause:** Missing git/tea auth, signing setup, or remote permissions.
+**Cause:** Missing git/glab auth, signing setup, or remote permissions.
 **Solution:**
 1. Verify repository state and target branch cleanliness.
 2. Validate tag signing and push permissions before release steps.
-3. If `tea` is unavailable or unauthenticated, complete local release artifacts (tag) and report the publish blocker.
+3. If `glab` is unavailable or unauthenticated, complete local release artifacts (tag) and report the publish blocker.
 
 ## Unexpected behavior or errors
 **Symptom:** Wrong version bump or incomplete changelog.
@@ -36,8 +36,8 @@
 
 **Should trigger:**
 - "Cut release `--version=1.6.0` with changelog and tag."
-- "Prepare release from conventional commits and publish Gitea notes."
-- "Create draft release for current mainline changes."
+- "Prepare release from conventional commits and publish GitLab notes."
+- "Create scheduled release for current mainline changes."
 
 **Should NOT trigger:**
 - "Commit current work only."
@@ -52,14 +52,14 @@
 - Commit history includes `feat:`, `fix:`, and `docs:` entries.
 - Repository is clean on release branch.
 
-**When:** User invokes: "Run release with `--version=1.6.0` and draft Gitea release notes."
+**When:** User invokes: "Run release with `--version=1.6.0` and publish GitLab release notes."
 
 **Then:**
 - Generate/update changelog grouped by change type.
 - Create annotated tag `v1.6.0` and push commits/tags.
-- Run `tea release create` in draft mode when requested.
+- Run `glab release create v1.6.0 --notes-file …` when requested.
 - Report produced artifacts and publish status.
-- 0 git/tea command failures.
+- 0 git/glab command failures.
 - Completes in <=7 turns.
 
 ## 3. Baseline Comparison
