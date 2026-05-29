@@ -157,6 +157,6 @@ glab release create v1.6.0 --name "v1.6.0" --notes-file CHANGELOG-1.6.0.md
 # Create a release and the tag at once (tag will point at the given ref)
 glab release create v1.6.0 --ref main --notes "First cut" --tag-message "v1.6.0"
 
-# Upload an asset with a display label
-glab release upload v1.6.0 dist/binary.zip --name "Binary release"
+# Upload an asset with a display label (label is appended after '#', not a flag)
+glab release upload v1.6.0 'dist/binary.zip#Binary release'
 ```
