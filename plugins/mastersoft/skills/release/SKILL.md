@@ -49,7 +49,7 @@ shapes; **detect which the repo uses before acting**:
 1. **Determine version** — from conventional commits since the last tag unless `--version` is given (see Version Determination).
 2. **Pre-release checks** — tests pass, working tree clean, target tag absent (`git tag -l 'v<version>'`).
 3. **Generate changelog** — draft + format per `references/changelog.md`.
-4. **Commit changelog** — via the `commit` skill (e.g. `chore(release): v1.6.0 changelog`).
+4. **Commit changelog** — via the `commit` skill (e.g. `chore: release v1.6.0 changelog`).
 5. **Create annotated tag** — `git tag -a v<version> -m "v<version>"`. Add `-s` only when the project signs releases.
 6. **Push — confirm first** — outward-facing; ask, then `git push && git push --tags`.
 7. **Publish GitLab release (optional)** — via the `glab` skill (auto-resolves the host from the remote):

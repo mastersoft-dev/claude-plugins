@@ -8,7 +8,7 @@ Load this for a worked example or when a release step goes wrong.
 1. **Workflow** — semver tags present, no `**Commit:**` anchors → tagged (recorded already)
 2. **Version** — `git log v1.5.0..HEAD`: 2 feat + 1 fix → minor → v1.6.0
 3. **Checks** — tests green, tree clean, `v1.6.0` tag absent
-4. **Commit** — `chore(release): v1.6.0 changelog`
+4. **Commit** — `chore: release v1.6.0 changelog`
 5. **Tag** — `git tag -a v1.6.0 -m "v1.6.0"`; **Push** — confirm, then `git push && git push --tags`
 6. **Publish** — `glab release create v1.6.0 --name "v1.6.0" --notes "Features: …; Fixes: …"` (if confirmed)
 
@@ -16,7 +16,7 @@ Load this for a worked example or when a release step goes wrong.
 1. **Workflow** — CHANGELOG has `**Commit:**` anchors + a publish hook → untagged; recorded in the rules file
 2. **Version** — last entry `## [0.22.4]` + 1 feat since its commit → minor → 0.23.0
 3. **Entry** — prepend `## [0.23.0] — <today>` / `**Commit:** <sha>` / component bullets, matching the file's style and language
-4. **Commit** — `chore(release): v0.23.0 changelog`; **no tag**; **Push** — confirm, then `git push`
+4. **Commit** — `chore: release v0.23.0 changelog`; **no tag**; **Push** — confirm, then `git push`
 5. **Publish** — run the project's publish hook in dry-run first, then for real (if confirmed)
 
 ## Rollback
