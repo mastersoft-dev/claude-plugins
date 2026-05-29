@@ -84,8 +84,9 @@ glab mr update 42 --draft
 ## Issue Triage Flow
 
 ```bash
-# Triage queue: open bugs, no assignee
-glab issue list --label type/bug --assignee=
+# Triage queue: open bugs with no assignee (glab has no native "unassigned"
+# filter — query the API; assignee_id=None returns unassigned issues)
+glab api "projects/:fullpath/issues?state=opened&labels=type/bug&assignee_id=None"
 
 # Pick one and assign yourself
 glab issue update 15 --assignee=+@me --label "issue/confirmed"

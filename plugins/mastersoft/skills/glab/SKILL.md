@@ -628,7 +628,7 @@ glab api graphql -f query='
 
 ### Merge "blocked"
 **Cause:** Approval rules, code owners, or unresolved discussions blocking the MR.
-**Fix:** `glab mr view <id>` and read the "Approval rules" / "Discussions" lines. Resolve discussions with `glab mr note resolve` (experimental) or via the UI.
+**Fix:** `glab mr view <id>` and read the "Approval rules" / "Discussions" lines. Resolve discussions with `glab mr note resolve <discussion-id> <id>` (experimental) or via the UI.
 
 ### `glab mr merge` waits instead of merging immediately
 **Cause:** `--auto-merge` defaults to `true` when a pipeline is running.
