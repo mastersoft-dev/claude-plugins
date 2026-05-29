@@ -383,7 +383,7 @@ If user says "to dev" or "against staging" in the initial request, use that bran
 
 ### Principles
 
-- **Title**: short, imperative, describes the outcome. Same conventions as commit subjects (`feat:`, `fix:`, etc.) — scope optional.
+- **Title**: short, imperative, describes the outcome. Same conventions as commit subjects (`feat:`, `fix:`, etc.) — no scope.
 - **Body**: default empty or 1-2 lines. Add sections **only** when:
   1. The user explicitly requested a detailed description.
   2. There is a non-obvious decision, tradeoff, or constraint a reviewer cannot infer from title + commits.

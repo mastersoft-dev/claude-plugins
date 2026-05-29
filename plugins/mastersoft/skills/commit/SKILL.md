@@ -68,7 +68,8 @@ quality-gates:
 
 ### Commit Message Format
 
-- Subject: `<type>(<scope>): concise summary` (<=72 chars). Scope optional, match repo convention.
+- Subject: `<type>: concise summary` (<=72 chars).
+- **No scopes.** Plain `<type>:` — no `(auth)`, `(api)`, `(glab)`. The summary already says what changed.
 - **Default: subject only. No body.** Most commits — even non-trivial ones — ship with subject alone.
 - **Do not include file names in the summary** unless it's a single-file change.
 - Allowed types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `style`
@@ -120,16 +121,16 @@ User says: "Commit my changes"
 1. **Detect** — `git status`: 3 modified files in `src/auth/`, 1 new file in `src/utils/`
 2. **Group** — Auth changes = 1 logical unit (login fix); utils file = separate (new helper)
 3. **Stage** — `git add src/auth/login.ts src/auth/middleware.ts src/auth/types.ts`
-4. **Commit** — `fix(auth): resolve null check in login flow` (subject only — the diff shows the fix)
+4. **Commit** — `fix: resolve null check in login flow` (subject only — the diff shows the fix)
 5. **Stage** — `git add src/utils/format.ts`
-6. **Commit** — `feat(utils): add currency formatting helper` (subject only)
+6. **Commit** — `feat: add currency formatting helper` (subject only)
 
 Result: 2 atomic commits, no bodies. Bodies would only appear if e.g. the null fix were a workaround for a specific upstream bug worth flagging in ≤3 lines.
 
 ### Counter-example (what NOT to do)
 
 ```
-feat(glab): add GitLab CLI skill and migrate release workflow
+feat: add GitLab CLI skill and migrate release workflow
 
 - new skill plugins/mastersoft/skills/glab/ (SKILL.md, references,
   assets: issue/MR templates, labels, gitlab-repo-templates) covering
