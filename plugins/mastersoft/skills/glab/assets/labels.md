@@ -1,6 +1,6 @@
 # Standard Label Set
 
-Based on go-gitea/gitea conventions, adapted for smaller projects.
+Namespaced `category/name` convention, adapted for smaller projects.
 
 ## Type (what kind of change)
 
