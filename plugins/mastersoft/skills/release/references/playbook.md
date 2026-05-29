@@ -8,15 +8,15 @@ Load this for a worked example or when a release step goes wrong.
 1. **Workflow** — semver tags present, no `**Commit:**` anchors → tagged (recorded already)
 2. **Version** — `git log v1.5.0..HEAD`: 2 feat + 1 fix → minor → v1.6.0
 3. **Checks** — tests green, tree clean, `v1.6.0` tag absent
-4. **Commit** — `chore(release): v1.6.0 changelog`
+4. **Commit** — `chore: release v1.6.0 changelog`
 5. **Tag** — `git tag -a v1.6.0 -m "v1.6.0"`; **Push** — confirm, then `git push && git push --tags`
-6. **Publish** — `tea release create --tag v1.6.0 --note "Features: …; Fixes: …"` (if confirmed)
+6. **Publish** — `glab release create v1.6.0 --name "v1.6.0" --notes "Features: …; Fixes: …"` (if confirmed)
 
 **Untagged** — user says "Release":
 1. **Workflow** — CHANGELOG has `**Commit:**` anchors + a publish hook → untagged; recorded in the rules file
 2. **Version** — last entry `## [0.22.4]` + 1 feat since its commit → minor → 0.23.0
 3. **Entry** — prepend `## [0.23.0] — <today>` / `**Commit:** <sha>` / component bullets, matching the file's style and language
-4. **Commit** — `chore(release): v0.23.0 changelog`; **no tag**; **Push** — confirm, then `git push`
+4. **Commit** — `chore: release v0.23.0 changelog`; **no tag**; **Push** — confirm, then `git push`
 5. **Publish** — run the project's publish hook in dry-run first, then for real (if confirmed)
 
 ## Rollback
@@ -24,7 +24,7 @@ Load this for a worked example or when a release step goes wrong.
 **Tagged:**
 1. `git tag -d v<version>` — delete the local tag
 2. `git push origin :refs/tags/v<version>` — delete the remote tag (confirm first)
-3. If a Gitea release was created: `tea release delete v<version>`
+3. If a GitLab release was created: `glab release delete v<version>` (confirm)
 4. Revert the changelog commit if needed
 
 **Untagged:** revert the changelog commit (`git revert <sha>` or remove the
@@ -35,7 +35,7 @@ version from the hook's published-state file.
 
 ### Version already exists
 **Cause:** The version is already a tag (tagged) or a `## [<version>]` entry (untagged).
-**Fix:** `git tag -l 'v<version>'` / `tea release list` (tagged), or grep the changelog for `## [<version>]` (untagged).
+**Fix:** `git tag -l 'v<version>'` / `glab release list` (tagged), or grep the changelog for `## [<version>]` (untagged).
 
 ### Changelog empty
 **Cause:** No conventional commits in the range.
