@@ -18,16 +18,20 @@ function readJson(file) {
   }
 }
 
+function extractCommand(cfg) {
+  const cmd = cfg?.statusLine?.command ?? cfg?.command;
+  return typeof cmd === 'string' && cmd.trim() ? cmd : null;
+}
+
+function isForeignCommand(cmd) {
+  return Boolean(cmd) && !cmd.includes(SELF_MARKER) && cmd !== 'mastersoft-statusline';
+}
+
 function readUserOverrideCommand() {
-  const override = readJson(path.join(HOME, '.claude/statusline.local.json'));
-  if (override?.command && !override.command.includes(SELF_MARKER)) {
-    return override.command;
-  }
-  const userCfg = readJson(path.join(HOME, '.claude/settings.json'));
-  const cmd = userCfg?.statusLine?.command;
-  if (cmd && !cmd.includes(SELF_MARKER) && cmd !== 'mastersoft-statusline') {
-    return cmd;
-  }
+  const overrideCmd = extractCommand(readJson(path.join(HOME, '.claude/statusline.local.json')));
+  if (isForeignCommand(overrideCmd)) return overrideCmd;
+  const userCmd = extractCommand(readJson(path.join(HOME, '.claude/settings.json')));
+  if (isForeignCommand(userCmd)) return userCmd;
   return null;
 }
 
