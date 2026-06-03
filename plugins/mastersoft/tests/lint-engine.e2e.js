@@ -2,7 +2,7 @@
 /**
  * E2E tests for lint-engine.js against real repos.
  *
- * Each test runs the hook with an isolated CLAUDE_PLUGIN_DATA (temp dir) so
+ * Each test runs the hook with an isolated MASTERSOFT_STATE_DIR (temp dir) so
  * real repo state is never touched. Tests are read-only on the repos themselves.
  *
  * Usage: node plugins/mastersoft/tests/lint-engine.e2e.js [--verbose]
@@ -16,6 +16,7 @@ const path = require('path');
 const cp   = require('child_process');
 
 const HOOK = path.resolve(__dirname, '../hooks/lint-engine.js');
+const STATE_JS = path.resolve(__dirname, '../scripts/state.js');
 const REPOS_BASE = path.resolve(__dirname, '../../../../');
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -27,7 +28,7 @@ function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2
   const input = JSON.stringify({ session_id: sessionId, cwd });
   const result = cp.spawnSync(process.execPath, [HOOK], {
     input,
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: stateDir, ...env },
+    env: { ...process.env, MASTERSOFT_STATE_DIR: stateDir, ...env },
     encoding: 'utf8',
     timeout: 10000,
   });
@@ -408,6 +409,109 @@ test('memory-review-due fires when at-threshold but nothing-new since a stale tr
     'nothing written since the last triage — volume signal must stay quiet');
   assertHasSignal(p2.signals, 'memory-review-due',
     'stale triage (40d) with patterns still present must trigger the staleness nudge');
+});
+
+// ── State location parity (recorder ↔ hook share ONE dir) ─────────────────────
+// Regression for the split-brain bug: the lint-engine hook (which gets
+// CLAUDE_PLUGIN_DATA from Claude Code) and `scripts/state.js record-*` (run via
+// the Bash tool, which does NOT) resolved STATE_DIR to two different places, so
+// recorded cadence timestamps never reached the hook and signals re-fired
+// forever. The old harness force-set CLAUDE_PLUGIN_DATA on both sides and never
+// reproduced the asymmetry. These tests exercise the real recorder process and
+// prove resolution no longer depends on CLAUDE_PLUGIN_DATA.
+console.log('\nN. State location parity (recorder ↔ hook share one dir)');
+
+test('record-audit (separate process) silences the hook signal regardless of CLAUDE_PLUGIN_DATA', () => {
+  const home    = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-'));
+  const repoRaw = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-repo-'));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-state-'));
+  // A decoy dir: under the OLD code the hook would have followed this and the
+  // recorder would not — the exact asymmetry that split the state.
+  const decoyPluginData = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-decoy-'));
+  try {
+    const realRepo = fs.realpathSync(repoRaw);
+    const g = args => cp.execFileSync('git', args, { cwd: realRepo, stdio: 'ignore' });
+    g(['init', '-q']);
+    g(['config', 'user.email', 't@t.test']);
+    g(['config', 'user.name', 'test']);
+    g(['config', 'commit.gpgsign', 'false']);
+    fs.writeFileSync(path.join(realRepo, 'CLAUDE.md'), '# rules\n');
+    fs.writeFileSync(path.join(realRepo, 'package-lock.json'), '{}\n');
+    g(['add', '-A']);
+    g(['commit', '-q', '-m', 'init']);
+
+    const sessionId = 'e2e-parity-' + Math.random().toString(36).slice(2);
+    // Both processes get the SAME MASTERSOFT_STATE_DIR and a DECOY (and differing)
+    // CLAUDE_PLUGIN_DATA, proving the latter is ignored.
+    const hookEnv = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0', CLAUDE_PLUGIN_DATA: decoyPluginData };
+
+    // Prompt #1 warms the session (security-audit-due is emitSignals-gated to #2+).
+    runHook(realRepo, { sessionId, stateDir, env: hookEnv });
+
+    // The recorder runs as its own process — exactly how the skills invoke it.
+    const rec = cp.spawnSync(process.execPath, [STATE_JS, 'record-audit'], {
+      cwd: realRepo,
+      env: { ...process.env, HOME: home, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_PLUGIN_DATA: decoyPluginData },
+      encoding: 'utf8',
+      timeout: 10000,
+    });
+    if (rec.error) throw rec.error;
+
+    const p2 = runHook(realRepo, { sessionId, stateDir, env: hookEnv });
+    assertNoSignal(p2.signals, 'security-audit-due',
+      'record-audit in a separate process must silence the hook — both must resolve the SAME state dir');
+    assert(!fs.existsSync(path.join(decoyPluginData, 'lint-engine-state.json')),
+      'neither hook nor recorder may write to CLAUDE_PLUGIN_DATA — it must be ignored entirely');
+    assert(fs.existsSync(path.join(stateDir, 'lint-engine-state.json')),
+      'state must land in the shared MASTERSOFT_STATE_DIR');
+  } finally {
+    [home, repoRaw, stateDir, decoyPluginData].forEach(d => fs.rmSync(d, { recursive: true, force: true }));
+  }
+});
+
+test('repoRoot keys off git toplevel, not CLAUDE_PROJECT_DIR (hook ↔ recorder key parity)', () => {
+  // The second asymmetry: CLAUDE_PROJECT_DIR is injected into the hook process
+  // by Claude Code but absent in the Bash-tool subprocess that runs the
+  // recorder — the SAME injection gap that split CLAUDE_PLUGIN_DATA. If the hook
+  // keyed __repos on $CLAUDE_PROJECT_DIR while the recorder keyed on git
+  // toplevel, the recorded timestamp would land under a different key and the
+  // signal would re-fire forever. This reproduces that exact env gap.
+  const home    = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-'));
+  const repoRaw = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-repo-'));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-state-'));
+  // CLAUDE_PROJECT_DIR points somewhere OTHER than the repo root — under the old
+  // code the hook would have keyed on this and never matched the recorder.
+  const decoyProjectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-projdir-'));
+  try {
+    const realRepo = fs.realpathSync(repoRaw);
+    const g = args => cp.execFileSync('git', args, { cwd: realRepo, stdio: 'ignore' });
+    g(['init', '-q']);
+    g(['config', 'user.email', 't@t.test']);
+    g(['config', 'user.name', 'test']);
+    g(['config', 'commit.gpgsign', 'false']);
+    fs.writeFileSync(path.join(realRepo, 'CLAUDE.md'), '# rules\n');
+    fs.writeFileSync(path.join(realRepo, 'package-lock.json'), '{}\n');
+    g(['add', '-A']);
+    g(['commit', '-q', '-m', 'init']);
+
+    const sessionId = 'e2e-keyparity-' + Math.random().toString(36).slice(2);
+    // Hook gets CLAUDE_PROJECT_DIR set (to the decoy); recorder gets it removed.
+    const hookEnv = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0', CLAUDE_PROJECT_DIR: decoyProjectDir };
+    runHook(realRepo, { sessionId, stateDir, env: hookEnv });
+
+    const recEnv = { ...process.env, HOME: home, MASTERSOFT_STATE_DIR: stateDir };
+    delete recEnv.CLAUDE_PROJECT_DIR;
+    const rec = cp.spawnSync(process.execPath, [STATE_JS, 'record-audit'], {
+      cwd: realRepo, env: recEnv, encoding: 'utf8', timeout: 10000,
+    });
+    if (rec.error) throw rec.error;
+
+    const p2 = runHook(realRepo, { sessionId, stateDir, env: hookEnv });
+    assertNoSignal(p2.signals, 'security-audit-due',
+      'hook (CLAUDE_PROJECT_DIR set elsewhere) and recorder (no CLAUDE_PROJECT_DIR) must resolve the SAME __repos key via git toplevel');
+  } finally {
+    [home, repoRaw, stateDir, decoyProjectDir].forEach(d => fs.rmSync(d, { recursive: true, force: true }));
+  }
 });
 
 // ─── summary ──────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const { resolveStateDir } = require('./lib');
 
 const ORG_RULES_PATH = path.join(__dirname, '..', 'ORG_RULES.md');
 // Claude Code caps additionalContext at 10000 chars (past it the text is
@@ -28,7 +28,7 @@ const TIER_CAP = 9500;
 
 // Shared with the hook state. The statusline writes the live context-window
 // usage here every render; the tier-2 distance gate (inject-turn) reads it.
-const STATE_DIR = process.env.CLAUDE_PLUGIN_DATA || path.join(os.tmpdir(), 'mastersoft-state');
+const STATE_DIR = resolveStateDir();
 const CONTEXT_USAGE_FILE = path.join(STATE_DIR, 'context-usage.json');
 const CONTEXT_USAGE_MAX_AGE_MS = 5 * 60 * 1000;
 const DEFAULT_DISTANCE_PCT = 15;

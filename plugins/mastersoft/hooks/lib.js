@@ -1,8 +1,52 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
 
 const STDIN_TIMEOUT_MS = 2000;
+
+// Single source of truth for the plugin's state dir. Resolved identically in
+// EVERY execution context — the lint-engine / inject / reset hooks AND the
+// Bash-tool-spawned `scripts/state.js record-*`. It must therefore depend only
+// on os.homedir() (present and identical everywhere), never on a
+// Claude-Code-injected var: CLAUDE_PLUGIN_DATA is set in hook processes but NOT
+// in the skill's Bash subprocess, so using it as the primary source split the
+// recorder's writes (tmp fallback) from the hook's reads (durable dir) and the
+// cadence timestamps never reached the reader. The home-anchored default is
+// also durable across reboots / tmp purges, unlike the old os.tmpdir() path.
+// MASTERSOFT_STATE_DIR is honored only as an explicit test/CI override (tests
+// set it on every spawned process, so both sides still resolve the same dir).
+function resolveStateDir() {
+  return process.env.MASTERSOFT_STATE_DIR
+    || path.join(os.homedir(), '.claude', 'mastersoft', 'state');
+}
+
+function gitToplevel(cwd) {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch { return null; }
+}
+
+// Resolve the per-repo state KEY (state.__repos[<repoRoot>]) identically in
+// EVERY execution context — the lint-engine hook AND the Bash-tool-spawned
+// scripts/state.js record-*. Like resolveStateDir, it must NOT depend on a
+// Claude-Code-injected var: CLAUDE_PROJECT_DIR is present in the hook process
+// but absent in the skill's Bash subprocess, so preferring it (as the old code
+// did) split the __repos key between writer and reader exactly the way
+// CLAUDE_PLUGIN_DATA split the state dir — the recorded timestamp lands under a
+// different key than the hook reads and the signal re-fires forever. Key off
+// `git rev-parse --show-toplevel` from the same cwd both sides pass (subdir,
+// worktree and submodule all collapse to the real repo root), then realpath so
+// /var vs /private/var and other symlink forms match across sessions.
+function resolveRepoRoot(cwd) {
+  let p = gitToplevel(cwd) || cwd;
+  try { p = fs.realpathSync(p); } catch {}
+  return p;
+}
 
 function readStdinJson() {
   try { return JSON.parse(fs.readFileSync(0, 'utf8')); }
@@ -58,4 +102,4 @@ function saveState(filePath, state, maxSessions) {
   }
 }
 
-module.exports = { readStdinJson, readStdinJsonAsync, loadState, saveState };
+module.exports = { readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, resolveRepoRoot };

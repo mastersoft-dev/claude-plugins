@@ -12,14 +12,13 @@
 //     baseline without injecting, since SessionStart already re-asserted there.
 
 const path = require('path');
-const os = require('os');
-const { readStdinJson, loadState, saveState } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir } = require('./lib');
 const {
   loadOrgTiers, orgMode, quietMutesOrg, quietMutesTier3, cap,
   distancePct, readContextUsagePercent,
 } = require('./lib-org-rules');
 
-const STATE_DIR = process.env.CLAUDE_PLUGIN_DATA || path.join(os.tmpdir(), 'mastersoft-state');
+const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'org-rules-state.json');
 const MAX_SESSIONS = 50;
 

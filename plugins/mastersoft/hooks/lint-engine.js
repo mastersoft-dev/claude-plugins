@@ -4,10 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
-const { readStdinJson, loadState, saveState } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot } = require('./lib');
 
-const STATE_DIR = process.env.CLAUDE_PLUGIN_DATA
-  || path.join(os.tmpdir(), 'mastersoft-state');
+const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
 const MAX_SESSIONS = 50;
 // Claude Code caps a hook's additionalContext at 10000 chars; past that it
@@ -113,18 +112,6 @@ function git(args, cwd) {
       cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch { return null; }
-}
-
-function resolveRepoRoot(cwd) {
-  let p = process.env.CLAUDE_PROJECT_DIR
-    || git(['rev-parse', '--show-toplevel'], cwd)
-    || cwd;
-  // Normalize through realpath so per-repo state lookups are consistent
-  // across symlinks. On macOS /var and /private/var both resolve to the
-  // same canonical path; without this, refresh recorded under one form
-  // wouldn't match the other on next session.
-  try { p = fs.realpathSync(p); } catch {}
-  return p;
 }
 
 function readFileSafe(filePath) {

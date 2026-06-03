@@ -31,7 +31,7 @@ Thin orchestrator. Delegates the analysis to the read-only `rule-auditor` agent 
    printf '%s' '<findings-json>' | node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js write-findings
    ```
 
-   The helper adds `generatedAt` + `repoRoot` and atomically writes `verify-findings/<slug>.json` in the plugin data dir. `/mastersoft:refresh-rules` reads it to skip re-analysis when a recent verify exists.
+   The helper adds `generatedAt` + `repoRoot` and atomically writes `verify-findings/<slug>.json` in the shared state dir (`~/.claude/mastersoft/state/`, overridable via `MASTERSOFT_STATE_DIR`). `/mastersoft:refresh-rules` reads it to skip re-analysis when a recent verify exists.
 
    If the agent reports no findings, persist `{ "findings": [] }`.
 

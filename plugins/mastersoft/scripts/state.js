@@ -24,30 +24,12 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFileSync } = require('child_process');
-const { loadState, saveState } = require('../hooks/lib');
+const { loadState, saveState, resolveStateDir, resolveRepoRoot } = require('../hooks/lib');
 
-const STATE_DIR = process.env.CLAUDE_PLUGIN_DATA
-  || path.join(os.tmpdir(), 'mastersoft-state');
+const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
 const FINDINGS_DIR = path.join(STATE_DIR, 'verify-findings');
 const MAX_SESSIONS = 50;
-
-function git(args, cwd) {
-  try {
-    return execFileSync('git', args, {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { return null; }
-}
-
-function resolveRepoRoot(cwd) {
-  let p = process.env.CLAUDE_PROJECT_DIR
-    || git(['rev-parse', '--show-toplevel'], cwd)
-    || cwd;
-  try { p = fs.realpathSync(p); } catch {}
-  return p;
-}
 
 function repoSlug(repoRoot) {
   // Encode the full canonical path so two checkouts with the same basename

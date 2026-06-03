@@ -68,7 +68,7 @@ Runs the right native dependency audit tool for the detected stack. Read-only by
    node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js record-audit
    ```
 
-   The helper resolves the canonical repo root, writes `last_audit_at` (millis) under `state.__repos[<repo root>]`, and atomically persists `lint-engine-state.json` in `$CLAUDE_PLUGIN_DATA` (falling back to the OS temp dir on machines where it isn't set). This silences the lint "Security audit due" signal until the lockfile changes again or the audit interval elapses.
+   The helper resolves the canonical repo root, writes `last_audit_at` (millis) under `state.__repos[<repo root>]`, and atomically persists `lint-engine-state.json` in the shared state dir (`~/.claude/mastersoft/state/`, overridable via `MASTERSOFT_STATE_DIR`). This silences the lint "Security audit due" signal until the lockfile changes again or the audit interval elapses.
 
 ## Refusal cases
 

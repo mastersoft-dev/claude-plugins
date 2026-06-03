@@ -7,11 +7,9 @@
 // these boundaries is handled by inject-session.js, not here.
 
 const path = require('path');
-const os = require('os');
-const { readStdinJson, loadState, saveState } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir } = require('./lib');
 
-const STATE_DIR = process.env.CLAUDE_PLUGIN_DATA
-  || path.join(os.tmpdir(), 'mastersoft-state');
+const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
 const MAX_SESSIONS = 50;
 
