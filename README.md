@@ -53,8 +53,8 @@ via the wrapper instead.
 
 | Type | Items |
 |------|-------|
-| **Skills** | `ack-lints`, `adversary`, `android-testing`, `ask`, `audit`, `audit-deps`, `codex`, `commit`, `glab`, `handoff`, `help`, `init-rules`, `investigate`, `refresh-rules`, `release`, `verify`, `vet` |
-| **Agents** | `ask`, `code-reviewer`, `devils-advocate`, `qa-specialist`, `rule-auditor`, `security-auditor`, `system-architect`, `tech-writer` |
+| **Skills** | `ack-lints`, `adversary`, `android-testing`, `ask`, `audit`, `audit-deps`, `codex`, `commit`, `doc`, `glab`, `handoff`, `help`, `init-rules`, `investigate`, `promote-patterns`, `recall`, `refresh-rules`, `release`, `verify`, `vet` |
+| **Agents** | `ask-explore`, `code-reviewer`, `devils-advocate`, `hindsight`, `qa-specialist`, `rule-auditor`, `security-auditor`, `system-architect`, `tech-writer` |
 | **Hooks** | `install-statusline-wrapper` (SessionStart), `reset-session-state` (SessionStart clear + PostCompact), `lint-engine` + `inject-turn` (UserPromptSubmit), `suggest-push` (PreToolUse:Bash), `inject-org-rules` (SubagentStart) |
 | **Statusline** | Modular, configurable via env vars |
 

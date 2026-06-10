@@ -20,6 +20,7 @@
 | `/mastersoft:init-rules` | Scaffold `AGENTS.md` + a `CLAUDE.md` that imports it, `.claude/rules/`, `docs/adr/`, `docs/prd/` for a fresh repo. |
 | `/mastersoft:investigate` | Read-only root-cause diagnosis + stack-trace triage. |
 | `/mastersoft:promote-patterns` | Triage Claude Code auto-memory entries; route each to repo rules, user-global rules, or leave in auto-memory. |
+| `/mastersoft:recall` | Look back over your own past Claude Code sessions: recap recent ones, or search past sessions for a topic with resume ids. Delegates to the `hindsight` agent. |
 | `/mastersoft:refresh-rules` | Audit + refresh rule files via the `rule-auditor` agent; section-by-section diff gated by `AskUserQuestion`, then a final re-audit pass over edited entries. |
 | `/mastersoft:release` | Version bump + changelog + adaptive workflow: tagged (git tag + GitLab release) or untagged/changelog-anchored, auto-detected and recorded in the rules file. |
 | `/mastersoft:glab` | GitLab CLI (`glab`) for MRs, issues, labels, CI/CD pipelines, releases, and auth. |
