@@ -24,6 +24,7 @@
 | `/mastersoft:refresh-rules` | Audit + refresh rule files via the `rule-auditor` agent; section-by-section diff gated by `AskUserQuestion`, then a final re-audit pass over edited entries. |
 | `/mastersoft:release` | Version bump + changelog + adaptive workflow: tagged (git tag + GitLab release) or untagged/changelog-anchored, auto-detected and recorded in the rules file. |
 | `/mastersoft:glab` | GitLab CLI (`glab`) for MRs, issues, labels, CI/CD pipelines, releases, and auth. |
+| `/mastersoft:sentry` | Triage Sentry issues via `sentry-cli` (self-hosted friendly); rank unresolved errors, pull stack traces, propose repo-aware fixes. Read-only by default; `--fix` gates resolve/mute. |
 | `/mastersoft:verify` | Semantic verify of rule files against actual repo state via the read-only `rule-auditor` agent (Sonnet). |
 | `/mastersoft:vet` | Read-only static code review with severity ratings. |
 
