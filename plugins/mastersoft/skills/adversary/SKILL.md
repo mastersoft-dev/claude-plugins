@@ -1,6 +1,6 @@
 ---
 name: adversary
-description: Red-team / pre-mortem of a plan, design, decision, architecture, or an "it's done / correct / safe" claim — builds the strongest case AGAINST it, ranked by likelihood × impact. Read-only. Use before committing to an approach: "red-team this plan", "what could go wrong", "poke holes in this", "argue against this". Attacks reasoning, not code lines. For code review use vet, for security vulns use audit, for bug root-cause use investigate.
+description: Red-team / pre-mortem of a plan, design, decision, architecture, or an "it's done / correct / safe" claim — builds the strongest case AGAINST it, ranked by likelihood × impact. Read-only. Use before committing to an approach — "red-team this plan", "what could go wrong", "poke holes in this", "argue against this". Attacks reasoning, not code lines. For code review use vet, for security vulns use audit, for bug root-cause use investigate.
 model: opus
 effort: xhigh
 allowed-tools: Task, Read, PowerShell
