@@ -2,7 +2,7 @@
 name: refresh-rules
 disable-model-invocation: true
 description: Audit and refresh project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) when lint-engine signals staleness, broken references, an oversized rule file, or recurring corrections in auto-memory. Spawns the read-only rule-auditor agent (seeded with the live lint signals) to produce an evidence-backed findings table, proposes section-by-section diffs gated via AskUserQuestion, auto-applies on confirm, then runs a final re-audit pass over the edited entries. User-invocable; not auto-fired.
-allowed-tools: Task, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(node:*), PowerShell, AskUserQuestion
+allowed-tools: Task, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell, AskUserQuestion
 argument-hint: "[focus-area]"
 ---
 
@@ -22,7 +22,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 1. **Resolve repo root** via `git rev-parse --show-toplevel`. Abort if not in a git repo.
 
 2. **Get the analysis** — spawn the auditor, seeded with this session's signals:
-   - **Cache reuse only when there are NO live signals.** A cached verify was produced standalone (no signal prioritisation), so reusing it would silently drop the signal-seeding that triggered this refresh. Only when this session shows no `## Mastersoft signals` block: resolve `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js findings-path`, `Read` it, and if `generatedAt` is < 24h old use it as the starting table — skip the spawn. If signals ARE present, ignore the cache and spawn fresh.
+   - **Cache reuse only when there are NO live signals.** A cached verify was produced standalone (no signal prioritisation), so reusing it would silently drop the signal-seeding that triggered this refresh. Only when this session shows no `## Mastersoft signals` block: resolve `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js findings-path`, `Read` it, and if `generatedAt` is younger than the freshness window (24h — a day-scale window, old enough to reuse within a work session but not across likely code changes) use it as the starting table — skip the spawn. If signals ARE present, ignore the cache and spawn fresh.
    - **Spawn the `rule-auditor` agent via `Task`**, seeding it with the live lint signals visible in this session (the `## Mastersoft signals` block from lint-engine that prompted this call) and the optional `[focus-area]`. Example prompt:
 
      ```
