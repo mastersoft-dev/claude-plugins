@@ -3,7 +3,7 @@ name: release
 description: Cut releases — version bump, changelog, and either a tagged release (git tag + GitLab release) or an untagged, changelog-anchored one. Auto-detects which workflow the repo uses and records the decision in the rules file. Use proactively when the user asks to cut a release, bump the version, or publish (not on your own initiative). For regular commits use commit.
 model: sonnet
 effort: medium
-allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(glab:*), PowerShell
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(glab:*), AskUserQuestion, Skill, PowerShell
 argument-hint: "[--version=x.y.z] [--workflow=tagged|untagged]"
 ---
 
@@ -35,10 +35,13 @@ shapes; **detect which the repo uses before acting**:
 
 1. **If `--workflow=` was passed**, use it.
 2. **Else if a workflow is recorded** (Context "Recorded workflow" is not `none`), use it — never re-ask.
-3. **Else detect from local signals** (Context block — no network call):
-   - Changelog has `**Commit:**` anchors, or a publish hook is present → **untagged**.
-   - Semver tags exist and the changelog has no commit anchors → **tagged**.
-   - Ambiguous or nothing detected → **ask** with `AskUserQuestion`, **tagged recommended**. Only run `glab release list` here if you still need to break the tie.
+3. **Else detect from local signals** (Context block — no network call). Apply in **strict precedence — first match wins; never evaluate a lower rule once one matches**:
+   1. Changelog has `**Commit:**` anchors → **untagged** (an anchored changelog is the authoritative signal).
+   2. Else a publish hook is present → **untagged**.
+   3. Else semver tags exist → **tagged**.
+   4. Else nothing detected → **ask** with `AskUserQuestion`, **tagged recommended**. Only run `glab release list` here if you still need to break the tie.
+
+   **Confirm-before-record on conflict:** if both a publish hook *and* semver tags exist (rules 2 and 3 point opposite ways), precedence picks untagged — but since step 5 records the choice and makes it sticky, confirm with `AskUserQuestion` before recording.
 4. **Respect, don't migrate.** When detection is clear, proceed in that workflow — do not suggest switching an established untagged repo to tagged.
 5. **Record the decision** so future runs skip detection. **Edit the file with the `Edit`/`Write` tool — never shell-append (`>>`/`echo`).** Read it first; if a `## Release` section or a `Release workflow:` line already exists, update it in place; otherwise insert a `## Release` section with one line, matching the file's heading style:
    `Release workflow: <tagged|untagged> — <one-line reason>.`
@@ -71,10 +74,15 @@ shapes; **detect which the repo uses before acting**:
 
 ## Version Determination
 
-When `--version` is not provided, derive from conventional commits in the release range — since the last tag (tagged) or since the last changelog entry's `**Commit:**` sha (untagged):
-- Any `feat:` commit → minor bump
-- Only `fix:` commits → patch bump
-- Any `BREAKING CHANGE:` or `!:` → major bump
+When `--version` is not provided, derive from conventional commits in the release range — since the last tag (tagged) or since the last changelog entry's `**Commit:**` sha (untagged).
+
+**Apply in this order — first match wins, highest bump prevails:**
+
+1. **Any** `BREAKING CHANGE:` footer or `!` after the type (e.g. `feat!:`) → **major** bump.
+2. Else **any** `feat:` commit → **minor** bump.
+3. Else (`fix:` / `chore:` / others only) → **patch** bump.
+
+Evaluate top-to-bottom and stop at the first match. A range containing **both** a `feat:` and a `BREAKING CHANGE:` is a **major** bump, not minor — the breaking change wins.
 
 ## References
 
