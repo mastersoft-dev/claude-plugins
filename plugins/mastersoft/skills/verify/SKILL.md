@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run a semantic verification of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against actual codebase state via the rule-auditor agent. Detects contradictions like rules say pnpm but lockfile says npm, stale build commands, architecture drift, zero-match path globs, dangling doc cross-refs, oversized rule files that should be split into path-scoped rules, entry-level claim staleness (counts/symbols/paths that no longer match code), and misplaced content (settled decisions that belong in docs/). Read-only — outputs evidence-backed findings only. Use when lint-engine signals "verify due", or on schedule via /schedule.
+description: Run a semantic verification of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against actual codebase state via the rule-auditor agent. Detects contradictions like rules say pnpm but lockfile says npm, stale build commands, architecture drift, zero-match path globs, dangling doc cross-refs, oversized rule files that should be split into path-scoped rules, entry-level claim staleness (counts/symbols/paths that no longer match code), and misplaced content (settled decisions that belong in docs/). Read-only — outputs evidence-backed findings only. Not auto-invoked (user- or /schedule-triggered); run it when lint-engine signals "verify due" or on schedule via /schedule.
 disable-model-invocation: true
 allowed-tools: Task, Read, Bash(git rev-parse:*), Bash(node:*), PowerShell
 argument-hint: "[--report-only]"
@@ -27,9 +27,14 @@ Thin orchestrator. Delegates the analysis to the read-only `rule-auditor` agent 
 
 3. **Relay + persist.** Print the agent's human-readable finding blocks to stdout verbatim. Extract the trailing ```json findings object and persist it:
 
+   ```bash
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js write-findings <<'FINDINGS_EOF'
+   <findings-json>
+   FINDINGS_EOF
    ```
-   printf '%s' '<findings-json>' | node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js write-findings
-   ```
+   Use a **quoted heredoc** (`<<'…'`) — it feeds the JSON to node's stdin
+   literally, with no `printf` (ungranted) and no single-quote interpolation, so
+   rule-file text containing a `'` can neither break the command nor inject shell.
 
    The helper adds `generatedAt` + `repoRoot` and atomically writes `verify-findings/<slug>.json` in the shared state dir (`~/.claude/mastersoft/state/`, overridable via `MASTERSOFT_STATE_DIR`). `/mastersoft:refresh-rules` reads it to skip re-analysis when a recent verify exists.
 
