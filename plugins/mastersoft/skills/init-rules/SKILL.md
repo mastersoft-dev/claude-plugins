@@ -80,7 +80,7 @@ Templates live alongside this skill at `assets/`:
    All design docs live under docs/<type>/; only CLAUDE.md and AGENTS.md
    belong at repo root. Available types come from the `/mastersoft:doc` template registry.
 
-   ## Native commands you may not be using
+   ## Native commands you may not be using (availability varies by Claude Code version — run /help to confirm)
 
    - /insights      — analyse your sessions, surface friction points and patterns
    - /context [all] — current context-window breakdown + optimization suggestions
