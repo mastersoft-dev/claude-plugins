@@ -25,7 +25,7 @@ Task: Create commits for $ARGUMENTS
 
 1. **Detect changes** -> Identify files and logical units of work.
 2. **Group related changes** -> Changes with the same logical purpose should be committed together.
-3. **Stage changes** -> Stage each logical group (`git add <files>` or `git add -p`).
+3. **Stage changes** -> Stage each logical group with explicit paths (`git add <files>`). Do not use interactive `git add -p` — interactive git is unsupported in this environment and can hang the session.
 4. **Run quality gates** -> Adaptive (see below). Skip silently if nothing declared.
 5. **Commit** -> Create a separate commit for each logical change.
 
@@ -46,6 +46,7 @@ Always attempt discovery. Skip silently if nothing found — no prompt, no warni
 - On failure: stop, show errors with file:line, propose fixes. Do not mutate code — report only, user re-runs after fixing
 - On pass or no gates: proceed to commit
 - If `.husky/` or `.pre-commit-config.yaml` covers same gates: defer to hook, skip skill-side run
+- **Permissions:** gate commands (`ruff`, `pytest`, `npm`, `make`, …) are user-defined and are **not** pre-authorized by this skill — its `allowed-tools` grants only `Bash(git:*)`. Each will raise a one-time permission prompt unless an allow-rule exists in settings, and in a non-interactive run an ungranted gate blocks. To keep runs silent, pre-approve the discovered commands in project/user settings (e.g. `Bash(pytest:*)`, `Bash(ruff:*)`)
 
 ### Recommended CLAUDE.md block
 
