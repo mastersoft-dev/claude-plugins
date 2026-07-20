@@ -2,6 +2,13 @@
 
 Scriptable surfaces: `codex exec`, `codex exec review`, `codex exec resume`, `codex cloud …`. Top-level `codex resume` and `codex fork` are interactive pickers. Top-level `codex review` runs non-interactively but lacks `--json`/`-o`/`-m` so the skill cannot monitor it (Hard Rule 1 — use `codex exec review`).
 
+## Contents
+- [`codex exec` flags](#codex-exec-flags)
+- [`codex exec review` flags](#codex-exec-review-flags)
+- [`codex exec resume` flags](#codex-exec-resume-flags)
+- [`codex cloud …`](#codex-cloud-)
+- [Sandbox / approval recipes](#sandbox--approval-recipes)
+
 ## `codex exec` flags
 
 | Flag | Short | Purpose |
