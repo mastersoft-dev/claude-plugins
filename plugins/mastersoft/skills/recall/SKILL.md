@@ -18,7 +18,7 @@ flags like `--project <name>` / `--all-projects` — pass them through unchanged
 Task(subagent_type: "hindsight", model: "sonnet", prompt: "$ARGUMENTS")
 ```
 
-Tell the agent which mode the request implies, so it picks the right `recall.js` subcommand:
+The `hindsight` agent derives the mode from the (verbatim) request itself and picks the right `recall.js` subcommand — no need to inject it. For reference, how it maps:
 - **Empty `$ARGUMENTS`** → recap the most recent sessions for the current repo (`list`).
 - **A topic or question** → find the past sessions about it (`search`).
 - **A session id, or "show me that one"** → dump that session (`show`).
@@ -28,7 +28,7 @@ Tell the agent which mode the request implies, so it picks the right `recall.js`
 If the agent returns nothing substantive (empty, metadata only, or clearly no answer), retry once
 with more budget: `max_turns: 40, model: "sonnet"`. If it still fails:
 
-> "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check that the sessions aren't older than the 30-day transcript retention."
+> "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check that the sessions aren't older than the transcript retention window."
 
 ## After a successful response
 
