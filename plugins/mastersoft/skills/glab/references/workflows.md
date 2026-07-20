@@ -1,5 +1,17 @@
 # glab — Common Workflows
 
+## Contents
+- [Fork & MR Flow](#fork--mr-flow)
+- [MR Review Flow](#mr-review-flow)
+- [Approval Rules & Code Owners](#approval-rules--code-owners)
+- [Merge Train (GitLab Premium+)](#merge-train-gitlab-premium)
+- [Draft MRs](#draft-mrs)
+- [Issue Triage Flow](#issue-triage-flow)
+- [Multi-Host (rare)](#multi-host-rare)
+- [CI/CD from the Command Line](#cicd-from-the-command-line)
+- [JSON Output for Scripting](#json-output-for-scripting)
+- [Releases (used by the `release` skill)](#releases-used-by-the-release-skill)
+
 ## Fork & MR Flow
 
 ```bash

@@ -2,6 +2,15 @@
 
 `glab ci` drives pipelines and jobs. Below is the read-first, mutate-with-confirmation policy this skill follows.
 
+## Contents
+- [Quick reference](#quick-reference)
+- [Confirmation policy](#confirmation-policy)
+- [Triage protocol (failing pipeline)](#triage-protocol-failing-pipeline)
+- [Linting `.gitlab-ci.yml`](#linting-gitlab-ciyml)
+- [Variables (use sparingly)](#variables-use-sparingly)
+- [Schedules](#schedules)
+- [Common issues](#common-issues)
+
 ## Quick reference
 
 | Intent | Command | Class |
