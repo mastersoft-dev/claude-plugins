@@ -5,7 +5,7 @@ model: opus
 effort: high
 # Bash intentionally unscoped: this skill manages the codex process lifecycle
 # (codex/git/awk/find/kill + Monitor recovery), not a fixed command set.
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Monitor, Read, Glob, Grep
 argument-hint: "[subcommand] prompt_or_flags"
 ---
 
@@ -103,7 +103,7 @@ codex exec <scope-flags> "<prompt>" \
 echo "PID=$!"
 ```
 
-Next Bash call recovers paths + PID from the harness task-output file (`awk -F= '/^LOG=/{print $2}'`), then arms Monitor with **three exit conditions**:
+Next Bash call recovers paths + PID from the harness task-output file (`awk -F= '/^LOG=/{print $2}'`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
 
 ```bash
 until grep -qE '^\{"type":"turn\.(completed|failed)"|^\{"type":"error"' "$log" 2>/dev/null \
