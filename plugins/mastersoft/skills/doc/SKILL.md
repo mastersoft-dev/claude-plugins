@@ -25,9 +25,16 @@ refuse (don't relocate) if you find one misplaced.
 1. **Resolve repo root** via `git rev-parse --show-toplevel`. Refuse with a
    one-line message if not inside a git work tree.
 
-2. **Build the registry.** Glob `${CLAUDE_SKILL_DIR}/references/*.md`. Each
-   filename stem is a type (`adr`, `prd`, …). Read each one's YAML frontmatter
-   — that's the per-type spec (`filename`, `dir`, `workflow`,
+2. **Build the registry.** The templates live in this skill's own `references/`
+   dir. The **Glob tool does not expand environment variables**, so globbing the
+   raw `${CLAUDE_SKILL_DIR}/references/*.md` returns nothing → an empty registry →
+   step 3 always prints "no enabled types" and stops. List them with the granted
+   `node` instead (it resolves the var):
+   ```bash
+   node -e "const fs=require('fs'),d=process.env.CLAUDE_SKILL_DIR+'/references';console.log(fs.readdirSync(d).filter(f=>f.endsWith('.md')).join('\n'))"
+   ```
+   Each filename stem is a type (`adr`, `prd`, …). Read each template's YAML
+   frontmatter — that's the per-type spec (`filename`, `dir`, `workflow`,
    `required-sections`, `short-fields`, `prose-fields`, `default-status`,
    `status-values`).
 
@@ -47,8 +54,9 @@ refuse (don't relocate) if you find one misplaced.
    - exclude anything under `docs/` and `.claude/`, and the names CLAUDE.md /
      AGENTS.md / README.md.
    For each candidate, confirm it's actually this doc type by header (e.g.
-   `# <TITLE-PREFIX>` or a `**Status**:` line with a value from the template's
-   `status-values`) before treating it as a stray. If confirmed strays exist:
+   `# <TITLE-PREFIX>` or a `**Status**:` line whose leading token is one of the
+   template's `status-values` — so `Superseded by ADR-0003` matches `Superseded`)
+   before treating it as a stray. If confirmed strays exist:
    - Print the offender path(s) + a suggested `git mv <path> docs/<type>/`.
    - **Refuse to proceed** via `AskUserQuestion`: "I found <path> outside docs/.
      Options: [I'll move it — abort so you can `git mv`] / [Not this doc type —
@@ -71,7 +79,8 @@ refuse (don't relocate) if you find one misplaced.
        field at a time or grouped, accepting shorthand. Keep each section tight;
        this is a first draft the user will refine, not a final artifact.
      - `--draft` → set Status to the draft-ish value and skip optional prompts
-       (e.g. PRD Success metrics) — leave a `TODO` placeholder instead.
+       (e.g. PRD Success metrics) — leave a `_(to be filled)_` placeholder instead
+     (never a literal `TODO`, which the org's no-TODO-in-diffs rule flags).
    - `coauthor` (no type uses this yet): reserved for the heavier 3-stage
      context-gather → section-refine → reader-test flow. Not implemented here;
      if a future template sets it, fall back to `template-fill` and note it.
@@ -81,7 +90,7 @@ refuse (don't relocate) if you find one misplaced.
    `Write`. Create the `docs/<type>/` path if absent (Write creates parents).
 
 9. **Report**: created path, next steps (e.g. "fill the
-    TODO placeholders before marking Accepted/Approved").
+    `_(to be filled)_` placeholders before marking Accepted/Approved").
 
 ## Refusal cases
 
@@ -96,8 +105,8 @@ refuse (don't relocate) if you find one misplaced.
   purely: drop a `references/<type>.md` template. No edit here.
 - **Batched questions.** Short fields go in ONE `AskUserQuestion` call (≤4
   items), never one-at-a-time. Same fatigue rule as `/mastersoft:promote-patterns`.
-- **First draft, not final.** Don't over-polish. Leave `TODO` for anything the
-  user didn't supply; they iterate after. ADRs are immutable once `Accepted`,
+- **First draft, not final.** Don't over-polish. Leave a `_(to be filled)_`
+  placeholder for anything the user didn't supply; they iterate after. ADRs are immutable once `Accepted`,
   so default new ones to `Proposed`.
 - **Immutability.** Never edit an existing `Accepted` ADR's decision. To change
   a decision, create a new ADR and set the old one's Status to
