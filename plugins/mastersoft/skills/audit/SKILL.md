@@ -3,7 +3,7 @@ name: audit
 description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
 model: opus
 effort: xhigh
-allowed-tools: Task, Read, Glob, Grep, Bash(rg:*), Bash(git:*), Bash(ls:*), mcp__context7, mcp__deepwiki, PowerShell
+allowed-tools: Task
 argument-hint: "path"
 ---
 
@@ -30,8 +30,10 @@ Read-only — do not modify code.")
 
 ## Flags (append to the agent prompt)
 
-- `--deps` Include dependency vulnerability scan (advisories, CVEs)
-- `--secrets` Include secret-exposure scan (keys, tokens, credentials)
+Default scope (`audit <path>`) reviews the code at `<path>` for vulnerabilities, including secrets that appear in that code. The flags below **widen** the scan and are **off by default**:
+
+- `--deps` Also run a dependency vulnerability scan (advisories, CVEs) — off by default.
+- `--secrets` Also run a dedicated repo-wide secret-exposure sweep (keys, tokens, credentials) beyond the reviewed code — off by default.
 - `--strict` Safest interpretation; refuse ambiguous ops
 
 ## After the agent responds
