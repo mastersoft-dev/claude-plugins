@@ -37,7 +37,7 @@
 **Should trigger:**
 - "Create atomic commits for current staged and unstaged changes."
 - "Commit with max 3 logical commits and conventional messages."
-- "Prepare commits using `--chore` for maintenance changes."
+- "Prepare commits with `--no-checks` to skip quality gates."
 
 **Should NOT trigger:**
 - "Show me `git status` only."
@@ -55,19 +55,10 @@
 **Then:**
 - Create one `fix:` commit for auth code + tests.
 - Create one `docs:` commit for docs changes.
-- Use required commit message format (summary + body).
+- Use conventional messages: subject only by default; add a body only per the Body Decision Heuristic.
 - Respect repository message language convention from recent history.
 - 0 git-command failures.
 - Completes in <=6 turns.
-
-## 3. Baseline Comparison
-**Scenario:** Commit mixed working-tree changes with proper grouping.
-
-**Without skill:**
-- Messages: 10, User corrections: 4, Tokens: 4,400
-
-**With skill:**
-- Messages: 6 (40% reduction), User corrections: 1 (75% reduction), Tokens: 2,500 (43% reduction)
 
 # Success Criteria
 - Triggering accuracy: >=90% true positives, <=10% false positives

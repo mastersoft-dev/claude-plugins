@@ -62,15 +62,6 @@
 - 0 git/glab command failures.
 - Completes in <=7 turns.
 
-## 3. Baseline Comparison
-**Scenario:** Standard minor release with changelog and tag publication.
-
-**Without skill:**
-- Messages: 12, User corrections: 4, Tokens: 5,100
-
-**With skill:**
-- Messages: 7 (42% reduction), User corrections: 1 (75% reduction), Tokens: 2,900 (43% reduction)
-
 # Success Criteria
 - Triggering accuracy: >=90% true positives, <=10% false positives
 - Functional correctness: version, changelog, tag, and publish steps all completed

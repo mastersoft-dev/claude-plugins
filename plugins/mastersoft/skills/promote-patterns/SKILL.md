@@ -171,8 +171,9 @@ Default (no flag): walk everything, classify per-pattern, ask user.
 
 ## Notes
 
-- **AskUserQuestion per pattern, not bulk.** Same fatigue-mitigation rule
-  as `/mastersoft:refresh-rules`: never ask "apply all 12?".
+- **AskUserQuestion per pattern (batched up to 4 per call, per step 5), never a
+  single blanket approve-all.** Same fatigue-mitigation rule as
+  `/mastersoft:refresh-rules`: never ask "apply all 12?" in one lump.
 - **Diffs stay small.** A single bullet or known-issue row per apply.
   If the source pattern is multi-paragraph, propose a one-line summary
   and link back to the auto-memory file path. The user can expand later.
@@ -184,7 +185,7 @@ Default (no flag): walk everything, classify per-pattern, ask user.
   emerging meta-rules.
 - **User-global path is double-gated by design.** A single-question
   approval on `~/.claude/CLAUDE.md` is too thin a barrier given the file
-  applies to every future session; the secondary confirm in step 4e is
-  not optional, even when the user picked "→ User ~/.claude/CLAUDE.md"
+  applies to every future session; the secondary confirm in step 6
+  (User-global extra gate) is not optional, even when the user picked "→ User ~/.claude/CLAUDE.md"
   explicitly. Same shape as the `git push` confirm hook: consequential
   ops always re-prompt.

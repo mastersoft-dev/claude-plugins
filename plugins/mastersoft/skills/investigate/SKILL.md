@@ -76,5 +76,5 @@ Investigate problems, debug errors, and explain code with read-only analysis.
 
 ## Flags
 
-- `--explain` Explain what the code does concisely (< 150 words; with `--verbose`: detailed walkthrough)
+- `--explain` Explain what the code does concisely (≤150 words). Overrides the default "when in doubt, go deeper" heuristic — stay concise.
 - `--deep` Nuclear option -- spawn parallel `Task(subagent_type: "Explore")` agents across the codebase, leave no stone unturned, synthesize into a comprehensive report

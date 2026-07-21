@@ -2,6 +2,15 @@
 
 All recipes use `codex exec …` forms (Rule 1) with the **canonical suffix** from SKILL.md:
 
+## Contents
+- [Foreground exec](#foreground-exec)
+- [Code review (Rule 4)](#code-review-rule-4)
+- [Resume](#resume)
+- [Background (xhigh, Rule 2)](#background-xhigh-rule-2)
+- [Cloud](#cloud)
+- [Kill recovery (Rule 5)](#kill-recovery-rule-5)
+- [JSONL `--json` event order](#jsonl---json-event-order)
+
 ```
 --json -c model_reasoning_effort="<level>" -o "$final" < /dev/null > "$log" 2>&1
 ```

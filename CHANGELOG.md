@@ -8,6 +8,24 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.5.1] — 2026-07-20
+
+### Fixed
+
+- `/mastersoft:commit` — Italian commit subjects now use the past participle
+  (`spostato`, `disabilitato`) instead of drifting to the imperative.
+- `/mastersoft:release` — version bump now applies correct precedence (a
+  `BREAKING CHANGE` forces a major bump even alongside `feat:` commits), and
+  workflow detection no longer silently picks the wrong shape on ambiguous repos.
+- `/mastersoft:doc` — the doc-type registry resolves reliably (it could return
+  an empty type list and refuse to author anything).
+- `/mastersoft:sentry` — "recently surfaced" filtering no longer hides
+  long-standing high-impact issues, and the stack-trace pull works when
+  credentials live only in `.sentryclirc`.
+- Reliability and least-privilege fixes across `verify`, `refresh-rules`,
+  `codex`, `ask`, `audit`, `handoff`, and `init-rules` from a plugin-wide
+  skill-authoring review.
+
 ## [3.5.0] — 2026-07-17
 
 ### Features

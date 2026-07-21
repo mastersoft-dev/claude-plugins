@@ -13,4 +13,4 @@ prefix, no suffix, no summary, no commentary, no "Here is the card:".
 
 Card:
 
-!`cat "${CLAUDE_SKILL_DIR}/references/card.md"`
+!`cat "${CLAUDE_SKILL_DIR:-$CLAUDE_PLUGIN_ROOT/skills/help}/references/card.md" 2>/dev/null || echo "Reference card unavailable — open plugins/mastersoft/skills/help/references/card.md"`

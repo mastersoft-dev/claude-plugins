@@ -67,9 +67,10 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    columns as rendered by the CLI).
 
 5. **Rank + triage** — order by events × recency. Group near-duplicates by
-   culprit. Flag **recently-surfaced** issues with the `firstSeen:` search
-   property (e.g. add `firstSeen:-7d` to the query) so new problems stand out
-   from long-standing noise.
+   culprit. To flag **recently-surfaced** issues, run a **separate** supplementary
+   query with `firstSeen:-7d` and mark the matches with a "new?" tag — never fold
+   `firstSeen:-7d` into the primary `is:unresolved` list, which would filter OUT
+   exactly the long-standing high-impact issues you still need to rank against.
 
 6. **Diff-aware prioritization** — `git diff --name-only HEAD~10..HEAD` (and the
    working tree) to get recently-touched files; **surface issues whose culprit
@@ -82,7 +83,13 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
      "$SENTRY_URL/api/0/issues/<id>/events/latest/"
    ```
-   `$SENTRY_URL` is the on-prem host on self-hosted, `https://sentry.io` on SaaS.
+   **`curl` does not read `.sentryclirc` — only `sentry-cli` does.** The REST step
+   therefore needs `$SENTRY_URL` and `$SENTRY_AUTH_TOKEN` in the environment. When
+   the Context block shows creds live only in `.sentryclirc` (env absent), derive
+   the host from `sentry-cli info` and read the token from `.sentryclirc` (`[auth]
+   token=`) into the env before the call — otherwise the header is empty and the
+   request silently 401s. `$SENTRY_URL` is the on-prem host on self-hosted,
+   `https://sentry.io` on SaaS.
    If an instance does not expose it, fall back to the org-scoped events list
    `/api/0/organizations/<org>/issues/<id>/events/` and take the first. Read the
    repo files at the top in-app frames, then state root cause + a concrete fix.

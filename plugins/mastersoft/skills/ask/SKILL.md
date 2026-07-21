@@ -14,13 +14,13 @@ Classify the question, then either answer inline (Direct) or delegate to the ask
 **Simple** — single-fact lookups, definitions, "where is X", "what does Y do", small counts:
 
 ```
-Task(subagent_type: "ask-explore", model: "haiku", prompt: "$ARGUMENTS")
+Task(subagent_type: "ask-explore", model: "haiku", prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
 ```
 
 **Complex** — multi-file analysis, project status, cross-cutting concerns, "what's next", architectural questions:
 
 ```
-Task(subagent_type: "ask-explore", model: "haiku", max_turns: 50, prompt: "$ARGUMENTS")
+Task(subagent_type: "ask-explore", model: "haiku", max_turns: 50, prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
 ```
 
 ## Retry on empty response

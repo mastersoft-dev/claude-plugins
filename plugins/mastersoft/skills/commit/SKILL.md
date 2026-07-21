@@ -25,7 +25,7 @@ Task: Create commits for $ARGUMENTS
 
 1. **Detect changes** -> Identify files and logical units of work.
 2. **Group related changes** -> Changes with the same logical purpose should be committed together.
-3. **Stage changes** -> Stage each logical group (`git add <files>` or `git add -p`).
+3. **Stage changes** -> Stage each logical group with explicit paths (`git add <files>`). Do not use interactive `git add -p` — interactive git is unsupported in this environment and can hang the session.
 4. **Run quality gates** -> Adaptive (see below). Skip silently if nothing declared.
 5. **Commit** -> Create a separate commit for each logical change.
 
@@ -46,6 +46,7 @@ Always attempt discovery. Skip silently if nothing found — no prompt, no warni
 - On failure: stop, show errors with file:line, propose fixes. Do not mutate code — report only, user re-runs after fixing
 - On pass or no gates: proceed to commit
 - If `.husky/` or `.pre-commit-config.yaml` covers same gates: defer to hook, skip skill-side run
+- **Permissions:** gate commands (`ruff`, `pytest`, `npm`, `make`, …) are user-defined and are **not** pre-authorized by this skill — its `allowed-tools` grants only `Bash(git:*)`. Each will raise a one-time permission prompt unless an allow-rule exists in settings, and in a non-interactive run an ungranted gate blocks. To keep runs silent, pre-approve the discovered commands in project/user settings (e.g. `Bash(pytest:*)`, `Bash(ruff:*)`)
 
 ### Recommended CLAUDE.md block
 
@@ -73,9 +74,25 @@ quality-gates:
 - **Default: subject only. No body.** Most commits — even non-trivial ones — ship with subject alone.
 - **Do not include file names in the summary** unless it's a single-file change.
 - Allowed types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `style`
-- Language: English -> present tense ("add", "remove", "fix")
-- Language: Italian -> past participle ("aggiunto", "rimosso", "modificato")
-- If no previous commits: `"Initial commit"` or `"Setup project"`. Otherwise match language of recent commits.
+- Language & verb mood: **see the section below** — this is the #1 source of mistakes in Italian repos.
+- If no previous commits: `"Initial commit"` or `"Setup project"`.
+
+### Language & Verb Mood (read carefully — Italian mistakes happen here)
+
+These are **two independent decisions**. Never let the second one be decided by what recent commits happen to look like.
+
+1. **Which language** → match the language of recent commits (see the `git log` context at the top). Italian repo → write Italian; English repo → write English.
+2. **Which verb mood** → determined *only* by the language, and it is FIXED:
+   - **English → imperative mood**: `add`, `remove`, `fix`, `move`, `disable` — e.g. `feat: add currency helper`
+   - **Italian → participio passato**: `aggiunto`, `rimosso`, `sistemato`, `spostato`, `disabilitato` — e.g. `feat: aggiunto helper valuta`
+
+⚠️ **Italian trap — this is the recurring bug.** Conventional Commits is imperative in English, so the natural translation drifts to *imperative Italian* (`sposta`, `disabilita`, `aggiungi`, `rimuovi`). **That is wrong.** Italian ALWAYS uses the past participle (`spostato`, `disabilitato`, `aggiunto`, `rimosso`) — **even if some recent commits in the `git log` context use the imperative.** Do not mimic imperative Italian: matching the language does NOT mean matching a wrong mood. Correct the pattern, don't propagate it.
+
+| ❌ Wrong (imperative IT) | ✅ Right (participio passato) |
+|---|---|
+| `fix: sposta il file di config` | `fix: spostato il file di config` |
+| `feat: disabilita il retry` | `feat: disabilitato il retry` |
+| `refactor: aggiungi validazione` | `refactor: aggiunta la validazione` |
 
 ### Body Decision Heuristic
 
@@ -127,6 +144,11 @@ User says: "Commit my changes"
 
 Result: 2 atomic commits, no bodies. Bodies would only appear if e.g. the null fix were a workaround for a specific upstream bug worth flagging in ≤3 lines.
 
+**Same example in an Italian repo** (note the participio passato, never the imperative):
+
+- `fix: sistemato il null check nel flusso di login`
+- `feat: aggiunto helper per la formattazione della valuta`
+
 ### Counter-example (what NOT to do)
 
 ```
@@ -170,7 +192,7 @@ Create atomic, conventional commits with proper grouping and message formatting.
 - Detect all staged and unstaged changes.
 - Group logically related changes into atomic commits.
 - Write conventional commit messages with proper type prefixes.
-- Respect the repository's language convention (English/Italian).
+- Respect the repository's language convention (English/Italian) — and the fixed verb mood: English imperative, Italian participio passato (never imperative Italian, even if recent commits use it).
 
 ## Flags
 

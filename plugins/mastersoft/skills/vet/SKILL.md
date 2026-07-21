@@ -67,7 +67,7 @@ For each finding:
 
 User says: "Vet the auth module changes"
 
-1. **Read** -- Open all modified files in `src/auth/`
+1. **Read** -- Open the files/folders passed as arguments (here `src/auth/`), or the `.diff` file if one was given — this skill has no git access, so it reviews exactly what it is handed
 2. **Analyze** -- Check correctness, security, clarity, performance, style
 3. **Find** -- `login.ts:42` password compared with `==` instead of timing-safe compare
 4. **Report** -- `### [login.ts:42] Blocker: Timing-safe comparison missing` with explanation and suggested fix
@@ -94,7 +94,8 @@ Result: 1 Blocker + 2 Low findings, each with file:line and concrete suggestion.
 Provide a focused, actionable code review.
 
 ### Examples
-- `vet src/ --files=services/user.ts,api/auth.ts`
+- `vet src/services/user.ts src/api/auth.ts`
+- `vet src/ --terse`
 - `vet ./patch.diff`
 
 ### Checklist
