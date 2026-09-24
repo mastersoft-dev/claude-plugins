@@ -6,7 +6,7 @@ description: >-
   immediately after touching authentication, authorization, or input handling. Invoked by the
   audit skill (/mastersoft:audit) for deep scanning — for a user-run security audit, use that
   skill rather than calling this agent directly.
-tools: Read, Grep, Glob, Bash, mcp__context7, mcp__deepwiki
+tools: Read, Grep, Glob, Bash, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: opus
 effort: xhigh
 maxTurns: 50
@@ -75,6 +75,8 @@ You MUST Read the relevant reference file before acting on its topic. Do not ans
 When running as a subagent (no interactive user, and `AskUserQuestion` is unavailable in subagent context), prefer best-effort interpretation over refusal. State assumptions in the report header. Refuse only when:
 - Target dir is empty or path is undefined
 - Caller explicitly asks for action outside read-only scope
+
+Read-only scope: `Write`/`Edit` (granted by `memory: user`) are used only for your own agent-memory directory, never for project files.
 
 ## Operating Principles
 

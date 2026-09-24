@@ -20,7 +20,7 @@ All routes target `codex exec …` (Rule 1) with the canonical suffix (see SKILL
 
 ## Effort (Rule 3)
 
-Whitelist: `--minimal`, `--low`, `--high`, `--xhigh`, `--ultrathink`, `"ultrathink"`. Else `medium`. Adjectives, bare `xhigh`, "fast", "deep think" do NOT promote.
+Whitelist: `--minimal`, `--low`, `--high`, `--xhigh`, `--ultrathink`, `"ultrathink"`, `--max`. Else `medium`. Adjectives, bare `xhigh`, "fast", "deep think" do NOT promote.
 
 - `/codex --low explain this fast` → effort=`low` (from flag; "fast" alone wouldn't promote)
 - `/codex --high design the schema` → effort=`high` (Bash timeout 600000)

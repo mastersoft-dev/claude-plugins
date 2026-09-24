@@ -79,7 +79,7 @@ Create a merge request. **Drafts use a `Draft:` prefix in the title** (GitLab co
 | `-f, --fill` | Auto-fill title and description from commit history; also pushes the branch |
 | `--fill-commit-body` | Use each commit body when multiple commits (requires `--fill`) |
 | `--draft` / `--wip` | Mark as draft |
-| `--template <name>` | Pre-populate body from `.gitlab/merge_request_templates/<name>.md` in the repo (no `.md` needed) |
+| `--template <name>` | Pre-populate body from `.gitlab/merge_request_templates/<name>.md` in the repo (no `.md` needed) — interactive only; with `--yes` it submits the raw placeholders |
 | `-l, --label <labels>` | Comma-separated label names |
 | `-a, --assignee <users>` | Comma-separated usernames |
 | `--reviewer <users>` | Comma-separated reviewer usernames |
@@ -179,7 +179,7 @@ Create an issue.
 | `-l, --label <labels>` | Comma-separated labels |
 | `-a, --assignee <users>` | Comma-separated usernames |
 | `-m, --milestone <name>` | Milestone |
-| `--template <name>` | Pre-populate from `.gitlab/issue_templates/<name>.md` |
+| `--template <name>` | Pre-populate from `.gitlab/issue_templates/<name>.md` — interactive only; with `--yes` it submits the raw placeholders |
 | `-c, --confidential` | Make issue confidential |
 | `--due-date YYYY-MM-DD` | Due date |
 | `--epic <id>` | Add to an epic |

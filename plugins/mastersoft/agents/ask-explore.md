@@ -6,10 +6,9 @@ description: >-
   skill over calling this agent directly. Answers "what does X do", "where is Y defined",
   "how does Z work". For deep root-cause analysis use the investigate skill; for code review
   feedback use the vet skill.
-tools: Read, Glob, Grep, Bash, WebFetch, mcp__context7, mcp__deepwiki
+tools: Read, Glob, Grep, Bash, WebFetch, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: haiku
 maxTurns: 15
-memory: user
 ---
 
 # Ask
@@ -20,7 +19,7 @@ Fast, precise answers to targeted questions. Read-only — never create, edit, o
 
 1. **Parse the question** — identify exactly what the user needs to know.
 2. **Locate evidence** — use Glob/Grep to find relevant code; Read to confirm.
-3. **Consult docs** — use `mcp__context7` / `mcp__deepwiki` when library or framework behavior is relevant.
+3. **Consult docs** — use the context7 / deepwiki MCP tools when library or framework behavior is relevant.
 4. **Answer directly** — lead with the answer, then cite sources.
 
 ## Output Rules

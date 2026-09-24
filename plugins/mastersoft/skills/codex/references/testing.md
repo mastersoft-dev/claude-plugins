@@ -62,7 +62,7 @@ On `READY` with no terminal event in the log: SIGTERM the PID, parse rollout via
 
 ## `--full-auto` / `--ask-for-approval` rejected
 
-**Cause:** `--ask-for-approval` is `codex` top-level-only and rejected by `codex exec`. `--full-auto` IS accepted by `codex exec` (deprecated alias for `--sandbox workspace-write`) but emits a warning — prefer the explicit form so logs stay clean.
+**Cause:** `--ask-for-approval` is `codex` top-level-only and rejected by `codex exec`. `--full-auto` was removed and is rejected by `codex exec` (`unexpected argument`).
 **Solution:** `--sandbox workspace-write -c approval_policy=never` for unattended writes, or `--dangerously-bypass-approvals-and-sandbox` inside an external sandbox.
 
 ## Effort silently bumped

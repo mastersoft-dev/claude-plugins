@@ -18,10 +18,10 @@
 
 ## Tool/MCP connection errors
 **Symptom:** Investigation quality drops due to tool restrictions.
-**Cause:** Missing read/search commands, `Task` unavailable for deep mode, or disconnected MCP servers.
+**Cause:** Missing read/search commands, `Agent` unavailable for deep mode, or disconnected MCP servers.
 **Solution:**
 1. Verify read-only command access (`rg`, `git`, `ls`).
-2. For `--deep`, ensure `Task` delegation is available.
+2. For `--deep`, ensure `Agent` delegation is available.
 3. Reconnect MCP servers for library/spec clarification.
 4. If tools are limited, report confidence level and cite only verified local findings.
 

@@ -70,7 +70,7 @@ quality-gates:
 ### Commit Message Format
 
 - Subject: `<type>: concise summary` (<=72 chars).
-- **No scopes.** Plain `<type>:` — no `(auth)`, `(api)`, `(glab)`. The summary already says what changed.
+- **No scopes.** Plain `<type>:` — no `(auth)`, `(api)`, `(glab)`. The summary already says what changed. Sole exception: release commits are `chore(release): vX.Y.Z`.
 - **Default: subject only. No body.** Most commits — even non-trivial ones — ship with subject alone.
 - **Do not include file names in the summary** unless it's a single-file change.
 - Allowed types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `style`
@@ -96,7 +96,9 @@ These are **two independent decisions**. Never let the second one be decided by 
 
 ### Body Decision Heuristic
 
-**Default = no body.** Write one only when ALL three hold:
+**Default = no body.** Never write one for a trivial commit — a rename, typo, formatting or lint run, dependency or version bump, comment/doc wording, or any small diff with a single obvious purpose. Size alone never earns a body: a large mechanical rename still ships subject-only.
+
+For everything else, write one only when ALL three hold:
 
 1. The WHY is non-obvious from subject + diff (workaround for a specific bug, hidden constraint, surprising decision).
 2. Without it, a reviewer would likely ask "why".

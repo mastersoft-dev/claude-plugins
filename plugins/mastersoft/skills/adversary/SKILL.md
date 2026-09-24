@@ -3,7 +3,7 @@ name: adversary
 description: Red-team / pre-mortem of a plan, design, decision, architecture, or an "it's done / correct / safe" claim — builds the strongest case AGAINST it, ranked by likelihood × impact. Read-only. Use before committing to an approach — "red-team this plan", "what could go wrong", "poke holes in this", "argue against this". Attacks reasoning, not code lines. For code review use vet, for security vulns use audit, for bug root-cause use investigate.
 model: opus
 effort: xhigh
-allowed-tools: Task, Read, PowerShell
+allowed-tools: Agent, Read, PowerShell
 argument-hint: "plan_or_target [--angle security|ops|product] [--parallel]"
 ---
 
@@ -27,7 +27,7 @@ the target is:
 ## Delegate
 
 ```
-Task(subagent_type: "devils-advocate", model: "opus",
+Agent(subagent_type: "devils-advocate", model: "opus",
      prompt: "Red-team this. <TARGET — path, or a concise restatement of the plan/decision \
 and its assumptions>. Build the strongest honest case against it, ranked by likelihood × \
 impact, grounded in the repo with file:line. Concede what holds up. Read-only.")

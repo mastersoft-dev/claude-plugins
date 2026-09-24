@@ -2,7 +2,7 @@
 
 <!-- What needs to be done. -->
 
-## Scope
+## Scope (optional — delete if it adds nothing)
 
 - [ ]
 - [ ]

@@ -1,6 +1,6 @@
 # GitLab Repo Templates — Drop-In
 
-Copy these into your project so glab can pre-populate MR and issue bodies via `--template <name>`.
+Copy these into your project so the GitLab web UI offers them and the `glab` skill can read and fill them. They are deliberately thin: most MRs need only a title.
 
 ```
 your-repo/
@@ -30,18 +30,12 @@ Commit and push. Templates are loaded **from the local repository only** — the
 
 ## Use
 
+In the web UI, pick the template from the description dropdown. From the CLI, fill only the template's applicable lines and pass them via `--description` — `--template <name> --yes` submits the raw placeholder comments:
+
 ```bash
-# Default MR template
-glab mr create --template default --title "..." --yes
-
-# Bug-fix MR template
-glab mr create --template bug_fix --title "fix: ..." --yes
-
-# Bug issue
-glab issue create --template bug --title "Something broke" --yes
+glab mr create --fill --target-branch main --title "fix: ..." --description "Closes #42" --yes
+glab issue create --title "Something broke" --label "type/bug" --description "..." --yes
 ```
-
-`.md` extension is optional on `--template`.
 
 ## Quick-action lines
 

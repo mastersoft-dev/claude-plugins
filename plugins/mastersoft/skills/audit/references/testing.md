@@ -18,7 +18,7 @@
 
 ## Tool/MCP connection errors
 **Symptom:** Audit runs but framework/security references fail.
-**Cause:** `mcp__context7` / `mcp__deepwiki` unavailable.
+**Cause:** context7 / deepwiki MCP tools unavailable.
 **Solution:**
 1. Continue with static repo inspection (`Read/Glob/Grep`, `rg`, `git`, `ls`).
 2. Mark uncertain findings as "needs runtime confirmation."

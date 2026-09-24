@@ -2,7 +2,7 @@
 name: verify
 description: Run a semantic verification of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against actual codebase state via the rule-auditor agent. Detects contradictions like rules say pnpm but lockfile says npm, stale build commands, architecture drift, zero-match path globs, dangling doc cross-refs, oversized rule files that should be split into path-scoped rules, entry-level claim staleness (counts/symbols/paths that no longer match code), and misplaced content (settled decisions that belong in docs/). Read-only — outputs evidence-backed findings only. Not auto-invoked (user- or /schedule-triggered); run it when lint-engine signals "verify due" or on schedule via /schedule.
 disable-model-invocation: true
-allowed-tools: Task, Read, Bash(git rev-parse:*), Bash(node:*), PowerShell
+allowed-tools: Agent, Read, Bash(git rev-parse:*), Bash(node:*), PowerShell
 argument-hint: "[--report-only]"
 ---
 
@@ -18,10 +18,10 @@ Thin orchestrator. Delegates the analysis to the read-only `rule-auditor` agent 
 
 1. **Resolve repo root** via `git rev-parse --show-toplevel`. Abort if not in a git repo.
 
-2. **Spawn the auditor.** Launch the `rule-auditor` agent via `Task`, passing the repo root. No signals (this is a standalone, full audit). Example prompt:
+2. **Spawn the auditor.** Launch the `rule-auditor` agent via `Agent`, passing the repo root. No signals (this is a standalone, full audit). Example prompt:
 
    ```
-   Task (subagent_type: rule-auditor):
+   Agent (subagent_type: rule-auditor):
    Audit the rule files in <repoRoot> against the codebase. Standalone full run — no input signals, audit everything. Return findings (human-readable blocks + the trailing json block).
    ```
 

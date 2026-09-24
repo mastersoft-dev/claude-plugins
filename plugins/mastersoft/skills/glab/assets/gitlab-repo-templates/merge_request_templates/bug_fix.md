@@ -1,19 +1,5 @@
-## Context
+<!-- Closes #N. One line on the root cause if the title doesn't say it. Leave empty when the title says it all. -->
 
-<!-- What's broken and how it surfaces. Closes #<issue>. -->
-
-## Root cause
-
-<!-- One or two sentences. What was wrong, not what you did. -->
-
-## Fix
-
-<!-- Why this approach over alternatives. -->
-
-## Verification
-
-- [ ] Reproduced before the fix
-- [ ] Confirmed fixed locally
-- [ ] Regression test added
+<!-- Breaking change or migration step? Add a "## Notes" section with one line; otherwise delete this comment. -->
 
 /label ~"type/bug"

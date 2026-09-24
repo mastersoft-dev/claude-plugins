@@ -2,6 +2,7 @@
 name: recall
 description: Look back over your own past Claude Code sessions. Read-only. Use proactively when the user asks "what was I working on", "did we discuss X before", "when did we decide Y", "find that past chat about Z", or wants a recap of recent sessions. Default (no query) recaps the current repo's recent sessions; a query searches past sessions for it. Scope another repo with --project <name>. For codebase questions use ask; for current-work root-cause use investigate.
 model: sonnet
+allowed-tools: Agent
 argument-hint: "[query] [--project <name>] [--all-projects]"
 ---
 
@@ -15,7 +16,7 @@ Forward the request verbatim. `$ARGUMENTS` may be empty (recap mode), a search q
 flags like `--project <name>` / `--all-projects` — pass them through unchanged.
 
 ```
-Task(subagent_type: "hindsight", model: "sonnet", prompt: "$ARGUMENTS")
+Agent(subagent_type: "hindsight", model: "sonnet", prompt: "$ARGUMENTS")
 ```
 
 The `hindsight` agent derives the mode from the (verbatim) request itself and picks the right `recall.js` subcommand — no need to inject it. For reference, how it maps:
@@ -26,7 +27,8 @@ The `hindsight` agent derives the mode from the (verbatim) request itself and pi
 ## Retry on empty response
 
 If the agent returns nothing substantive (empty, metadata only, or clearly no answer), retry once
-with more budget: `max_turns: 40, model: "sonnet"`. If it still fails:
+with the query narrowed to the part that went unanswered (the turn budget is fixed by the
+agent's `maxTurns`). If it still fails:
 
 > "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check that the sessions aren't older than the transcript retention window."
 

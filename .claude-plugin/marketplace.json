@@ -3,11 +3,12 @@
   "owner": {
     "name": "Mastersoft"
   },
+  "description": "Mastersoft shared Claude Code plugins: org rules, hooks, agents, skills and statusline",
   "plugins": [
     {
       "name": "mastersoft",
       "source": "./plugins/mastersoft",
-      "version": "3.5.1",
+      "version": "3.6.0",
       "description": "Mastersoft shared Claude Code hooks, agents, skills and statusline"
     }
   ]

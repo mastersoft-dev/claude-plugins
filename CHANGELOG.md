@@ -8,6 +8,44 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-09-24
+
+### Added
+
+- Org rules now keep commit messages, GitLab merge requests, GitHub pull
+  requests and issues short in every session, not only when `/mastersoft:commit`
+  or `/mastersoft:glab` runs: subject-only commits by default, MR/PR bodies of
+  one line at most unless you ask for more.
+
+### Changed
+
+- Push confirmation now asks only for protected branches (`main`, `master`,
+  `develop`, `dev`, `staging`, `production`, `release/*` by default); pushes
+  to feature branches go straight through, so unattended runs don't stall.
+  Tune the list with `push_protected_branches` in `ORG_RULES.md` or
+  `MASTERSOFT_PUSH_PROTECTED_BRANCHES` (`*` restores asking on every branch).
+  Chained commands (`git commit … && git push`) and the push done by
+  `glab mr create --fill` are covered too; when the destination can't be read
+  reliably (a `cd` or branch switch earlier in the same command, shell
+  variables, wildcards) it asks.
+- `/mastersoft:glab` — opening an MR no longer asks for the target branch up
+  front: it detects the base branch and shows it in a single confirmation.
+  Repo templates are filled with only the sections that apply, and the bundled
+  MR/issue templates are much thinner.
+
+### Fixed
+
+- Skills that delegate to agents (`ask`, `audit`, `adversary`, `investigate`,
+  `recall`, `verify`, `refresh-rules`) use the current `Agent` tool, and
+  context7 works when installed as a plugin.
+- `/mastersoft:audit-deps` detects Bun's `bun.lock`, tells Yarn classic from
+  Berry, and explains the missing `poetry export` on Poetry 2.
+- `/mastersoft:codex` matches codex-cli 0.156 (removed `--full-auto` and
+  `--profile-v2`, new `max` effort).
+- `/mastersoft:sentry` reports missing authentication and fetches the latest
+  event with the numeric issue id.
+- Hook commands work when the plugin path contains spaces.
+
 ## [3.5.1] — 2026-07-20
 
 ### Fixed
