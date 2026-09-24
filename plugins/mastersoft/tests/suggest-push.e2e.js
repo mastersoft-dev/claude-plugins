@@ -128,8 +128,12 @@ test('switching to a protected branch earlier in the command asks', () => {
   assertEq(runHook(onFeature, 'git switch main && git push'), 'ask');
 });
 
-test('creating a feature branch then pushing passes', () => {
-  assertEq(runHook(onMain, 'git checkout -b feat/new && git push -u origin HEAD'), 'pass');
+test('a branch change before a push asks, even to a new feature branch', () => {
+  assertEq(runHook(onMain, 'git checkout -b feat/new && git push -u origin HEAD'), 'ask');
+});
+
+test('a branch change after the push does not affect it', () => {
+  assertEq(runHook(onFeature, 'git push -u origin HEAD && git switch main'), 'pass');
 });
 
 test('an unresolvable branch switch asks', () => {
@@ -167,9 +171,27 @@ test('echoed push text passes, nested shell push asks', () => {
   assertEq(runHook(onFeature, 'bash -c "git push origin main"'), 'ask');
 });
 
-test('cd into another repo resolves the branch there', () => {
-  assertEq(runHook(onMain, `cd "${onFeature}" && git push`), 'pass');
-  assertEq(runHook(onFeature, `cd "${onMain}" && git push`), 'ask');
+test('a directory change before a push asks', () => {
+  assertEq(runHook(onMain, `cd "${onFeature}" && git push`), 'ask');
+  assertEq(runHook(onMain, `(cd "${onFeature}" && true) && git push origin HEAD`), 'ask');
+  assertEq(runHook(onMain, `pushd "${onFeature}" && popd && git push origin HEAD`), 'ask');
+  assertEq(runHook(onMain, 'true || git checkout -b feat/new && git push origin HEAD'), 'ask');
+});
+
+test('--repo selects the remote whose refspecs are used', () => {
+  const repo = mkRepo();
+  checkout(repo, 'feat/repo');
+  sh(['config', 'remote.origin.push', 'HEAD:feat/x'], repo);
+  sh(['config', 'remote.publish.push', 'HEAD:main'], repo);
+  assertEq(runHook(repo, 'git push --repo=publish'), 'ask');
+  assertEq(runHook(repo, 'git push --repo publish'), 'ask');
+  assertEq(runHook(repo, 'git push'), 'pass');
+});
+
+test('command substitution and subshell pushes are parsed', () => {
+  assertEq(runHook(onFeature, 'git push origin "HEAD:$(echo main)"'), 'ask');
+  assertEq(runHook(onMain, '( git push origin HEAD )'), 'ask');
+  assertEq(runHook(onFeature, '( git push origin HEAD )'), 'pass');
 });
 
 test('remote push refspec in git config is honored', () => {

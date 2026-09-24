@@ -4,11 +4,12 @@
 // feature-branch pushes go straight through so unattended runs never stall.
 // Covers `git push` (any refspec form, chained commands, `git -C <dir>`) and
 // the push `glab mr create --fill` / `--push` performs on its source branch.
+// When the destination can't be read reliably (cd / checkout / switch earlier
+// in the same command, shell expansions, wildcards, nested shells) it asks.
 // Protected set: `push_protected_branches` in ORG_RULES.md (env
 // MASTERSOFT_PUSH_PROTECTED_BRANCHES), comma-separated; `name/*` matches a
 // prefix, `*` matches every branch.
 
-const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { readStdinJson } = require('./lib');
@@ -19,14 +20,14 @@ const PROTECTED_PATTERNS = parsePatterns(
   cfg('MASTERSOFT_PUSH_PROTECTED_BRANCHES', 'push_protected_branches', DEFAULT_PROTECTED_BRANCHES, String),
 );
 
-const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '\n']);
+const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '\n', '(', ')']);
 const COMMAND_PREFIXES = new Set(['command', 'exec', 'env', 'sudo', 'nohup', 'time', 'xargs']);
-const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', '!', '{', '(']);
+const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', '!', '{', '}', 'fi', 'done']);
+const CONTEXT_CHANGERS = new Set(['cd', 'pushd', 'popd']);
 const GIT_REPO_SELECTORS = ['--git-dir', '--work-tree', '--namespace'];
 const UNRESOLVED_SHELL = /[$`*?]/;
-const BRANCH_CREATE_FLAGS = new Set(['-b', '-B', '-c', '-C', '--create', '--force-create', '--orphan']);
 const SHELL_EVALUATORS = new Set(['sh', 'bash', 'zsh', 'dash', 'eval', 'timeout', 'watch', 'ssh']);
-const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--repo', '--receive-pack', '--exec']);
+const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--receive-pack', '--exec']);
 const PUSH_ALL_FLAGS = new Set(['--all', '--mirror', '--branches']);
 const GLAB_PUSH_FLAGS = new Set(['--fill', '-f', '--push', '--push=true']);
 const GLAB_OPTS_WITH_VALUE = new Set([
@@ -107,7 +108,6 @@ function commandStart(seg) {
     break;
   }
   const rest = seg.slice(i);
-  if (rest.length) rest[0] = rest[0].replace(/^[({]+/, '');
   if (rest.length && path.basename(rest[0]) === 'git') rest[0] = 'git';
   return rest;
 }
@@ -115,17 +115,11 @@ function commandStart(seg) {
 function segments(cmd) {
   const out = [];
   let seg = [];
-  let op = null;
   for (const w of shellWords(cmd || '')) {
-    if (SEPARATORS.has(w)) {
-      if (seg.length) out.push({ op, words: commandStart(seg) });
-      seg = [];
-      op = w;
-      continue;
-    }
+    if (SEPARATORS.has(w)) { if (seg.length) out.push(commandStart(seg)); seg = []; continue; }
     seg.push(w);
   }
-  if (seg.length) out.push({ op, words: commandStart(seg) });
+  if (seg.length) out.push(commandStart(seg));
   return out;
 }
 
@@ -170,18 +164,21 @@ function parseGitPush(seg) {
   const i = inv.at;
   if (opaque || (dir && UNRESOLVED_SHELL.test(dir))) return { dir, targets: UNKNOWN };
   const positional = [];
+  let repo = null;
   let all = false;
   let tagsOnly = false;
   for (let j = i + 1; j < seg.length; j++) {
     const t = seg[j];
+    if (t === '--repo') { repo = seg[j + 1] || null; j++; continue; }
+    if (t.startsWith('--repo=')) { repo = t.slice('--repo='.length); continue; }
     if (PUSH_OPTS_WITH_VALUE.has(t)) { j++; continue; }
     if (PUSH_ALL_FLAGS.has(t)) { all = true; continue; }
     if (t === '--tags') { tagsOnly = true; continue; }
     if (t.startsWith('-')) continue;
     positional.push(t);
   }
-  const remote = positional[0] || null;
-  const refspecs = positional.slice(1);
+  const remote = repo || positional[0] || null;
+  const refspecs = repo ? positional : positional.slice(1);
   if (all) return { dir, targets: ALL_BRANCHES };
   if (remote && UNRESOLVED_SHELL.test(remote)) return { dir, targets: UNKNOWN };
   if (refspecs.length === 0) return { dir, remote, targets: tagsOnly ? [] : ['@default'] };
@@ -209,32 +206,18 @@ function parseGlabPush(seg) {
   return { dir: null, targets: [source || 'HEAD'] };
 }
 
-function applyContextChange({ op, words: seg }, ctx) {
-  if (ctx.changed && op !== '&&') ctx.unstable = true;
-  if (seg[0] === 'cd' || seg[0] === 'pushd') {
-    const arg = seg[1];
-    if (ctx.branch || !arg || arg.startsWith('-') || UNRESOLVED_SHELL.test(arg)) ctx.unstable = true;
-    else ctx.cwd = path.resolve(ctx.cwd, arg.replace(/^~(?=$|\/)/, os.homedir()));
-    ctx.changed = true;
-    return true;
-  }
+function changesContext(seg) {
+  if (CONTEXT_CHANGERS.has(seg[0])) return true;
   const inv = gitInvocation(seg);
-  if (!inv || (inv.sub !== 'checkout' && inv.sub !== 'switch')) return false;
-  const args = seg.slice(inv.at + 1);
-  const createAt = args.findIndex((a) => BRANCH_CREATE_FLAGS.has(a));
-  const name = createAt >= 0 ? args[createAt + 1] : null;
-  if (!name || inv.dir || inv.opaque || UNRESOLVED_SHELL.test(name) || name.startsWith('-')) ctx.unstable = true;
-  else ctx.branch = name;
-  ctx.changed = true;
-  return true;
+  return Boolean(inv && (inv.sub === 'checkout' || inv.sub === 'switch'));
 }
 
-function currentBranch(dir, override) {
-  return override || git(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
+function currentBranch(dir) {
+  return git(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
 }
 
-function defaultPushTargets(dir, remoteArg, override) {
-  const branch = currentBranch(dir, override);
+function defaultPushTargets(dir, remoteArg) {
+  const branch = currentBranch(dir);
   if (branch === null) return UNKNOWN;
   const remote = remoteArg
     || git(['config', '--get', `branch.${branch}.pushRemote`], dir)
@@ -255,19 +238,17 @@ function defaultPushTargets(dir, remoteArg, override) {
   return upstreamBranch && upstreamBranch !== branch ? [branch, upstreamBranch] : [branch];
 }
 
-function resolveTargets(push, ctx) {
+function resolveTargets(push, cwd) {
   if (push.targets === ALL_BRANCHES || push.targets === UNKNOWN) return push.targets;
-  if (push.dir && ctx.branch) return UNKNOWN;
-  const dir = push.dir ? path.resolve(ctx.cwd, push.dir) : ctx.cwd;
-  const override = ctx.branch;
+  const dir = push.dir ? path.resolve(cwd, push.dir) : cwd;
   const out = [];
   for (const t of push.targets) {
     if (t === '@default') {
-      const d = defaultPushTargets(dir, push.remote, override);
+      const d = defaultPushTargets(dir, push.remote);
       if (d === ALL_BRANCHES || d === UNKNOWN) return d;
       out.push(...d);
     } else if (t === 'HEAD') {
-      const b = currentBranch(dir, override);
+      const b = currentBranch(dir);
       if (b === null) return UNKNOWN;
       out.push(b);
     } else {
@@ -278,17 +259,16 @@ function resolveTargets(push, ctx) {
 }
 
 function pushDecision(cmd, cwd, patterns) {
-  const ctx = { cwd, branch: null, changed: false, unstable: false };
-  for (const segment of segments(cmd)) {
-    if (applyContextChange(segment, ctx)) continue;
-    const seg = segment.words;
+  let contextChanged = false;
+  for (const seg of segments(cmd)) {
+    if (changesContext(seg)) { contextChanged = true; continue; }
     const push = parseGitPush(seg) || parseGlabPush(seg);
     if (!push) {
       if (looksLikeNestedGitPush(seg)) return { ask: true, branch: '(push inside a nested shell)' };
       continue;
     }
-    if (ctx.unstable) return { ask: true, branch: '(unresolved branch or directory change earlier in this command)' };
-    const targets = resolveTargets(push, ctx);
+    if (contextChanged) return { ask: true, branch: '(directory or branch changes earlier in this command)' };
+    const targets = resolveTargets(push, cwd);
     if (targets === ALL_BRANCHES) return { ask: true, branch: '(multiple branches)' };
     if (targets === UNKNOWN) return { ask: true, branch: '(unknown)' };
     const hit = targets.find((b) => isProtected(b, patterns));

@@ -25,7 +25,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   Tune the list with `push_protected_branches` in `ORG_RULES.md` or
   `MASTERSOFT_PUSH_PROTECTED_BRANCHES` (`*` restores asking on every branch).
   Chained commands (`git commit … && git push`) and the push done by
-  `glab mr create --fill` are covered too.
+  `glab mr create --fill` are covered too; when the destination can't be read
+  reliably (a `cd` or branch switch earlier in the same command, shell
+  variables, wildcards) it asks.
 - `/mastersoft:glab` — opening an MR no longer asks for the target branch up
   front: it detects the base branch and shows it in a single confirmation.
   Repo templates are filled with only the sections that apply, and the bundled
