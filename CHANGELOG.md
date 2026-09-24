@@ -19,6 +19,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Changed
 
+- Push confirmation now asks only for protected branches (`main`, `master`,
+  `develop`, `dev`, `staging`, `production`, `release/*` by default); pushes
+  to feature branches go straight through, so unattended runs don't stall.
+  Tune the list with `push_protected_branches` in `ORG_RULES.md` or
+  `MASTERSOFT_PUSH_PROTECTED_BRANCHES` (`*` restores asking on every branch).
+  Chained commands (`git commit … && git push`) and the push done by
+  `glab mr create --fill` are covered too.
 - `/mastersoft:glab` — opening an MR no longer asks for the target branch up
   front: it detects the base branch and shows it in a single confirmation.
   Repo templates are filled with only the sections that apply, and the bundled
@@ -26,8 +33,6 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Fixed
 
-- `git push` inside a chained command (`git commit … && git push`) and the
-  push done by `glab mr create --fill` now get the org push confirmation.
 - Skills that delegate to agents (`ask`, `audit`, `adversary`, `investigate`,
   `recall`, `verify`, `refresh-rules`) use the current `Agent` tool, and
   context7 works when installed as a plugin.
