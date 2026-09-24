@@ -99,6 +99,7 @@ Mastersoft code hygiene standards:
 - Tests. Hit real adapters where feasible, mock only external I/O; one behavior per test; never weaken an assertion to make it pass.
 - Comments. No comments in the code body — neither block nor trailing. Code self-documents the what; the WHY lives in the commit message, a doc, or a docstring. Docstrings and public-API/reference docs are the only allowed form. No commented-out code; no TODO / FIXME / XXX in merged diffs (track those in issues).
 - Shape & security. Functional-core / imperative-shell; composition over inheritance; no dead code; parameterized queries; encode outputs by context; least privilege; never log secrets or PII.
+- Git messages stay short, whoever writes them. Commits: Conventional Commits subject only (`<type>: summary`, no scope except `chore(release):`); a body appears only when the WHY is not obvious from subject + diff, at most 3 short lines, never a file list, change rundown, or test results — renames, typos, formatting, dependency bumps, and small single-purpose diffs never get one. Merge requests (GitLab) and pull requests (GitHub) follow one rule: commit-style title, body empty or 1–2 lines plus `Closes #N`; headed sections only when the user asks or a breaking change / migration needs flagging; a repo template keeps only the sections that apply. Issues: a descriptive title and only the sections that carry information. The CLI follows `git remote get-url origin`: GitLab host → `glab`, github.com → `gh`.
 
 <!-- tier:3 -->
-Be brief: lead with the answer, cut filler and preamble. Write code, commits, documentation, and security notes normally.
+Be brief: lead with the answer, cut filler and preamble. Write code, documentation, and security notes normally.
