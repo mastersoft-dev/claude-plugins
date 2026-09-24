@@ -38,6 +38,7 @@ If missing: `brew install glab` (macOS) or see https://gitlab.com/gitlab-org/cli
 - **Commits**: Always prefer the `commit` skill over glab for staging and committing. glab is for GitLab API operations (MRs, issues, labels, pipelines, releases), not for local git work.
 - **Releases**: Use the `release` skill for versioning, changelogs, and tagging. The release skill itself shells out to `glab release create` to publish.
 - **CI ops live here**, not in `commit` or `release`. Driving a pipeline, tracing a job, retrying a failed stage — all via this skill.
+- **GitHub remotes**: this skill drives GitLab only. When `origin` is on github.com, use `gh` with the same title/body conventions (a GitHub "pull request" is a GitLab "merge request").
 - **Non-interactive only**: glab falls back to interactive prompts when required flags are missing on `auth login`, `mr create`, `issue create`, `release create`, `mr note`, `issue note`. Claude Code runs in a non-interactive shell — **always pass all required flags explicitly** and use `--yes` to skip confirmation prompts where supported. Never invoke bare `glab auth login`, `glab mr create`, or `glab release create` without title/description/notes flags.
 
 ## Routing
@@ -51,7 +52,7 @@ If missing: `brew install glab` (macOS) or see https://gitlab.com/gitlab-org/cli
    - Use `glab api <endpoint>` — same stored auth, no token extraction needed.
 4. **Workflow** — Arguments describe an intent ("create an MR", "merge !5", "what's wrong with my pipeline"):
    - Detect current context (branch, remote, auth status)
-   - **Always ask for target branch** when creating MRs — never assume master/main
+   - Opening an MR → follow **Opening an MR** below
    - Translate intent into the correct `glab` invocation or API call
    - Confirm with user before executing publishing or destructive operations
 
@@ -62,101 +63,38 @@ Full flag tables for every subcommand live in **`references/command-reference.md
 when you need exact flags; the routing, boundaries, and worked examples below cover
 the common paths without it.
 
-## Branch Detection & Selection
+## Opening an MR
 
-When creating an MR, **always ask the user for the target branch**. Never assume `master` or `main`.
+"Open the MR" (or "the PR" — same thing on GitLab) is the go-ahead. One confirmation, not a questionnaire.
 
-### Detect Available Branches
+1. **Target branch** — the one the user named; else the remote default (`git symbolic-ref --short refs/remotes/origin/HEAD`, drop the `origin/` prefix). If the branch was cut from a long-lived branch other than the default (`dev`, `develop`, `staging` — the one with the most recent `git merge-base` with `HEAD`), target that. The choice is shown in the confirmation, never applied silently.
+2. **Push first** — if the branch has no upstream or is ahead of it, `git push -u origin HEAD`. Pushing through git keeps the org push confirmation in the loop; `glab mr create --fill` pushes on its own otherwise.
+3. **Title** — commit style (`feat: …`, no scope). One commit → its subject. Several → one line on the outcome.
+4. **Body** — empty, or one line of WHY, plus `Closes #N` when it closes an issue. Headed sections only when the user asks, or to flag a breaking change / migration. Never restate commits, list files, or add Verification / Testing sections.
+5. **Repo template** (`.gitlab/merge_request_templates/`) — read it, keep only the sections that apply, one line each, and pass the result via `--description`. Never combine `--template` with `--yes`: it submits the raw placeholders.
+6. **Labels** — `glab label list`; apply the obvious `type/` label when the repo has one. Label creation is a separate request.
+7. **Confirm once** — target, title, body, labels in one message; on OK, run it.
 
 ```bash
-git branch -r --sort=-committerdate | head -10
+git push -u origin HEAD
+glab mr create --fill --target-branch main --title "fix: prevent double-charge on retry" --yes
+glab mr create --fill --target-branch main --title "feat: add session-based auth" \
+  --description "Closes #42" --label "type/feature" --yes
 ```
 
-### Prompt User for Target
+`--fill` takes the description from the commits (empty for subject-only commits); an explicit `--description` replaces it.
 
-Use `AskUserQuestion`:
-
-```
-"Which branch should this MR target?"
-Options: [main, dev, staging, Other (custom)]
-```
-
-If user says "to dev" or "against staging" in the initial request, use that branch directly.
-
-## MR Description Guidelines
-
-**Default: minimal body.** Title + commits already show *what* and *which files*. Do not assemble a multi-section AI-style description unless the user explicitly asks for one, or there is a non-obvious tradeoff a reviewer cannot infer from the diff.
-
-### Principles
-
-- **Title**: short, imperative, describes the outcome. Same conventions as commit subjects (`feat:`, `fix:`, etc.) — no scope.
-- **Body**: default empty or 1-2 lines. Add sections **only** when:
-  1. The user explicitly requested a detailed description.
-  2. There is a non-obvious decision, tradeoff, or constraint a reviewer cannot infer from title + commits.
-  3. There is a breaking change, migration step, or follow-up to flag.
-- **Never** restate commit subjects, list changed files, or re-summarize the diff. The MR view already shows all of that.
-- **Link issues** with `Closes #N` when relevant — that's worth one line on its own.
-- **Omit empty sections.** A body with empty "Approach" / "Verification" / "Notes" headings is worse than no body.
-
-### Title Examples
-
-| Bad | Good |
+| Bad title | Good title |
 |-----|------|
 | `Update user.ts, auth.ts, and middleware.ts` | `feat: add session-based authentication` |
 | `Fix bug` | `fix: prevent double-charge on retry` |
 | `Changes for review` | `refactor: extract validation into shared module` |
 
-### Worked Examples
-
-User says: "Create an MR from my current branch" or "Open an MR".
-
-1. **Check** — `glab auth status` (authenticated to the right host)
-2. **Detect current branch** — `git branch --show-current`
-3. **Ask for target branch** — User chooses (`main`, `dev`, `develop`, etc.). Never assume.
-4. **Detect commits** — `git log <base>..HEAD --oneline`
-5. **Labels** — `glab label list`; infer applicable labels from change scope
-6. **Decide body**:
-   - Default → `--fill` (title + body from commits, no extra prose) or `--description "1-2 lines"` if a single line of WHY helps.
-   - Repo has `.gitlab/merge_request_templates/<name>.md` → `--template <name>` (the repo decided the structure, follow it).
-   - User explicitly asked for a detailed description, or a real tradeoff needs flagging → build sections from `assets/pr-template.md`.
-7. **Confirm** — Present target branch, title, body, and labels before creating
-8. **Execute** — non-interactive `glab mr create`
-
-**Default (most MRs) — auto-fill from commits, no extra prose:**
-
-```bash
-glab mr create --target-branch main --fill --yes
-```
-
-**One-line WHY when it adds something the commits don't:**
-
-```bash
-glab mr create --target-branch main \
-  --title "feat: add session-based authentication" \
-  --label "type/feature,topic/api" \
-  --description "Server-side sessions for immediate token revocation on password change. Closes #42." \
-  --yes
-```
-
-**Multi-section description — only on explicit user request or genuine tradeoff to flag:**
-
-```bash
-glab mr create --target-branch main \
-  --title "refactor: switch session store from Postgres to Redis" \
-  --label "type/refactoring,topic/api,pr/breaking" \
-  --description "## Why
-Per-request write amplification under load (see #87). Redis TTL matches existing JWT expiry (24h).
-
-## Notes
-Breaking: existing sessions invalidated on deploy — coordinate with mobile rollout." \
-  --yes
-```
-
-If you reach for multi-section and it is **not** one of these two cases, default back to `--fill` or a one-liner.
+A multi-section example (breaking change) lives in `references/examples.md`.
 
 ## Issue Description Guidelines
 
-Pick the template matching the issue type. If `.gitlab/issue_templates/<name>.md` exists in the repo, pass `--template <name>`; otherwise build the body from one of:
+Pick the template matching the issue type — the repo's `.gitlab/issue_templates/<name>.md` if present, else one of the assets below. Keep only the sections that carry information and pass the body via `--description` (never `--template` with `--yes`, which submits the placeholders). A small task can be a title plus one line.
 
 | Type | Template | Sections | Label |
 |------|----------|----------|-------|
@@ -176,51 +114,13 @@ Plain-language descriptive (no `feat:`/`fix:` prefix — that's for MRs/commits)
 | `Bug` | `Ingest worker _reclaim_stale does not reprocess messages` |
 | `Set up staging` | `Staging server setup (Supervisor configs)` |
 
-### Worked Examples
-
-**Bug:**
-
-```bash
-glab issue create \
-  --title "GeoFenceStateFactory duplicate key on signal-created rows" \
-  --label "type/bug,topic/api" \
-  --description "## Description
-Factory raises IntegrityError when a signal creates a row before the factory runs.
-
-## Reproduction
-1. Send AP10 signal for a new device
-2. Call init_geofence_states management command
-3. Observe: duplicate key error on geofence_state table
-
-## Environment
-- Branch: main@a1b2c3d
-- Python 3.12 / Django 5.1" \
-  --yes
-```
-
-**Feature:**
-
-```bash
-glab issue create \
-  --title "Geofence event generation + GeoFenceState tracking" \
-  --label "type/feature,topic/api" \
-  --description "## Goal
-Generate enter/exit events when device signals cross geofence boundaries.
-
-## Motivation
-Core requirement for the alarm feed — no geofence events means no alerts.
-
-## Acceptance Criteria
-- [ ] Entry/exit events persisted on boundary crossing
-- [ ] GeoFenceState tracks current in/out per device-geofence pair" \
-  --yes
-```
+Worked bug / feature examples: `references/examples.md`.
 
 ### Principles
 
 - **Never verbose.** One sentence per section is often enough.
 - **Descriptive title.** Should tell a reader exactly what the issue is about without opening it.
-- **Correct template.** Bug → reproduction + environment. Feature → goal + acceptance criteria. Task → goal + scope checklist. Proposal → problem + options.
+- **Right template, minimal fill.** Bug → description + reproduction (environment/logs only when relevant). Feature → goal (+ acceptance criteria when non-obvious). Task → goal. Proposal → problem + options.
 - **Omit empty sections.**
 - **Always apply labels.** Every issue gets at least a `type/` label. Add `topic/` labels when the affected area is clear.
 
@@ -265,62 +165,7 @@ See `references/ci.md` for the full playbook. Quick guidance:
 
 ## GitLab API Fallback
 
-When a top-level glab subcommand doesn't expose what you need, drop to `glab api`. It uses the same stored auth — no manual token extraction needed.
-
-### Path placeholders
-
-These resolve from the current repo context:
-
-| Placeholder | Resolves to |
-|-------------|-------------|
-| `:fullpath` | URL-encoded `group/subgroup/project` |
-| `:id` | numeric project ID |
-| `:branch` | current branch |
-| `:user`, `:username` | authenticated user |
-| `:namespace`, `:group`, `:repo` | parts of the project path |
-
-### Common operations
-
-**Edit an MR description:**
-
-```bash
-glab api --method PUT projects/:fullpath/merge_requests/<iid> \
-  --field description="Updated body"
-```
-
-**Edit an issue title or body:**
-
-```bash
-glab api --method PUT projects/:fullpath/issues/<iid> \
-  --field title="New title" --field description="New body"
-```
-
-**Bulk add labels to an issue:**
-
-```bash
-glab api --method PUT projects/:fullpath/issues/<iid> \
-  --field add_labels="type/bug,topic/api"
-```
-
-**Paginated listing as NDJSON:**
-
-```bash
-glab api projects/:fullpath/issues --paginate --output ndjson \
-  | jq 'select(.state == "opened")'
-```
-
-**GraphQL:**
-
-```bash
-glab api graphql -f query='
-  query { project(fullPath: "group/subgroup/repo") { name, issuesEnabled } }
-'
-```
-
-### `--field` vs `--raw-field`
-
-- `--field key=value` — type-coerces booleans, numbers, `null` (`--field key:=null`).
-- `--raw-field key=value` — always sends as string.
+When no subcommand exposes what you need, use `glab api <endpoint>` — same stored auth, no token extraction. Path placeholders (`:fullpath`, `:id`, `:branch`), edit/label/paginate/GraphQL recipes, and `--field` vs `--raw-field`: `references/api.md`.
 
 ## Common Issues
 
@@ -330,7 +175,7 @@ glab api graphql -f query='
 
 ### MR or issue create hangs
 **Cause:** A required text input was omitted, dropping glab into an editor or prompt.
-**Fix:** Always pass `--title`, `--description` (string, not `-`), and `--yes`. Never use `--description -` from Claude Code.
+**Fix:** Always pass `--fill` or `--title` + `--description` (string, not `-`), plus `--yes`. Never use `--description -` from Claude Code.
 
 ### Merge "blocked"
 **Cause:** Approval rules, code owners, or unresolved discussions blocking the MR.
@@ -350,16 +195,18 @@ glab api graphql -f query='
 
 ## Additional Resources
 
-- **`assets/pr-template.md`** — MR body (Context, Approach, Verification, Notes)
+- **`assets/pr-template.md`** — MR body skeleton (one line of WHY; optional Notes for breaking changes)
 - **`assets/issue-template-bug.md`** — Bug report
 - **`assets/issue-template-feature.md`** — Feature request
 - **`assets/issue-template-task.md`** — Task / chore
 - **`assets/issue-template-proposal.md`** — Proposal
 - **`assets/labels.md`** — Standard label set (type/, issue/, proposal/, status/, pr/, topic/)
-- **`assets/gitlab-repo-templates/`** — Drop-in templates a repo can commit to `.gitlab/merge_request_templates/` and `.gitlab/issue_templates/` for native `--template` support
+- **`assets/gitlab-repo-templates/`** — Drop-in templates a repo can commit to `.gitlab/merge_request_templates/` and `.gitlab/issue_templates/` (the skill reads and fills them)
 - **`references/command-reference.md`** — full flag tables for every subcommand (auth, MRs, issues, labels, CI/CD, releases, global flags)
 - **`references/workflows.md`** — MR review flow, approval rules, merge train, fork flow
 - **`references/ci.md`** — Pipeline/job ops, trace, retry, lint
+- **`references/api.md`** — `glab api` placeholders and recipes
+- **`references/examples.md`** — worked MR / issue examples
 - **`references/testing.md`** — Troubleshooting, test protocols, success criteria
 
 ## Help
@@ -370,8 +217,7 @@ Explain and execute GitLab CLI (glab) commands for managing MRs, issues, pipelin
 ### Examples
 - `glab -h` (show glab help)
 - `glab mr list --state open` (list open MRs)
-- `glab mr create --target-branch main --title "feat: my feature" --label "type/feature" --yes` (create MR)
-- `glab mr create --fill --fill-commit-body --yes` (auto-fill from commits)
+- `glab mr create --fill --target-branch main --title "feat: my feature" --label "type/feature" --yes` (create MR after `git push`)
 - `glab issue create --title "Login fails on expired token" --label "type/bug" --description "..." --yes`
 - `glab ci status --live` (watch pipeline)
 - `glab ci trace <job-name>` (stream failing job log)
@@ -380,9 +226,10 @@ Explain and execute GitLab CLI (glab) commands for managing MRs, issues, pipelin
 
 ### Checklist
 - Verify `glab` is installed and authenticated (`glab auth status`).
-- **Always ask for target branch** when creating MRs — never assume master/main.
-- Pass `--yes` (and explicit `--title` / `--description`) to avoid interactive prompts that hang.
-- Prefer `--template <name>` if the repo has `.gitlab/merge_request_templates/` or `.gitlab/issue_templates/`.
+- Target branch = user's choice, else the detected base, shown in the single confirmation.
+- Push with `git push` before `glab mr create --fill`, so the org push confirmation applies.
+- Pass `--yes` plus `--fill` or explicit `--title` / `--description` to avoid interactive prompts that hang.
+- Repo templates (`.gitlab/merge_request_templates/`, `.gitlab/issue_templates/`) are read and filled with only the applicable sections, then passed via `--description`.
 - For operations not exposed by a subcommand, use `glab api` — no token extraction needed.
 - Confirm destructive operations (merge, close, delete, cancel, retry) before executing.
 - Return actionable output with links where available.

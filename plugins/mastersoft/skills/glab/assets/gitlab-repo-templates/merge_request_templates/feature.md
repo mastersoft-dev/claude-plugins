@@ -1,19 +1,5 @@
-## Context
+<!-- Closes #N. One line on the user need if the title doesn't say it. Leave empty when the title says it all. -->
 
-<!-- The user need or business goal. Closes #<issue>. -->
-
-## Approach
-
-<!-- Key design decisions. Trade-offs. Alternatives rejected. -->
-
-## Verification
-
-- [ ] Unit tests cover the new behavior
-- [ ] Integration test covers the end-to-end path
-- [ ] Manual smoke test on <environment>
-
-## Notes
-
-<!-- Breaking changes, migration steps, follow-ups. Omit if nothing to flag. -->
+<!-- Breaking change or migration step? Add a "## Notes" section with one line; otherwise delete this comment. -->
 
 /label ~"type/feature"
