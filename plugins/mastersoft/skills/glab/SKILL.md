@@ -68,7 +68,7 @@ the common paths without it.
 "Open the MR" (or "the PR" — same thing on GitLab) is the go-ahead. One confirmation, not a questionnaire.
 
 1. **Target branch** — the one the user named; else the remote default (`git symbolic-ref --short refs/remotes/origin/HEAD`, drop the `origin/` prefix). If the branch was cut from a long-lived branch other than the default (`dev`, `develop`, `staging` — the one with the most recent `git merge-base` with `HEAD`), target that. The choice is shown in the confirmation, never applied silently.
-2. **Push first** — if the branch has no upstream or is ahead of it, `git push -u origin HEAD`. Pushing through git keeps the org push confirmation in the loop; `glab mr create --fill` pushes on its own otherwise.
+2. **Push first** — if the branch has no upstream or is ahead of it, `git push -u origin HEAD`, so the push is an explicit step (`glab mr create --fill` would otherwise push on its own). The org hook only asks when the branch is protected.
 3. **Title** — commit style (`feat: …`, no scope). One commit → its subject. Several → one line on the outcome.
 4. **Body** — empty, or one line of WHY, plus `Closes #N` when it closes an issue. Headed sections only when the user asks, or to flag a breaking change / migration. Never restate commits, list files, or add Verification / Testing sections.
 5. **Repo template** (`.gitlab/merge_request_templates/`) — read it, keep only the sections that apply, one line each, and pass the result via `--description`. Never combine `--template` with `--yes`: it submits the raw placeholders.
@@ -227,7 +227,7 @@ Explain and execute GitLab CLI (glab) commands for managing MRs, issues, pipelin
 ### Checklist
 - Verify `glab` is installed and authenticated (`glab auth status`).
 - Target branch = user's choice, else the detected base, shown in the single confirmation.
-- Push with `git push` before `glab mr create --fill`, so the org push confirmation applies.
+- Push with `git push` before `glab mr create --fill`, so the push is explicit.
 - Pass `--yes` plus `--fill` or explicit `--title` / `--description` to avoid interactive prompts that hang.
 - Repo templates (`.gitlab/merge_request_templates/`, `.gitlab/issue_templates/`) are read and filled with only the applicable sections, then passed via `--description`.
 - For operations not exposed by a subcommand, use `glab api` — no token extraction needed.

@@ -38,6 +38,11 @@ memory_review_days: 30              # env: MASTERSOFT_MEMORY_REVIEW_DAYS
 # repo moved. Generous — rule files are stable by design.
 rule_stale_commits: 40              # env: MASTERSOFT_RULE_STALE_COMMITS
 rule_stale_days: 120                # env: MASTERSOFT_RULE_STALE_DAYS
+
+# ─── Push confirmation ──────────────────────────────────────────────
+# Pushes to these branches ask for confirmation; others go straight
+# through. Comma-separated; `name/*` = prefix, `*` = every branch.
+push_protected_branches: main,master,develop,dev,staging,production,release/*   # env: MASTERSOFT_PUSH_PROTECTED_BRANCHES
 ---
 
 ## Rule taxonomy
@@ -47,7 +52,7 @@ enforces it — read this table before editing.
 
 | Layer | Enforced where | Example rules | How to change |
 |---|---|---|---|
-| **Harness** | Claude Code managed-settings + PreToolUse hooks | `git push` confirmation; marketplace allowlist; min plugin version | claude.ai org settings (out-of-repo) for managed-settings keys; `hooks/suggest-push.js` for the push-confirm hook |
+| **Harness** | Claude Code managed-settings + PreToolUse hooks | push confirmation on protected branches; marketplace allowlist; min plugin version | claude.ai org settings (out-of-repo) for managed-settings keys; `push_protected_branches` above + `hooks/suggest-push.js` for the push-confirm hook |
 | **Lint** | `hooks/lint-engine.js` per-prompt signals | CLAUDE.md/AGENTS.md staleness; file-size caps; audit cadence; stale path refs | YAML frontmatter above (each key comments its env-var override) |
 | **Model** | Injected `additionalContext`, tiered (see below) | tier 1 operating posture; tier 2 code hygiene standards; tier 3 brevity | tier prose below |
 

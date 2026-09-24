@@ -1,12 +1,34 @@
 'use strict';
 
-// Org rule: every `git push` requires explicit user confirmation. No branch
-// filter, no "protected" guessing — pushing is consequential, so we ask.
-// `glab mr create --fill` / `--push` pushes the branch itself, so it gets the
-// same confirmation whenever the branch actually has commits to push.
+// Org rule: pushes to protected branches require explicit user confirmation;
+// feature-branch pushes go straight through so unattended runs never stall.
+// Covers `git push` (any refspec form, chained commands, `git -C <dir>`) and
+// the push `glab mr create --fill` / `--push` performs on its source branch.
+// Protected set: `push_protected_branches` in ORG_RULES.md (env
+// MASTERSOFT_PUSH_PROTECTED_BRANCHES), comma-separated; `name/*` matches a
+// prefix, `*` matches every branch.
 
+const path = require('path');
 const { execFileSync } = require('child_process');
 const { readStdinJson } = require('./lib');
+const { cfg } = require('./lib-org-rules');
+
+const DEFAULT_PROTECTED_BRANCHES = 'main,master,develop,dev,staging,production,release/*';
+const PROTECTED_PATTERNS = parsePatterns(
+  cfg('MASTERSOFT_PUSH_PROTECTED_BRANCHES', 'push_protected_branches', DEFAULT_PROTECTED_BRANCHES, String),
+);
+
+const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '\n']);
+const COMMAND_PREFIXES = new Set(['command', 'exec', 'env', 'sudo']);
+const GIT_GLOBAL_OPTS_WITH_VALUE = new Set(['-C', '-c']);
+const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--repo', '--receive-pack', '--exec']);
+const PUSH_ALL_FLAGS = new Set(['--all', '--mirror', '--branches']);
+const GLAB_PUSH_FLAGS = new Set(['--fill', '-f', '--push', '--push=true']);
+const GLAB_OPTS_WITH_VALUE = new Set([
+  '--title', '-t', '--description', '-d', '--target-branch', '-b', '--source-branch', '-s',
+  '--label', '-l', '--assignee', '-a', '--reviewer', '--milestone', '-m', '--template', '--repo', '-R',
+]);
+const ALL_BRANCHES = Symbol('all-branches');
 
 function git(args, cwd) {
   try {
@@ -16,44 +38,23 @@ function git(args, cwd) {
   } catch { return null; }
 }
 
-function tokenize(cmd) {
-  if (!cmd) return [];
-  const raw = shellWords(cmd);
-  const out = [];
-  let i = 0;
-  while (i < raw.length) {
-    const t = raw[i];
-    if (/^[A-Z_][A-Z0-9_]*=/.test(t)) { i++; continue; }
-    if (t === 'command' || t === 'exec' || t === 'env' || t === 'sudo') { i++; continue; }
-    out.push(t);
-    i++;
-  }
-  return out;
+function parsePatterns(raw) {
+  return String(raw).split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-function isGitPush(cmd) {
-  const toks = tokenize(cmd);
-  for (let i = 0; i < toks.length; i++) {
-    if (toks[i] !== 'git') continue;
-    for (let j = i + 1; j < toks.length; j++) {
-      const t = toks[j];
-      if (t === '-c' || t === '-C') { j++; continue; }
-      if (t.startsWith('--git-dir') || t.startsWith('--work-tree') || t.startsWith('--namespace')) continue;
-      if (t.startsWith('-')) continue;
-      if (t === 'push') return true;
-      break;
-    }
-  }
-  return false;
+function isProtected(branch, patterns) {
+  return patterns.some((p) => {
+    if (p === '*') return true;
+    if (p.endsWith('/*')) return branch.startsWith(p.slice(0, -1));
+    return branch === p;
+  });
 }
-
-const SHELL_SEPARATORS = new Set(['&&', '||', ';', '|', '&', '\n']);
-const GLAB_PUSH_FLAGS = new Set(['--fill', '-f', '--push', '--push=true']);
 
 function shellWords(cmd) {
   const words = [];
   let cur = null;
   let quote = null;
+  const flush = () => { if (cur !== null) words.push(cur); cur = null; };
   for (let i = 0; i < cmd.length; i++) {
     const c = cmd[i];
     if (quote) {
@@ -65,82 +66,133 @@ function shellWords(cmd) {
     if (c === '"' || c === "'") { quote = c; cur = cur === null ? '' : cur; continue; }
     if (c === '\\' && i + 1 < cmd.length) { cur = (cur === null ? '' : cur) + cmd[++i]; continue; }
     const two = cmd.slice(i, i + 2);
-    if (two === '&&' || two === '||') { if (cur !== null) words.push(cur); cur = null; words.push(two); i++; continue; }
-    if (c === ';' || c === '|' || c === '&' || c === '\n') { if (cur !== null) words.push(cur); cur = null; words.push(c); continue; }
-    if (/\s/.test(c)) { if (cur !== null) words.push(cur); cur = null; continue; }
+    if (two === '&&' || two === '||') { flush(); words.push(two); i++; continue; }
+    if (SEPARATORS.has(c)) { flush(); words.push(c); continue; }
+    if (/\s/.test(c)) { flush(); continue; }
     cur = (cur === null ? '' : cur) + c;
   }
-  if (cur !== null) words.push(cur);
+  flush();
   return words;
 }
 
-function glabMrCreateArgLists(cmd) {
-  const words = shellWords(cmd || '');
-  const lists = [];
-  for (let i = 0; i + 2 < words.length; i++) {
-    if (words[i] !== 'glab' || words[i + 1] !== 'mr' || words[i + 2] !== 'create') continue;
-    const args = [];
-    for (let j = i + 3; j < words.length && !SHELL_SEPARATORS.has(words[j]); j++) args.push(words[j]);
-    lists.push(args);
+function segments(cmd) {
+  const out = [];
+  let seg = [];
+  for (const w of shellWords(cmd || '')) {
+    if (SEPARATORS.has(w)) { if (seg.length) out.push(seg); seg = []; continue; }
+    if (seg.length === 0 && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || COMMAND_PREFIXES.has(w))) continue;
+    seg.push(w);
   }
-  return lists;
+  if (seg.length) out.push(seg);
+  return out;
 }
 
-function argsPush(args) {
-  const optionArgs = [];
-  for (let k = 0; k < args.length; k++) {
-    if (args[k] === '--description' || args[k] === '-d' || args[k] === '--title' || args[k] === '-t') { k++; continue; }
-    optionArgs.push(args[k]);
+function refspecTarget(spec) {
+  const s = spec.replace(/^\+/, '');
+  const dst = s.includes(':') ? s.slice(s.indexOf(':') + 1) : s;
+  if (!dst || dst.startsWith('refs/tags/')) return null;
+  return dst.replace(/^refs\/heads\//, '');
+}
+
+function parseGitPush(seg) {
+  if (seg[0] !== 'git') return null;
+  let dir = null;
+  let i = 1;
+  for (; i < seg.length; i++) {
+    const t = seg[i];
+    if (GIT_GLOBAL_OPTS_WITH_VALUE.has(t)) { if (t === '-C') dir = seg[i + 1]; i++; continue; }
+    if (t.startsWith('-')) continue;
+    break;
   }
-  if (optionArgs.includes('--push=false')) return false;
-  return optionArgs.some((t) => GLAB_PUSH_FLAGS.has(t));
+  if (seg[i] !== 'push') return null;
+  const positional = [];
+  let all = false;
+  let tagsOnly = false;
+  for (let j = i + 1; j < seg.length; j++) {
+    const t = seg[j];
+    if (PUSH_OPTS_WITH_VALUE.has(t)) { j++; continue; }
+    if (PUSH_ALL_FLAGS.has(t)) { all = true; continue; }
+    if (t === '--tags') { tagsOnly = true; continue; }
+    if (t.startsWith('-')) continue;
+    positional.push(t);
+  }
+  const refspecs = positional.slice(1);
+  if (all) return { dir, targets: ALL_BRANCHES };
+  if (refspecs.length === 0) return { dir, targets: tagsOnly ? [] : ['@default'] };
+  return { dir, targets: refspecs.map(refspecTarget).filter(Boolean) };
 }
 
-function isGlabPushingMrCreate(cmd) {
-  return glabMrCreateArgLists(cmd).some(argsPush);
+function parseGlabPush(seg) {
+  if (seg[0] !== 'glab' || seg[1] !== 'mr' || seg[2] !== 'create') return null;
+  let pushes = false;
+  let disabled = false;
+  let source = null;
+  for (let j = 3; j < seg.length; j++) {
+    const t = seg[j];
+    if (t === '--source-branch' || t === '-s') { source = seg[j + 1] || null; j++; continue; }
+    if (t.startsWith('--source-branch=')) { source = t.slice('--source-branch='.length); continue; }
+    if (GLAB_OPTS_WITH_VALUE.has(t)) { j++; continue; }
+    if (t === '--push=false') disabled = true;
+    else if (GLAB_PUSH_FLAGS.has(t)) pushes = true;
+  }
+  if (!pushes || disabled) return null;
+  return { dir: null, targets: [source || 'HEAD'] };
 }
 
-function isCompound(cmd) {
-  return shellWords(cmd || '').some((w) => SHELL_SEPARATORS.has(w));
+function changesBranchOrDir(seg) {
+  if (seg[0] === 'cd' || seg[0] === 'pushd') return true;
+  return seg[0] === 'git' && seg.some((t) => t === 'checkout' || t === 'switch');
 }
 
-function hasCommitsToPush(repoRoot) {
-  if (git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repoRoot) === null) return true;
-  const ahead = git(['rev-list', '--count', '@{u}..HEAD'], repoRoot);
-  return ahead === null || Number(ahead) > 0;
+function resolveBranch(name, dir) {
+  if (name === 'HEAD') return git(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
+  if (name !== '@default') return name;
+  const upstream = git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
+  if (upstream && upstream.includes('/')) return upstream.slice(upstream.indexOf('/') + 1);
+  return git(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
+}
+
+function pushDecision(cmd, cwd, patterns) {
+  let unstable = false;
+  for (const seg of segments(cmd)) {
+    if (changesBranchOrDir(seg)) { unstable = true; continue; }
+    const push = parseGitPush(seg) || parseGlabPush(seg);
+    if (!push) continue;
+    if (unstable) return { ask: true, branch: '(changed earlier in this command)' };
+    if (push.targets === ALL_BRANCHES) return { ask: true, branch: '(all branches)' };
+    const dir = push.dir ? path.resolve(cwd, push.dir) : cwd;
+    for (const t of push.targets) {
+      const branch = resolveBranch(t, dir);
+      if (branch === null) return { ask: true, branch: '(unknown)' };
+      if (isProtected(branch, patterns)) return { ask: true, branch };
+    }
+  }
+  return { ask: false };
 }
 
 function main() {
   if (process.env.MASTERSOFT_SKIP_PUSH_CHECK === '1') process.exit(0);
 
   const input = readStdinJson();
-  if (!input) process.exit(0);
-  if (input.tool_name !== 'Bash') process.exit(0);
+  if (!input || input.tool_name !== 'Bash') process.exit(0);
 
   const cmd = input.tool_input && input.tool_input.command;
-  const gitPush = isGitPush(cmd);
-  if (!gitPush && !isGlabPushingMrCreate(cmd)) process.exit(0);
+  const cwd = input.cwd || process.env.CLAUDE_PROJECT_DIR || '.';
+  const decision = pushDecision(cmd, cwd, PROTECTED_PATTERNS);
+  if (!decision.ask) process.exit(0);
 
-  const cwd = input.cwd || '.';
-  const repoRoot = process.env.CLAUDE_PROJECT_DIR
-    || git(['rev-parse', '--show-toplevel'], cwd)
-    || cwd;
-
-  if (!gitPush && !isCompound(cmd) && !hasCommitsToPush(repoRoot)) process.exit(0);
-
-  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot) || '(unknown)';
-  const action = gitPush ? '`git push`' : 'the push done by `glab mr create`';
-
-  const lines = [`Confirm ${action} on branch \`${branch}\`?`];
-  lines.push('Mastersoft org rule: pushes always require explicit confirmation. Override with env MASTERSOFT_SKIP_PUSH_CHECK=1 for unattended scripts.');
+  const reason = [
+    `Confirm push to protected branch \`${decision.branch}\`?`,
+    'Mastersoft org rule: pushes to protected branches (push_protected_branches in ORG_RULES.md) need confirmation; MASTERSOFT_SKIP_PUSH_CHECK=1 skips it.',
+  ].join(' ');
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: 'ask',
-      permissionDecisionReason: lines.join(' '),
+      permissionDecisionReason: reason,
     },
-    systemMessage: `[Mastersoft] Push confirmation required on \`${branch}\`.`,
+    systemMessage: `[Mastersoft] Push to protected branch \`${decision.branch}\` needs confirmation.`,
     terminalSequence: String.fromCharCode(7),
   }) + '\n');
   process.exit(0);

@@ -64,7 +64,7 @@ Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `
 | `MASTERSOFT_QUIET=lints` | Shell process | Keep ORG preamble; suppress lint signals only. |
 | `.claude/.mastersoft-lints-ack` | Per repo, ~4h TTL | Defer lint signals for the session window. Touched by `/mastersoft:ack-lints defer`. |
 | `.claude/.mastersoft-lints-suppress` | Per repo, indefinite | Disable lint signals in this repo until the file is deleted. |
-| `MASTERSOFT_SKIP_PUSH_CHECK=1` | Shell process | Skip the `git push` confirmation prompt (for unattended scripts). |
+| `MASTERSOFT_SKIP_PUSH_CHECK=1` | Shell process | Skip the push confirmation on protected branches (for unattended runs). |
 
 ## Env vars and their `ORG_RULES.md` keys
 
@@ -82,6 +82,7 @@ Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `
 | `MASTERSOFT_MEMORY_REVIEW_DAYS` | `memory_review_days` | `30` | Days an auto-memory entry may sit untriaged before `memory-review-due` fires. |
 | `MASTERSOFT_RULE_STALE_COMMITS` | `rule_stale_commits` | `40` | CLAUDE.md/AGENTS.md untouched commits → `rule-file-stale`. |
 | `MASTERSOFT_RULE_STALE_DAYS` | `rule_stale_days` | `120` | CLAUDE.md/AGENTS.md untouched days → `rule-file-stale`. |
+| `MASTERSOFT_PUSH_PROTECTED_BRANCHES` | `push_protected_branches` | `main,master,develop,dev,staging,production,release/*` | Pushes to these branches ask for confirmation (`git push`, `glab mr create --fill`); `name/*` = prefix, `*` = all. |
 
 Precedence per key: env var > `ORG_RULES.md` frontmatter > built-in default. Unknown frontmatter keys are reported once per session via `systemMessage`.
 

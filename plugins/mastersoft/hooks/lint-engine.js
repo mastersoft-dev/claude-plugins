@@ -55,6 +55,7 @@ const KNOWN_FRONTMATTER_KEYS = new Set([
   'memory_review_days',
   'rule_stale_commits',
   'rule_stale_days',
+  'push_protected_branches',
 ]);
 
 const UNKNOWN_FRONTMATTER_KEYS = Object.keys(ORG.config)
