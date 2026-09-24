@@ -124,8 +124,62 @@ test('git -C resolves the branch in the target directory', () => {
   assertEq(runHook(onFeature, `git -C "${onMain}" push`), 'ask');
 });
 
-test('a branch switch earlier in the command asks conservatively', () => {
+test('switching to a protected branch earlier in the command asks', () => {
   assertEq(runHook(onFeature, 'git switch main && git push'), 'ask');
+});
+
+test('creating a feature branch then pushing passes', () => {
+  assertEq(runHook(onMain, 'git checkout -b feat/new && git push -u origin HEAD'), 'pass');
+});
+
+test('an unresolvable branch switch asks', () => {
+  assertEq(runHook(onFeature, 'git switch - && git push'), 'ask');
+});
+
+test('cd into another repo resolves the branch there', () => {
+  assertEq(runHook(onMain, `cd "${onFeature}" && git push`), 'pass');
+  assertEq(runHook(onFeature, `cd "${onMain}" && git push`), 'ask');
+});
+
+test('remote push refspec in git config is honored', () => {
+  const repo = mkRepo();
+  checkout(repo, 'feat/cfg');
+  sh(['config', 'remote.origin.push', 'HEAD:main'], repo);
+  assertEq(runHook(repo, 'git push'), 'ask');
+});
+
+test('push.default=matching counts as a multi-branch push', () => {
+  const repo = mkRepo();
+  checkout(repo, 'feat/match');
+  sh(['config', 'push.default', 'matching'], repo);
+  assertEq(runHook(repo, 'git push'), 'ask');
+});
+
+test('matching ":" and wildcard refspecs ask', () => {
+  assertEq(runHook(onFeature, 'git push origin :'), 'ask');
+  assertEq(runHook(onFeature, "git push origin 'refs/heads/*:refs/heads/*'"), 'ask');
+});
+
+test('redirections are not taken as push arguments', () => {
+  assertEq(runHook(onMain, 'git push > /tmp/push.log'), 'ask');
+  assertEq(runHook(onFeature, 'git push 2>&1 | tail -3'), 'pass');
+});
+
+test('pushes inside control flow or behind wrapper options are detected', () => {
+  assertEq(runHook(onFeature, 'if true; then git push origin HEAD:main; fi'), 'ask');
+  assertEq(runHook(onFeature, 'sudo -n git push origin HEAD:main'), 'ask');
+});
+
+test('repository-selection options ask', () => {
+  assertEq(runHook(onFeature, `git --git-dir="${onMain}/.git" push`), 'ask');
+});
+
+test('destinations from shell variables ask', () => {
+  assertEq(runHook(onFeature, 'branch=main; git push origin HEAD:"$branch"'), 'ask');
+});
+
+test('the word push in a non-push git command passes', () => {
+  assertEq(runHook(onMain, 'git commit -m push'), 'pass');
 });
 
 test('--all asks', () => {
