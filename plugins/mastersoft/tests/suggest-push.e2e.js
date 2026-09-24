@@ -186,6 +186,7 @@ test('--repo selects the remote whose refspecs are used', () => {
   assertEq(runHook(repo, 'git push --repo=publish'), 'ask');
   assertEq(runHook(repo, 'git push --repo publish'), 'ask');
   assertEq(runHook(repo, 'git push'), 'pass');
+  assertEq(runHook(repo, 'git push --repo=origin publish'), 'ask');
 });
 
 test('command substitution and subshell pushes are parsed', () => {

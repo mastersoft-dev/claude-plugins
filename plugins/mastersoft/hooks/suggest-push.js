@@ -177,8 +177,8 @@ function parseGitPush(seg) {
     if (t.startsWith('-')) continue;
     positional.push(t);
   }
-  const remote = repo || positional[0] || null;
-  const refspecs = repo ? positional : positional.slice(1);
+  const remote = positional[0] || repo || null;
+  const refspecs = positional.slice(1);
   if (all) return { dir, targets: ALL_BRANCHES };
   if (remote && UNRESOLVED_SHELL.test(remote)) return { dir, targets: UNKNOWN };
   if (refspecs.length === 0) return { dir, remote, targets: tagsOnly ? [] : ['@default'] };
