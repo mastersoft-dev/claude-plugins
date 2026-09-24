@@ -33,6 +33,48 @@ const CONTEXT_USAGE_FILE = path.join(STATE_DIR, 'context-usage.json');
 const CONTEXT_USAGE_MAX_AGE_MS = 5 * 60 * 1000;
 const DEFAULT_DISTANCE_PCT = 15;
 
+// ORG_RULES.md frontmatter carries every tunable hook default (precedence per
+// key: env var > frontmatter > built-in default), read by lint-engine and
+// suggest-push via `cfg`.
+function parseFrontmatter(text) {
+  const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
+  if (!m) return { config: {}, body: text };
+  const config = {};
+  for (const raw of m[1].split('\n')) {
+    const line = raw.split('#')[0].trim();
+    if (!line) continue;
+    const kv = line.match(/^([\w_]+)\s*:\s*(.+?)\s*$/);
+    if (!kv) continue;
+    const k = kv[1];
+    let v = kv[2];
+    if (v === 'true') v = true;
+    else if (v === 'false') v = false;
+    else if (/^-?\d+(\.\d+)?$/.test(v)) v = Number(v);
+    else v = v.replace(/^["']|["']$/g, '');
+    config[k] = v;
+  }
+  return { config, body: m[2].trim() };
+}
+
+function loadOrgRules() {
+  try {
+    const text = fs.readFileSync(ORG_RULES_PATH, 'utf8');
+    return parseFrontmatter(text);
+  } catch {
+    return { config: {}, body: null };
+  }
+}
+
+const ORG = loadOrgRules();
+
+function cfg(envVar, frontmatterKey, builtinDefault, parser) {
+  parser = parser || (v => v);
+  const e = process.env[envVar];
+  if (e !== undefined && e !== '') return parser(e);
+  if (ORG.config[frontmatterKey] !== undefined) return ORG.config[frontmatterKey];
+  return builtinDefault;
+}
+
 function stripFrontmatter(text) {
   return text.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
 }
@@ -134,6 +176,7 @@ function writeContextUsagePercent(usedPercent) {
 }
 
 module.exports = {
+  ORG, cfg,
   loadOrgTiers, orgMode, quietMutesOrg, quietMutesTier3, cap,
   distancePct, readContextUsagePercent, writeContextUsagePercent,
 };

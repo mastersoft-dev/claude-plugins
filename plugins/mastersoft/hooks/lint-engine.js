@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
 const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot } = require('./lib');
+const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -20,51 +21,8 @@ const SIGNAL_BUDGET_CHARS = 800;
 // max-age forces an occasional refresh so time-based thresholds still advance.
 const LINT_SCAN_MAX_AGE_MS = Number(process.env.MASTERSOFT_LINT_SCAN_MAX_AGE_MS) || 3600000;
 
-// ORG_RULES.md (sibling of hooks/) carries a YAML-ish frontmatter with all
-// tunable lint defaults (precedence per key: env var > frontmatter > built-in
-// default). The prose tiers below the frontmatter are injected by the separate
-// tier hooks (inject-session.js / inject-turn.js / inject-org-rules.js), not here.
-const ORG_RULES_PATH = path.join(__dirname, '..', 'ORG_RULES.md');
-
-function parseFrontmatter(text) {
-  const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
-  if (!m) return { config: {}, body: text };
-  const config = {};
-  for (const raw of m[1].split('\n')) {
-    const line = raw.split('#')[0].trim();
-    if (!line) continue;
-    const kv = line.match(/^([\w_]+)\s*:\s*(.+?)\s*$/);
-    if (!kv) continue;
-    const k = kv[1];
-    let v = kv[2];
-    if (v === 'true') v = true;
-    else if (v === 'false') v = false;
-    else if (/^-?\d+(\.\d+)?$/.test(v)) v = Number(v);
-    else v = v.replace(/^["']|["']$/g, '');
-    config[k] = v;
-  }
-  return { config, body: m[2].trim() };
-}
-
-function loadOrgRules() {
-  try {
-    const text = fs.readFileSync(ORG_RULES_PATH, 'utf8');
-    return parseFrontmatter(text);
-  } catch {
-    return { config: {}, body: null };
-  }
-}
-
-const ORG = loadOrgRules();
-
-function cfg(envVar, frontmatterKey, builtinDefault, parser) {
-  parser = parser || (v => v);
-  const e = process.env[envVar];
-  if (e !== undefined && e !== '') return parser(e);
-  if (ORG.config[frontmatterKey] !== undefined) return ORG.config[frontmatterKey];
-  return builtinDefault;
-}
-
+// Tunable lint defaults live in ORG_RULES.md frontmatter (precedence per key:
+// env var > frontmatter > built-in default); parsing is shared via lib-org-rules.
 const CLAUDE_MAX_LINES = cfg('MASTERSOFT_CLAUDE_MAX_LINES', 'claude_max_lines', 200, Number);
 const REFRESH_INTERVAL_DAYS = cfg('MASTERSOFT_REFRESH_INTERVAL_DAYS', 'refresh_interval_days', 60, Number);
 const VERIFY_MIN_AGE_DAYS = cfg('MASTERSOFT_VERIFY_MIN_AGE_DAYS', 'verify_min_age_days', 7, Number);
