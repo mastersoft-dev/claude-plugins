@@ -101,4 +101,4 @@ Precedence per key: env var > `ORG_RULES.md` frontmatter > built-in default. Unk
 
 ## Reporting bugs
 
-`SECURITY.md` for security. `.github/ISSUE_TEMPLATE/` otherwise. Repo: `git.mastersoft.it/mastersoft/claude-plugins`.
+`SECURITY.md` for security. `.github/ISSUE_TEMPLATE/` otherwise. Repo: the `mastersoft` marketplace source (`/plugin marketplace list` shows its URL).
