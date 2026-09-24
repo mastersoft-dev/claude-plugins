@@ -25,6 +25,7 @@ const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'un
 const GIT_REPO_SELECTORS = ['--git-dir', '--work-tree', '--namespace'];
 const UNRESOLVED_SHELL = /[$`*?]/;
 const BRANCH_CREATE_FLAGS = new Set(['-b', '-B', '-c', '-C', '--create', '--force-create', '--orphan']);
+const SHELL_EVALUATORS = new Set(['sh', 'bash', 'zsh', 'dash', 'eval', 'timeout', 'watch', 'ssh']);
 const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--repo', '--receive-pack', '--exec']);
 const PUSH_ALL_FLAGS = new Set(['--all', '--mirror', '--branches']);
 const GLAB_PUSH_FLAGS = new Set(['--fill', '-f', '--push', '--push=true']);
@@ -114,16 +115,23 @@ function commandStart(seg) {
 function segments(cmd) {
   const out = [];
   let seg = [];
+  let op = null;
   for (const w of shellWords(cmd || '')) {
-    if (SEPARATORS.has(w)) { if (seg.length) out.push(commandStart(seg)); seg = []; continue; }
+    if (SEPARATORS.has(w)) {
+      if (seg.length) out.push({ op, words: commandStart(seg) });
+      seg = [];
+      op = w;
+      continue;
+    }
     seg.push(w);
   }
-  if (seg.length) out.push(commandStart(seg));
+  if (seg.length) out.push({ op, words: commandStart(seg) });
   return out;
 }
 
-function looksLikeGitPush(seg) {
-  return seg.includes('push') && seg.some((w) => /(^|[/({])git$/.test(w));
+function looksLikeNestedGitPush(seg) {
+  return SHELL_EVALUATORS.has(path.basename(seg[0] || ''))
+    && seg.some((w) => /(^|[\s/({])git(\s|$)/.test(w)) && seg.some((w) => /(^|\s)push(\s|$)/.test(w));
 }
 
 function refspecTarget(spec) {
@@ -135,7 +143,7 @@ function refspecTarget(spec) {
   return dst.replace(/^refs\/heads\//, '');
 }
 
-function parseGitPush(seg) {
+function gitInvocation(seg) {
   if (seg[0] !== 'git') return null;
   let dir = null;
   let opaque = false;
@@ -152,7 +160,14 @@ function parseGitPush(seg) {
     if (t.startsWith('-')) continue;
     break;
   }
-  if (seg[i] !== 'push') return null;
+  return { sub: seg[i], at: i, dir, opaque };
+}
+
+function parseGitPush(seg) {
+  const inv = gitInvocation(seg);
+  if (!inv || inv.sub !== 'push') return null;
+  const { dir, opaque } = inv;
+  const i = inv.at;
   if (opaque || (dir && UNRESOLVED_SHELL.test(dir))) return { dir, targets: UNKNOWN };
   const positional = [];
   let all = false;
@@ -194,21 +209,23 @@ function parseGlabPush(seg) {
   return { dir: null, targets: [source || 'HEAD'] };
 }
 
-function applyContextChange(seg, ctx) {
+function applyContextChange({ op, words: seg }, ctx) {
+  if (ctx.changed && op !== '&&') ctx.unstable = true;
   if (seg[0] === 'cd' || seg[0] === 'pushd') {
     const arg = seg[1];
-    if (!arg || arg.startsWith('-') || UNRESOLVED_SHELL.test(arg)) ctx.unstable = true;
+    if (ctx.branch || !arg || arg.startsWith('-') || UNRESOLVED_SHELL.test(arg)) ctx.unstable = true;
     else ctx.cwd = path.resolve(ctx.cwd, arg.replace(/^~(?=$|\/)/, os.homedir()));
-    ctx.branch = null;
+    ctx.changed = true;
     return true;
   }
-  if (seg[0] !== 'git' || (seg[1] !== 'checkout' && seg[1] !== 'switch')) return false;
-  const args = seg.slice(2);
-  if (args.includes('--')) return true;
+  const inv = gitInvocation(seg);
+  if (!inv || (inv.sub !== 'checkout' && inv.sub !== 'switch')) return false;
+  const args = seg.slice(inv.at + 1);
   const createAt = args.findIndex((a) => BRANCH_CREATE_FLAGS.has(a));
-  const name = createAt >= 0 ? args[createAt + 1] : args.find((a) => !a.startsWith('-'));
-  if (!name || name === '-' || UNRESOLVED_SHELL.test(name)) ctx.unstable = true;
+  const name = createAt >= 0 ? args[createAt + 1] : null;
+  if (!name || inv.dir || inv.opaque || UNRESOLVED_SHELL.test(name) || name.startsWith('-')) ctx.unstable = true;
   else ctx.branch = name;
+  ctx.changed = true;
   return true;
 }
 
@@ -219,7 +236,11 @@ function currentBranch(dir, override) {
 function defaultPushTargets(dir, remoteArg, override) {
   const branch = currentBranch(dir, override);
   if (branch === null) return UNKNOWN;
-  const remote = remoteArg || git(['config', '--get', `branch.${branch}.remote`], dir) || 'origin';
+  const remote = remoteArg
+    || git(['config', '--get', `branch.${branch}.pushRemote`], dir)
+    || git(['config', '--get', 'remote.pushDefault'], dir)
+    || git(['config', '--get', `branch.${branch}.remote`], dir)
+    || 'origin';
   const configured = git(['config', '--get-all', `remote.${remote}.push`], dir);
   if (configured) {
     const targets = configured.split('\n').map(refspecTarget).filter((t) => t !== null);
@@ -236,8 +257,9 @@ function defaultPushTargets(dir, remoteArg, override) {
 
 function resolveTargets(push, ctx) {
   if (push.targets === ALL_BRANCHES || push.targets === UNKNOWN) return push.targets;
+  if (push.dir && ctx.branch) return UNKNOWN;
   const dir = push.dir ? path.resolve(ctx.cwd, push.dir) : ctx.cwd;
-  const override = push.dir ? null : ctx.branch;
+  const override = ctx.branch;
   const out = [];
   for (const t of push.targets) {
     if (t === '@default') {
@@ -256,15 +278,16 @@ function resolveTargets(push, ctx) {
 }
 
 function pushDecision(cmd, cwd, patterns) {
-  const ctx = { cwd, branch: null, unstable: false };
-  for (const seg of segments(cmd)) {
-    if (applyContextChange(seg, ctx)) continue;
+  const ctx = { cwd, branch: null, changed: false, unstable: false };
+  for (const segment of segments(cmd)) {
+    if (applyContextChange(segment, ctx)) continue;
+    const seg = segment.words;
     const push = parseGitPush(seg) || parseGlabPush(seg);
     if (!push) {
-      if (seg[0] !== 'git' && looksLikeGitPush(seg)) return { ask: true, branch: '(unparsed push command)' };
+      if (looksLikeNestedGitPush(seg)) return { ask: true, branch: '(push inside a nested shell)' };
       continue;
     }
-    if (ctx.unstable) return { ask: true, branch: '(unresolved branch change earlier in this command)' };
+    if (ctx.unstable) return { ask: true, branch: '(unresolved branch or directory change earlier in this command)' };
     const targets = resolveTargets(push, ctx);
     if (targets === ALL_BRANCHES) return { ask: true, branch: '(multiple branches)' };
     if (targets === UNKNOWN) return { ask: true, branch: '(unknown)' };

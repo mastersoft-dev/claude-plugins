@@ -136,6 +136,37 @@ test('an unresolvable branch switch asks', () => {
   assertEq(runHook(onFeature, 'git switch - && git push'), 'ask');
 });
 
+test('switches behind git global options or "--" ask', () => {
+  assertEq(runHook(onFeature, 'git -C . switch main && git push origin HEAD'), 'ask');
+  assertEq(runHook(onFeature, 'git switch -- main && git push origin HEAD'), 'ask');
+});
+
+test('checkout of a path before a push asks', () => {
+  assertEq(runHook(onMain, 'git checkout file.txt && git push origin HEAD'), 'ask');
+});
+
+test('a context change not chained with && asks', () => {
+  assertEq(runHook(onMain, 'git checkout -b feat/y || git push origin HEAD'), 'ask');
+  assertEq(runHook(onMain, 'git checkout -b feat/y; git push origin HEAD'), 'ask');
+});
+
+test('a new branch followed by -C or cd asks', () => {
+  assertEq(runHook(onMain, 'git switch -c feat/y && git -C . push origin HEAD'), 'ask');
+  assertEq(runHook(onMain, 'git switch -c feat/y && cd . && git push'), 'ask');
+});
+
+test('branch pushRemote is resolved before remote refspecs', () => {
+  const repo = mkRepo();
+  sh(['config', 'branch.main.pushRemote', 'publish'], repo);
+  sh(['config', 'remote.origin.push', 'HEAD:feat/x'], repo);
+  assertEq(runHook(repo, 'git push'), 'ask');
+});
+
+test('echoed push text passes, nested shell push asks', () => {
+  assertEq(runHook(onMain, 'echo git push origin main'), 'pass');
+  assertEq(runHook(onFeature, 'bash -c "git push origin main"'), 'ask');
+});
+
 test('cd into another repo resolves the branch there', () => {
   assertEq(runHook(onMain, `cd "${onFeature}" && git push`), 'pass');
   assertEq(runHook(onFeature, `cd "${onMain}" && git push`), 'ask');
