@@ -18,7 +18,7 @@ function git(args, cwd) {
 
 function tokenize(cmd) {
   if (!cmd) return [];
-  const raw = cmd.split(/\s+/).filter(Boolean);
+  const raw = shellWords(cmd);
   const out = [];
   let i = 0;
   while (i < raw.length) {
@@ -40,7 +40,8 @@ function isGitPush(cmd) {
       if (t === '-c' || t === '-C') { j++; continue; }
       if (t.startsWith('--git-dir') || t.startsWith('--work-tree') || t.startsWith('--namespace')) continue;
       if (t.startsWith('-')) continue;
-      return t === 'push';
+      if (t === 'push') return true;
+      break;
     }
   }
   return false;
