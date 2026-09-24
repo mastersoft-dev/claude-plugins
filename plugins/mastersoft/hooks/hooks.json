@@ -4,7 +4,7 @@
     "SubagentStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-org-rules.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/inject-org-rules.js\"" }
         ]
       }
     ],
@@ -12,27 +12,27 @@
       {
         "matcher": "startup|resume",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/install-statusline-wrapper.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/install-statusline-wrapper.js\"" }
         ]
       },
       {
         "matcher": "startup|resume|clear|compact",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-session.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/inject-session.js\"" }
         ]
       },
       {
         "matcher": "clear",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js\"" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint-engine.js" },
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/inject-turn.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/lint-engine.js\"" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/inject-turn.js\"" }
         ]
       }
     ],
@@ -40,14 +40,14 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/suggest-push.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/suggest-push.js\"" }
         ]
       }
     ],
     "PostCompact": [
       {
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/reset-session-state.js\"" }
         ]
       }
     ]

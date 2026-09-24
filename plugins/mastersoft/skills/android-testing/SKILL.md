@@ -16,10 +16,10 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "${CLAUDE_PLUGIN_ROOT}/skills/android-testing/hooks/no-raw-input.sh"
+          command: "\"${CLAUDE_PLUGIN_ROOT}/skills/android-testing/hooks/no-raw-input.sh\""
           timeout: 3
         - type: command
-          command: "${CLAUDE_PLUGIN_ROOT}/skills/android-testing/hooks/no-raw-screencap.sh"
+          command: "\"${CLAUDE_PLUGIN_ROOT}/skills/android-testing/hooks/no-raw-screencap.sh\""
           timeout: 3
 ---
 
