@@ -11,7 +11,7 @@ description: >-
   vet skill; for security vulnerabilities use the security-auditor agent or the audit skill; for
   bug root-cause use the investigate skill; for constructive design / decomposition use the
   system-architect agent.
-tools: Read, Glob, Grep, Bash, mcp__context7, mcp__deepwiki
+tools: Read, Glob, Grep, Bash, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: opus
 effort: xhigh
 maxTurns: 30

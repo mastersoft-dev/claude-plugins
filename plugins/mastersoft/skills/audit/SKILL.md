@@ -3,7 +3,7 @@ name: audit
 description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
 model: opus
 effort: xhigh
-allowed-tools: Task
+allowed-tools: Agent
 argument-hint: "path"
 ---
 
@@ -21,7 +21,7 @@ this conversation.
 Spawn the security-auditor agent, appending any flags (below) to the prompt:
 
 ```
-Task(subagent_type: "security-auditor", model: "opus",
+Agent(subagent_type: "security-auditor", model: "opus",
      prompt: "Security audit. Target: $ARGUMENTS. \
 Report each finding with severity (Blocker/Critical/High/Medium/Low), \
 `file:line`, OWASP/CWE category, impact, and a specific mitigation. \

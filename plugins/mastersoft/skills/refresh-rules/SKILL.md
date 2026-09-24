@@ -2,7 +2,7 @@
 name: refresh-rules
 disable-model-invocation: true
 description: Audit and refresh project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) when lint-engine signals staleness, broken references, an oversized rule file, or recurring corrections in auto-memory. Spawns the read-only rule-auditor agent (seeded with the live lint signals) to produce an evidence-backed findings table, proposes section-by-section diffs gated via AskUserQuestion, auto-applies on confirm, then runs a final re-audit pass over the edited entries. User-invocable; not auto-fired.
-allowed-tools: Task, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell, AskUserQuestion
+allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell, AskUserQuestion
 argument-hint: "[focus-area]"
 ---
 
@@ -23,10 +23,10 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 
 2. **Get the analysis** — spawn the auditor, seeded with this session's signals:
    - **Cache reuse only when there are NO live signals.** A cached verify was produced standalone (no signal prioritisation), so reusing it would silently drop the signal-seeding that triggered this refresh. Only when this session shows no `## Mastersoft signals` block: resolve `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js findings-path`, `Read` it, and if `generatedAt` is younger than the freshness window (24h — a day-scale window, old enough to reuse within a work session but not across likely code changes) use it as the starting table — skip the spawn. If signals ARE present, ignore the cache and spawn fresh.
-   - **Spawn the `rule-auditor` agent via `Task`**, seeding it with the live lint signals visible in this session (the `## Mastersoft signals` block from lint-engine that prompted this call) and the optional `[focus-area]`. Example prompt:
+   - **Spawn the `rule-auditor` agent via `Agent`**, seeding it with the live lint signals visible in this session (the `## Mastersoft signals` block from lint-engine that prompted this call) and the optional `[focus-area]`. Example prompt:
 
      ```
-     Task (subagent_type: rule-auditor):
+     Agent (subagent_type: rule-auditor):
      Audit the rule files in <repoRoot> against the codebase.
      Input signals (prioritise the areas these point at): <signal ids, e.g. stale-path-refs, rule-file-stale, rule-file-oversize>.
      Focus: <focus-area or "all">.
@@ -59,7 +59,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 
 6. **Apply step**: on "Apply", use `Edit` (preferred) or `Write` (new files). For deletions (e.g. BRIEF.md in group e), use `Bash`: `git rm <file>` if tracked, else `rm <file>`. Before each apply, `git status --porcelain -- <file>`; if dirty, ask whether to overlay or skip. Re-read + abort if mtime advanced since proposal. **If Edit/Write fails with `EnterWorktree cannot be called from a subagent with a cwd override`** (or any sibling error mentioning subagent isolation / cwd override), **abort the entire run immediately** with: "This skill must run from the main session — Edit/Write would mutate the parent's working tree. Resume in the parent session." Do not retry; the error is structural, not transient.
 
-7. **Final pass** — after all applies, re-verify the entries you changed. Spawn `rule-auditor` again via `Task` scoped to the edited files (`Focus: <edited paths>`); confirm zero residual stale claims. Report any that survive (e.g. a claim you couldn't auto-resolve). This is the step that catches an entry edited incompletely or a sibling entry missed.
+7. **Final pass** — after all applies, re-verify the entries you changed. Spawn `rule-auditor` again via `Agent` scoped to the edited files (`Focus: <edited paths>`); confirm zero residual stale claims. Report any that survive (e.g. a claim you couldn't auto-resolve). This is the step that catches an entry edited incompletely or a sibling entry missed.
 
 8. **Record `last-refresh-at`** then ack ONLY the `rules`-category signals for the session window:
 

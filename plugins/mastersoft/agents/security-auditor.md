@@ -6,7 +6,7 @@ description: >-
   immediately after touching authentication, authorization, or input handling. Invoked by the
   audit skill (/mastersoft:audit) for deep scanning — for a user-run security audit, use that
   skill rather than calling this agent directly.
-tools: Read, Grep, Glob, Bash, mcp__context7, mcp__deepwiki
+tools: Read, Grep, Glob, Bash, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: opus
 effort: xhigh
 maxTurns: 50

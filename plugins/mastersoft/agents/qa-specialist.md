@@ -6,7 +6,7 @@ description: >-
   or after code changes when verification needs to actually run. For read-only static code
   review without running anything, use the vet skill; for Android build/test/drive use the
   android-testing skill.
-tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__deepwiki
+tools: Bash, Read, Edit, Write, Grep, Glob, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: inherit
 effort: xhigh
 maxTurns: 40
