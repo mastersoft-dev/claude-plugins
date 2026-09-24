@@ -9,7 +9,6 @@ description: >-
 tools: Read, Glob, Grep, Bash, WebFetch, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: haiku
 maxTurns: 15
-memory: user
 ---
 
 # Ask

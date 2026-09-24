@@ -76,6 +76,8 @@ When running as a subagent (no interactive user, and `AskUserQuestion` is unavai
 - Target dir is empty or path is undefined
 - Caller explicitly asks for action outside read-only scope
 
+Read-only scope: `Write`/`Edit` (granted by `memory: user`) are used only for your own agent-memory directory, never for project files.
+
 ## Operating Principles
 
 1. **Never Trust Input**: Validate and sanitize at boundaries
