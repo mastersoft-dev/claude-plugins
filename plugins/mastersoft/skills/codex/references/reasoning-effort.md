@@ -6,9 +6,9 @@ Default = `medium`. Effort is set via `-c model_reasoning_effort=<level>` (TOML-
 codex exec --json -c model_reasoning_effort="<level>" -o "$final" "<prompt>" < /dev/null > "$log" 2>&1
 ```
 
-## Valid levels (verified by codex-cli 0.130.0 + 0.132.0)
+## Valid levels (verified by codex-cli 0.156.1)
 
-`none`, `minimal`, `low`, `medium`, `high`, `xhigh` (6 levels). Confirmed via `codex exec -c model_reasoning_effort=bogus` error: `unknown variant 'bogus', expected one of 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'`. `none` disables reasoning entirely; skill never promotes to it.
+`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (7 levels). Validated server-side — confirmed via `codex exec -c model_reasoning_effort=bogus` error: `Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'`. Per-model support varies; `scripts/list_models.sh` shows each model's levels. `none` disables reasoning entirely; skill never promotes to it.
 
 ## Promotion whitelist (Hard Rule 3)
 
@@ -21,6 +21,7 @@ Closed whitelist. Token must appear **verbatim in the user's current message tex
 | (no token) | `medium` |
 | `--high` | `high` |
 | `--xhigh` OR `--ultrathink` OR bare `"ultrathink"` | `xhigh` |
+| `--max` | `max` |
 
 Adjectives and colloquialisms in the prompt body **do not** promote effort. None of the following promote: `uncompromising`, `production-grade`, `thorough`, `deep review`, `fast`, `quick`, `low effort`, `high effort`, `think harder`, `deep think`, `max effort`, bare `xhigh` (without `--`), `minimal` (without `--`).
 
@@ -33,9 +34,9 @@ Always pass `-c model_reasoning_effort=<level>` explicitly — codex `~/.codex/c
 | `minimal` / `low` | < 30 s | 120 000 ms | foreground |
 | `medium` | 30 – 120 s | 240 000 ms | foreground |
 | `high` | 1 – 4 min | 600 000 ms (max) | foreground |
-| `xhigh` | 3 – 10+ min, often exceeds Bash cap | n/a | background + Monitor, OR `codex cloud exec`, OR terminal |
+| `xhigh` / `max` | 3 – 10+ min, often exceeds Bash cap | n/a | background + Monitor, OR `codex cloud exec`, OR terminal |
 
-`xhigh` foreground is refused by the skill (Hard Rule 2).
+`xhigh` and `max` foreground are refused by the skill (Hard Rule 2).
 
 ## Footguns
 

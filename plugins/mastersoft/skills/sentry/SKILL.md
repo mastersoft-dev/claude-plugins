@@ -40,7 +40,7 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
 
 - sentry-cli: !`command -v sentry-cli >/dev/null 2>&1 && sentry-cli --version || echo "MISSING"`
 - repo `.sentryclirc`: !`test -f .sentryclirc && echo "present" || echo "absent (using env / ~/.sentryclirc)"`
-- auth + resolved server/org/project: !`sentry-cli info 2>&1 | grep -vi token | head -12 || echo "not authenticated"`
+- auth + resolved server/org/project: !`out=$(sentry-cli info 2>&1) && printf '%s\n' "$out" | grep -vi token | head -12 || echo "not authenticated"`
 - git remote: !`git remote get-url origin 2>/dev/null || echo "no remote"`
 
 ## Procedure
@@ -63,8 +63,9 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    ```
    sentry-cli issues list -o <org> -p <project> --query "is:unresolved <extra>" --max-rows <N>
    ```
-   Parse the printed table rows (short-id, title/culprit, and the count/last-seen
-   columns as rendered by the CLI).
+   Parse the printed table rows (numeric issue id, short-id, title/culprit, and the
+   last-seen/status/level columns as rendered by the CLI). Keep the numeric issue
+   id — the REST calls in step 7 need it, not the short-id.
 
 5. **Rank + triage** — order by events × recency. Group near-duplicates by
    culprit. To flag **recently-surfaced** issues, run a **separate** supplementary
@@ -81,7 +82,7 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    Event for Issue" (scope `event:read`):
    ```
    curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
-     "$SENTRY_URL/api/0/issues/<id>/events/latest/"
+     "$SENTRY_URL/api/0/issues/<numeric-issue-id>/events/latest/"
    ```
    **`curl` does not read `.sentryclirc` — only `sentry-cli` does.** The REST step
    therefore needs `$SENTRY_URL` and `$SENTRY_AUTH_TOKEN` in the environment. When
@@ -91,7 +92,7 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    request silently 401s. `$SENTRY_URL` is the on-prem host on self-hosted,
    `https://sentry.io` on SaaS.
    If an instance does not expose it, fall back to the org-scoped events list
-   `/api/0/organizations/<org>/issues/<id>/events/` and take the first. Read the
+   `/api/0/organizations/<org>/issues/<numeric-issue-id>/events/` and take the first. Read the
    repo files at the top in-app frames, then state root cause + a concrete fix.
    For anything gnarly, hand off: `/mastersoft:investigate <issue>`.
 

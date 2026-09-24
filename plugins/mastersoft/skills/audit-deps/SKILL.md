@@ -15,10 +15,10 @@ Runs the right native dependency audit tool for the detected stack. Read-only by
 |---|---|---|
 | `package-lock.json` | npm | `npm audit --json` |
 | `pnpm-lock.yaml` | pnpm | `pnpm audit --json` |
-| `yarn.lock` | yarn (classic) | `yarn audit --json` |
-| `yarn.lock` + berry | yarn (v2+) | `yarn npm audit --json --recursive` |
-| `bun.lockb` | bun | `bun audit` (or fall back to `npm audit` via the synced lockfile) |
-| `poetry.lock` | poetry | `poetry export --format=requirements.txt | pip-audit -r /dev/stdin --format=json` (requires pip-audit) |
+| `yarn.lock`, no `.yarnrc.yml` | yarn (classic v1) | `yarn audit --json` |
+| `yarn.lock` + `.yarnrc.yml` | yarn (berry v2+) | `yarn npm audit --json --recursive` |
+| `bun.lock` or `bun.lockb` | bun | `bun audit --json` |
+| `poetry.lock` | poetry | `poetry export --format=requirements.txt \| pip-audit -r /dev/stdin --format=json` (requires pip-audit and, on Poetry ≥ 2, the `poetry-plugin-export` plugin) |
 | `requirements.txt` | pip | `pip-audit -r requirements.txt --format=json` |
 | `Pipfile.lock` | pipenv | `pipenv check --json` (or `pip-audit`) |
 | `Cargo.lock` | cargo | `cargo audit --json` (requires cargo-audit installed) |
@@ -34,7 +34,7 @@ Runs the right native dependency audit tool for the detected stack. Read-only by
 
 2. **Detect stack** — check for lockfile/marker in the order in the table above. If multiple stacks present (monorepo, polyglot), audit each and aggregate.
 
-3. **Tool availability** — POSIX shells: `command -v <tool>`; Windows PowerShell: `Get-Command <tool> -ErrorAction SilentlyContinue` or `where.exe <tool>`. If missing, print a one-line install hint (`brew install …`, `npm i -g …`, `cargo install cargo-audit`, `choco install …`, `winget install …`) and skip that stack with status `skipped (tool missing)`. Cross-platform: pick whichever check the active shell supports.
+3. **Tool availability** — POSIX shells: `command -v <tool>`; Windows PowerShell: `Get-Command <tool> -ErrorAction SilentlyContinue` or `where.exe <tool>`. If missing, print a one-line install hint (`brew install …`, `npm i -g …`, `cargo install cargo-audit`, `choco install …`, `winget install …`) and skip that stack with status `skipped (tool missing)`. Cross-platform: pick whichever check the active shell supports. Poetry ≥ 2 ships without `export`: if `poetry export --help` exits non-zero, treat it as a missing tool with the hint `poetry self add poetry-plugin-export`. When `yarn --version` disagrees with the `.yarnrc.yml` marker (major 1 vs ≥ 2), trust `yarn --version`.
 
 4. **Run the audit** — for each detected stack, invoke its command. Capture exit code and JSON output. Set a reasonable timeout per call (`timeout 120` if available; otherwise rely on Bash tool timeout).
 
