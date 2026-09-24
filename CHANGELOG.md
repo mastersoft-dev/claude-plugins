@@ -8,6 +8,37 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-09-24
+
+### Added
+
+- Org rules now keep commit messages, GitLab merge requests, GitHub pull
+  requests and issues short in every session, not only when `/mastersoft:commit`
+  or `/mastersoft:glab` runs: subject-only commits by default, MR/PR bodies of
+  one line at most unless you ask for more.
+
+### Changed
+
+- `/mastersoft:glab` — opening an MR no longer asks for the target branch up
+  front: it detects the base branch and shows it in a single confirmation.
+  Repo templates are filled with only the sections that apply, and the bundled
+  MR/issue templates are much thinner.
+
+### Fixed
+
+- `git push` inside a chained command (`git commit … && git push`) and the
+  push done by `glab mr create --fill` now get the org push confirmation.
+- Skills that delegate to agents (`ask`, `audit`, `adversary`, `investigate`,
+  `recall`, `verify`, `refresh-rules`) use the current `Agent` tool, and
+  context7 works when installed as a plugin.
+- `/mastersoft:audit-deps` detects Bun's `bun.lock`, tells Yarn classic from
+  Berry, and explains the missing `poetry export` on Poetry 2.
+- `/mastersoft:codex` matches codex-cli 0.156 (removed `--full-auto` and
+  `--profile-v2`, new `max` effort).
+- `/mastersoft:sentry` reports missing authentication and fetches the latest
+  event with the numeric issue id.
+- Hook commands work when the plugin path contains spaces.
+
 ## [3.5.1] — 2026-07-20
 
 ### Fixed
