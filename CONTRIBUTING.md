@@ -33,7 +33,7 @@ In a `-p --output-format stream-json --verbose` run, the `init` message lists th
 
 ### Test and debug
 
-- Run the suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`.
+- Run the suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`. The GitLab pipeline (`.gitlab-ci.yml`) runs them, the Android daemon tests and both `claude plugin validate --strict` checks on every merge request, without credentials.
 - `claude plugin validate --strict plugins/mastersoft` and `claude plugin validate --strict .` check the plugin and marketplace manifests and the frontmatter of every skill, agent and command.
 - In a `scripts/dev.sh` session, the **Errors** tab of `/plugin` lists what failed to load and why.
 - The hooks fail quietly on purpose: `lint-engine` writes `[mastersoft] lint-engine skipped: …` to stderr and exits 0, so the prompt goes on. Start the session with `scripts/dev.sh --debug-file /tmp/ms-debug.log`, or run `/debug` in a running one, trigger the event, and search the log for `[mastersoft]` and the hook's event: it shows which hooks matched, their exit codes and their output.

@@ -24,6 +24,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   --strict`, the `/plugin` Errors tab, the debug log for the quiet hooks, and
   `plugin details` with `/skill-doctor` for the cost and use of each skill. It no
   longer says that the dev copy's skills reach the installed agents.
+- A GitLab pipeline that runs `claude plugin validate --strict` on the plugin and
+  the marketplace, the hook suites and the Android daemon tests on every merge
+  request, with no credentials.
 
 ### Changed
 
