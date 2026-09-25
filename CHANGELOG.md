@@ -63,6 +63,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The `Brief` output style describes itself as stricter than the built-in
   `Concise` style (Claude Code 2.1.237+), which the help card names as the
   standard pick.
+- Tier 1 of the org rules no longer tells Claude when to call the advisor tool,
+  which Claude Code already calls on its own at those moments: non-trivial design
+  goes through plan mode.
 
 ### Removed
 
