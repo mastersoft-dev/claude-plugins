@@ -30,6 +30,7 @@ function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2
   const base = { ...process.env };
   delete base.CI;
   delete base.CLAUDE_CODE_REMOTE;
+  delete base.CLAUDE_PLUGIN_OPTION_QUIET;
   const result = cp.spawnSync(process.execPath, [HOOK], {
     input,
     env: { ...base, MASTERSOFT_STATE_DIR: stateDir, ...env },
@@ -467,6 +468,15 @@ test('MASTERSOFT_QUIET=1 suppresses everything', () => {
   });
   assert(p2.signals.length === 0 && !p2.systemMessage,
     `QUIET=1 should suppress all output, got ${p2.signals.length} signals`);
+});
+
+test('the quiet plugin option suppresses everything, and MASTERSOFT_QUIET overrides it', () => {
+  const repoFiles = { 'CLAUDE.md': '# rules\n', 'BRIEF.md': '# brief\n' };
+  const muted = tmpSession({ repoFiles, env: { CLAUDE_PLUGIN_OPTION_QUIET: '1' } }).p2;
+  assert(muted.signals.length === 0 && !muted.systemMessage,
+    `quiet option should suppress all output, got ${muted.signals.length} signals`);
+  const loud = tmpSession({ repoFiles, env: { CLAUDE_PLUGIN_OPTION_QUIET: '1', MASTERSOFT_QUIET: '0' } }).p2;
+  assertHasSignal(loud.signals, 'brief-deprecated', 'MASTERSOFT_QUIET should win over the plugin option');
 });
 
 // ── 7. Auto-memory matcher + promotion signals (self-contained) ───────────────

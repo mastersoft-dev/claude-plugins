@@ -67,10 +67,22 @@ function loadOrgRules() {
 
 const ORG = loadOrgRules();
 
+// A value from the plugin's userConfig (/plugin configure, /config, or managed
+// pluginConfigs) reaches hooks as CLAUDE_PLUGIN_OPTION_<KEY>, where <KEY> is
+// the MASTERSOFT_ name without its prefix. An explicit MASTERSOFT_* env var
+// wins over it.
+function setting(envVar) {
+  for (const name of [envVar, 'CLAUDE_PLUGIN_OPTION_' + envVar.replace(/^MASTERSOFT_/, '')]) {
+    const v = process.env[name];
+    if (v !== undefined && v !== '') return v;
+  }
+  return undefined;
+}
+
 function cfg(envVar, frontmatterKey, builtinDefault, parser) {
   parser = parser || (v => v);
-  const e = process.env[envVar];
-  if (e !== undefined && e !== '') return parser(e);
+  const e = setting(envVar);
+  if (e !== undefined) return parser(e);
   if (ORG.config[frontmatterKey] !== undefined) return ORG.config[frontmatterKey];
   return builtinDefault;
 }
@@ -108,17 +120,17 @@ function readBundledTiers() {
 // off | session | all  (default all). `session` keeps tiers 1+2 but mutes the
 // every-prompt nudge for users who find it noisy.
 function orgMode() {
-  const v = String(process.env.MASTERSOFT_ORG_RULES || '').toLowerCase();
+  const v = String(setting('MASTERSOFT_ORG_RULES') || '').toLowerCase();
   return (v === 'off' || v === 'session' || v === 'all') ? v : 'all';
 }
 
 function quietMutesOrg() {
-  const q = process.env.MASTERSOFT_QUIET;
+  const q = setting('MASTERSOFT_QUIET');
   return q === '1' || q === 'all' || q === 'true';
 }
 
 function quietMutesTier3() {
-  return quietMutesOrg() || process.env.MASTERSOFT_QUIET === 'tier3';
+  return quietMutesOrg() || setting('MASTERSOFT_QUIET') === 'tier3';
 }
 
 // Per tier: `_TEXT` replaces the bundled section; `_APPEND` adds to whatever
@@ -176,7 +188,7 @@ function writeContextUsagePercent(usedPercent) {
 }
 
 module.exports = {
-  ORG, cfg,
+  ORG, cfg, setting,
   loadOrgTiers, orgMode, quietMutesOrg, quietMutesTier3, cap,
   distancePct, readContextUsagePercent, writeContextUsagePercent,
 };

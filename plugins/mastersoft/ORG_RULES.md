@@ -42,7 +42,7 @@ rule_stale_days: 120                # env: MASTERSOFT_RULE_STALE_DAYS
 # ─── Push confirmation ──────────────────────────────────────────────
 # Pushes to these branches ask for confirmation; others go straight
 # through. Comma-separated; `name/*` = prefix, `*` = every branch.
-push_protected_branches: main,master,develop,dev,staging,production,release/*   # env: MASTERSOFT_PUSH_PROTECTED_BRANCHES
+push_protected_branches: main,master,develop,dev,staging,production,release/*   # env: MASTERSOFT_PUSH_PROTECTED_BRANCHES, plugin option: push_protected_branches
 ---
 
 ## Rule taxonomy
@@ -74,7 +74,7 @@ on a fresh session tiers 1+2 land together, so they must not repeat each other.
 | `tier:3` | output style (keep ~1 line) | every prompt, + every Mastersoft subagent | UserPromptSubmit, SubagentStart |
 
 Cadence/visibility env (precedence: env > built-in):
-- `MASTERSOFT_ORG_RULES=off\|session\|all` — `all` (default) = all tiers; `session` = tiers 1+2 only (no per-prompt tier 3); `off` = none.
+- `MASTERSOFT_ORG_RULES=off\|session\|all` — `all` (default) = all tiers; `session` = tiers 1+2 only (no per-prompt tier 3); `off` = none. Also the `org_rules` plugin option, which the env var overrides.
 - `MASTERSOFT_ORG_RECURRING_DISTANCE_PCT` — re-inject tier 2 when context-window usage grows by this many percentage points since the last assertion (default `15`, `0` = off). Reads the live statusline metric; dormant if the Mastersoft statusline isn't active.
 - `MASTERSOFT_ORG_TIER1_TEXT` / `_TIER2_TEXT` / `_TIER3_TEXT` — *replace* a tier's wording (string, `\n` allowed). Set via managed-settings `env` to retune without re-shipping the plugin.
 - `MASTERSOFT_ORG_TIER1_APPEND` / `_TIER2_APPEND` / `_TIER3_APPEND` — *append* on top of a tier's base. Use project-settings `env` to add a repo-conditional rule (e.g. tenant isolation) without restating the floor.

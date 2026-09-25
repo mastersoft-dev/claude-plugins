@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, realpathOr, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
-const { ORG, cfg } = require('./lib-org-rules');
+const { ORG, cfg, setting } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -300,7 +300,7 @@ function main() {
   // tier hooks honor it separately). Intended for CI agents and one-off shells where
   // any nudge is noise. Per-repo .mastersoft-lints-suppress is the persistent
   // equivalent.
-  const QUIET = process.env.MASTERSOFT_QUIET;
+  const QUIET = setting('MASTERSOFT_QUIET');
   if (QUIET === '1' || QUIET === 'all' || QUIET === 'true') process.exit(0);
   const quietLintsOnly = QUIET === 'lints';
 

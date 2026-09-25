@@ -120,6 +120,8 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 | `.claude/.mastersoft-lints-ack` | Per repo, ~4h TTL | Defer lint signals for the session window. Touched by `/mastersoft:ack-lints defer`. |
 | `.claude/.mastersoft-lints-suppress` | Per repo, indefinite | Disable lint signals in this repo until the file is deleted. |
 
+`quiet`, `org_rules` and `push_protected_branches` are also plugin options, set with `/plugin configure mastersoft@mastersoft` or `/config`. An env var wins over the option.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

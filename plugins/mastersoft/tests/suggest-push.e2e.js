@@ -51,6 +51,7 @@ function runHook(cwd, command, env = {}, { tool = 'Bash', timeout = HOOK_TIMEOUT
   const base = { ...process.env };
   delete base.MASTERSOFT_SKIP_PUSH_CHECK;
   delete base.MASTERSOFT_PUSH_PROTECTED_BRANCHES;
+  delete base.CLAUDE_PLUGIN_OPTION_PUSH_PROTECTED_BRANCHES;
   delete base.CLAUDE_PROJECT_DIR;
   const result = cp.spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ tool_name: tool, cwd, tool_input: { command } }),
@@ -267,6 +268,17 @@ test('glab --push=false passes', () => {
 test('env override replaces the protected set', () => {
   assertEq(runHook(onFeature, 'git push', { MASTERSOFT_PUSH_PROTECTED_BRANCHES: 'feat/*' }), 'ask');
   assertEq(runHook(onMain, 'git push', { MASTERSOFT_PUSH_PROTECTED_BRANCHES: 'feat/*' }), 'pass');
+});
+
+test('the push_protected_branches plugin option replaces the protected set', () => {
+  assertEq(runHook(onFeature, 'git push', { CLAUDE_PLUGIN_OPTION_PUSH_PROTECTED_BRANCHES: 'feat/*' }), 'ask');
+  assertEq(runHook(onMain, 'git push', { CLAUDE_PLUGIN_OPTION_PUSH_PROTECTED_BRANCHES: 'feat/*' }), 'pass');
+});
+
+test('MASTERSOFT_PUSH_PROTECTED_BRANCHES wins over the plugin option', () => {
+  const env = { CLAUDE_PLUGIN_OPTION_PUSH_PROTECTED_BRANCHES: 'feat/*', MASTERSOFT_PUSH_PROTECTED_BRANCHES: 'main' };
+  assertEq(runHook(onFeature, 'git push', env), 'pass');
+  assertEq(runHook(onMain, 'git push', env), 'ask');
 });
 
 test('"*" restores confirmation on every branch', () => {

@@ -84,7 +84,19 @@ Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `
 | `MASTERSOFT_RULE_STALE_DAYS` | `rule_stale_days` | `120` | CLAUDE.md/AGENTS.md untouched days → `rule-file-stale`. |
 | `MASTERSOFT_PUSH_PROTECTED_BRANCHES` | `push_protected_branches` | `main,master,develop,dev,staging,production,release/*` | Pushes to these branches ask for confirmation (`git push`, `glab mr create --fill`); `name/*` = prefix, `*` = all. |
 
-Precedence per key: env var > `ORG_RULES.md` frontmatter > built-in default. Unknown frontmatter keys are reported once per session via `systemMessage`.
+Precedence per key: env var > plugin option > `ORG_RULES.md` frontmatter > built-in default. Unknown frontmatter keys are reported once per session via `systemMessage`.
+
+## Plugin options
+
+Three settings are also plugin options. `/plugin configure mastersoft@mastersoft` and `/config` show and change them, and they are saved under `pluginConfigs` in user settings; an admin can set them in managed settings.
+
+| Option | Env var |
+|---|---|
+| `push_protected_branches` | `MASTERSOFT_PUSH_PROTECTED_BRANCHES` |
+| `quiet` | `MASTERSOFT_QUIET` |
+| `org_rules` | `MASTERSOFT_ORG_RULES` |
+
+The env var wins over the option whichever settings file sets it: an `env` value in managed settings fixes the value for everyone, and one in a repo's `.claude/settings.json` overrides the user's option in that repo.
 
 ## Where rules live
 

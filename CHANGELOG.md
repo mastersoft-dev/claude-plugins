@@ -12,6 +12,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 - `/mastersoft:glab`'s MR review flow names `claude --worktree <MR URL>` and
   `/code-review !N --comment` as alternatives to a manual checkout.
+- Plugin options `push_protected_branches`, `quiet` and `org_rules`
+  (`userConfig`), which `/plugin configure mastersoft@mastersoft` and `/config`
+  show and change and an admin can set in managed `pluginConfigs`. The matching
+  `MASTERSOFT_*` env var still wins over the option.
 
 ### Changed
 
