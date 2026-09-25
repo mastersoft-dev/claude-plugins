@@ -41,6 +41,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   `CLAUDE_CODE_PLUGIN_CACHE_DIR`; auto memory comes from `autoMemoryDirectory` or
   the main checkout's dir that every worktree shares. With auto memory off, the
   memory signals stay quiet and `/mastersoft:promote-patterns` says so.
+- `/mastersoft:recall` finds sessions started in the repo's subdirectories and
+  worktrees, for the current repo and for `--project`, which now also matches repo
+  paths with spaces or other punctuation.
 ## [3.6.0] — 2026-09-24
 
 ### Added
