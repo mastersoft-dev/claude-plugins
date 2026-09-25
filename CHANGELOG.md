@@ -86,6 +86,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/mastersoft:recall` runs as a `hindsight` fork that finishes in the same turn
   (`context: fork`, `background: false`): in an interactive session the agent it
   started ran in the background and reported in a later turn.
+- `/mastersoft:verify` runs without permission prompts in default mode:
+  `rule-auditor` runs git from the working directory, as Claude Code asks for
+  approval on `cd <dir> && git` and `git -C <dir>`, and the findings describe JSON
+  content in words, as the permission check refuses a heredoc with a `{` followed
+  by a quote.
 
 ## [3.7.0] — 2026-09-25
 

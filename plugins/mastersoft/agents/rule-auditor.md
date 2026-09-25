@@ -122,6 +122,7 @@ If zero findings: print `No issues detected.` then a `json` block of `{ "finding
 ## Hard rules
 
 - **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`/`rule-files`/`agents-md-mode`). The one exception is a task that asks you to persist the audit, as `/mastersoft:verify` does: then run the `state.js write-findings` and `state.js record-verify` commands it names, which write the plugin's own state and never the repo. Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
+- **Command form.** Run each inspection command as its own call from the session's working directory: plain `git ls-files`, `git log …`, `grep …`, with no `ROOT=…` preamble. Claude Code runs read-only git there without a prompt, but asks for approval on `cd <dir> && git …` and `git -C <dir> …`, because another directory's git config can run commands. When the working directory is below `<root>`, add the `:/` pathspec (`git ls-files :/`) to cover the whole repo.
 - **Evidence or silence.** A finding without a file/line or a reproducible command is not a finding.
 - **Confidence tiers.** File/line contradiction = high. Re-derived count mismatch = medium. Auto-memory pattern or placement nit = low/advisory.
 - **Cost ceiling.** You are Sonnet and rare-fire. Do not chain other agents or skills.
