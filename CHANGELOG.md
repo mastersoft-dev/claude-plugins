@@ -134,6 +134,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   marketplace update mastersoft` and `/reload-plugins`, since background
   auto-update is off for this marketplace unless managed settings turn it on. A
   reload alone kept the cached version.
+- `ORG_RULES.md` names the Claude Code version floor (`minimumVersion`,
+  `requiredMinimumVersion`) instead of a minimum plugin version, which no managed
+  key sets, and lists `fork` among the session starts that inject tier 1.
 
 ## [3.7.0] — 2026-09-25
 

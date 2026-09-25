@@ -54,7 +54,7 @@ enforces it — read this table before editing.
 
 | Layer | Enforced where | Example rules | How to change |
 |---|---|---|---|
-| **Harness** | Claude Code managed-settings + PreToolUse hooks | push confirmation on protected branches; marketplace allowlist; min plugin version | claude.ai org settings (out-of-repo) for managed-settings keys; `push_protected_branches` above + `hooks/suggest-push.js` for the push-confirm hook |
+| **Harness** | Claude Code managed-settings + PreToolUse hooks | push confirmation on protected branches; marketplace allowlist; Claude Code version floor (`minimumVersion` / `requiredMinimumVersion`) | claude.ai org settings (out-of-repo) for managed-settings keys; `push_protected_branches` above + `hooks/suggest-push.js` for the push-confirm hook. No managed key sets a minimum plugin version: to hold everyone on one release, point the managed `extraKnownMarketplaces` source at a tag with `ref` |
 | **Lint** | `hooks/lint-engine.js` per-prompt signals | CLAUDE.md/AGENTS.md staleness; file-size caps; audit cadence; stale path refs | YAML frontmatter above (each key comments its env-var override) |
 | **Model** | Injected `additionalContext`, tiered (see below) | tier 1 operating posture; tier 2 code hygiene standards; tier 3 brevity | tier prose below |
 
@@ -71,7 +71,7 @@ on a fresh session tiers 1+2 land together, so they must not repeat each other.
 
 | Marker | Content | Injected on | Hook |
 |---|---|---|---|
-| `tier:1` | operating posture (how to work) | session start: startup/clear/resume/compact (main agent only) | SessionStart |
+| `tier:1` | operating posture (how to work) | session start: startup/clear/resume/compact/fork (main agent only) | SessionStart |
 | `tier:2` | code hygiene standards | session start (as tier 1), mid-session when context grows ≥ `_DISTANCE_PCT`, + every Mastersoft subagent | SessionStart, UserPromptSubmit, SubagentStart |
 | `tier:3` | output style (keep ~1 line) | every prompt, + every Mastersoft subagent | UserPromptSubmit, SubagentStart |
 
