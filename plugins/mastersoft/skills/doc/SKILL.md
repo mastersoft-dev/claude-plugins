@@ -4,6 +4,7 @@ description: Author a project doc (ADR, PRD) under docs/<type>/ from a Mastersof
 allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(node:*), Bash(git:*), PowerShell
 model: sonnet
 argument-hint: "<type> \"<title>\" [--draft]"
+arguments: [type, title]
 ---
 
 # Doc
@@ -26,22 +27,21 @@ refuse (don't relocate) if you find one misplaced.
    one-line message if not inside a git work tree.
 
 2. **Build the registry.** The templates live in this skill's own `references/`
-   dir. The **Glob tool does not expand environment variables**, so globbing the
-   raw `${CLAUDE_SKILL_DIR}/references/*.md` returns nothing → an empty registry →
-   step 3 always prints "no enabled types" and stops. List them with the granted
-   `node` instead (it resolves the var):
+   dir. List them with the granted `node`:
    ```bash
-   node -e "const fs=require('fs'),d=process.env.CLAUDE_SKILL_DIR+'/references';console.log(fs.readdirSync(d).filter(f=>f.endsWith('.md')).join('\n'))"
+   node -e "const fs=require('fs');console.log(fs.readdirSync('${CLAUDE_SKILL_DIR}/references').filter(f=>f.endsWith('.md')).join('\n'))"
    ```
    Each filename stem is a type (`adr`, `prd`, …). Read each template's YAML
    frontmatter — that's the per-type spec (`filename`, `dir`, `workflow`,
    `required-sections`, `short-fields`, `prose-fields`, `default-status`,
    `status-values`).
 
-3. **Parse arguments.** `$1` = type, `$2` = title (quoted), optional `--draft`.
-   - No `$1`, or `$1` not in the registry → print the enabled type list
+3. **Parse arguments.** Type: `$type`. Title: `$title`. Draft mode when
+   `--draft` appears in `$ARGUMENTS`.
+   - Type empty, or not in the registry → print the enabled type list
      (`type — label` from each template's frontmatter) and stop. Do not guess.
-   - No title → ask for one with a single `AskUserQuestion` (free text).
+   - Title empty or `--draft` → ask for one with a single `AskUserQuestion`
+     (free text).
 
 4. **Select the template** = `references/<type>.md`. Hold its frontmatter spec
    and skeleton body (everything after the closing `---`).

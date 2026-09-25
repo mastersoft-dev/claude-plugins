@@ -103,7 +103,7 @@ codex exec <scope-flags> "<prompt>" \
 echo "PID=$!"
 ```
 
-Next Bash call recovers paths + PID from the harness task-output file (`awk -F= '/^LOG=/{print $2}'`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
+Next Bash call recovers paths + PID from the harness task-output file (`sed -n 's/^LOG=//p'`, same for `FINAL=` and `PID=`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
 
 ```bash
 until grep -qE '^\{"type":"turn\.(completed|failed)"|^\{"type":"error"' "$log" 2>/dev/null \
