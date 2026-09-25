@@ -31,6 +31,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   no longer mention the removed Monitor `persistent` option.
 - `android-testing` batches accept `force_dump` on `snapshot`, as the flow
   reference documents: the batch validator rejected it with exit 64.
+- `android-testing`'s `ui_run_flow.py` answers a flow that isn't a JSON object,
+  such as a bare `[...]` list of ops, with the expected shape instead of a Python
+  traceback.
 
 ## [3.7.0] — 2026-09-25
 
