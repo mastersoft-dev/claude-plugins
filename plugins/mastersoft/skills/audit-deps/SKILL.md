@@ -1,7 +1,7 @@
 ---
 name: audit-deps
 description: Run a dependency security audit using the right native tool for the detected stack (npm/pnpm/yarn/bun audit, pip-audit, cargo audit, bundle audit, govulncheck, composer audit, etc.). Surface findings, propose remediation, record the audit timestamp so the lint signal stays quiet until the next audit is due. Use when lint-engine signals "Security audit due", on schedule, or proactively.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(command:*), Bash(git:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(bun:*), Bash(pip-audit:*), Bash(safety:*), Bash(pipenv:*), Bash(poetry:*), Bash(cargo:*), Bash(bundle:*), Bash(bundler-audit:*), Bash(govulncheck:*), Bash(composer:*), Bash(mix:*), Bash(dart:*), Bash(flutter:*), Bash(node:*), Bash(mkdir:*), Bash(where:*), PowerShell, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(command:*), Bash(git:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(bun:*), Bash(pip-audit:*), Bash(safety:*), Bash(pipenv:*), Bash(poetry:*), Bash(cargo:*), Bash(bundle:*), Bash(bundler-audit:*), Bash(govulncheck:*), Bash(composer:*), Bash(mix:*), Bash(dart:*), Bash(flutter:*), Bash(node:*), Bash(mkdir:*), Bash(where:*), PowerShell(Get-Command *), PowerShell(git *), PowerShell(npm *), PowerShell(pnpm *), PowerShell(yarn *), PowerShell(bun *), PowerShell(pip-audit *), PowerShell(safety *), PowerShell(pipenv *), PowerShell(poetry *), PowerShell(cargo *), PowerShell(bundle *), PowerShell(bundler-audit *), PowerShell(govulncheck *), PowerShell(composer *), PowerShell(mix *), PowerShell(dart *), PowerShell(flutter *), PowerShell(node *), PowerShell(mkdir *), AskUserQuestion
 argument-hint: "[--fix]"
 ---
 

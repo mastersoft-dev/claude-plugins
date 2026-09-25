@@ -5,7 +5,7 @@ disable-model-invocation: true
 context: fork
 agent: rule-auditor
 background: false
-allowed-tools: Read, Bash(git rev-parse:*), Bash(node:*), PowerShell
+allowed-tools: Read, Bash(git rev-parse:*), Bash(node:*), PowerShell(git rev-parse *), PowerShell(node *)
 argument-hint: "[--report-only]"
 ---
 

@@ -65,6 +65,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   instead of killing it.
 - `/mastersoft:refresh-rules` applies nothing when a question closes on the
   auto-continue timeout, and lists the group as pending.
+- Skills that pre-approve PowerShell scope it to the same commands as their Bash
+  rules, such as `PowerShell(git *)`: a bare `PowerShell` approved every command
+  on Windows. `/mastersoft:adversary` no longer pre-approves PowerShell, which it
+  doesn't use.
 
 ## [3.7.0] — 2026-09-25
 

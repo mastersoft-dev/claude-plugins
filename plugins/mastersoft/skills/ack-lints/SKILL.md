@@ -1,7 +1,7 @@
 ---
 name: ack-lints
 description: Acknowledge Mastersoft lint signals for this repo. Defers (silences for a TTL window, default 4h, repo-scoped) or suppresses indefinitely. Use proactively when lint signals are surfacing and the user chooses not to apply /mastersoft:refresh-rules right now. Args - "defer [categories...]", "suppress", or "clear". Defer without categories acks all; "defer rules" acks only rules-category signals. Writes .claude/.mastersoft-lints-ack (TTL) or .mastersoft-lints-suppress (indefinite).
-allowed-tools: Bash(node:*), PowerShell
+allowed-tools: Bash(node:*), PowerShell(node *)
 argument-hint: "defer [categories...] | suppress | clear"
 ---
 

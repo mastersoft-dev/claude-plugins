@@ -3,7 +3,7 @@ name: release
 description: Cut releases — version bump, changelog, and either a tagged release (git tag + GitLab release) or an untagged, changelog-anchored one. Auto-detects which workflow the repo uses and records the decision in the rules file. Use proactively when the user asks to cut a release, bump the version, or publish (not on your own initiative). For regular commits use commit.
 model: sonnet
 effort: medium
-allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(glab:*), AskUserQuestion, Skill, PowerShell
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(glab:*), AskUserQuestion, Skill, PowerShell(git *), PowerShell(glab *)
 argument-hint: "[--version=x.y.z] [--workflow=tagged|untagged]"
 ---
 

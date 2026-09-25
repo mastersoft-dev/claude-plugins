@@ -2,7 +2,7 @@
 name: refresh-rules
 disable-model-invocation: true
 description: Audit and refresh project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) when lint-engine signals staleness, broken references, an oversized rule file, or recurring corrections in auto-memory. Spawns the read-only rule-auditor agent (seeded with the live lint signals) to produce an evidence-backed findings table, proposes section-by-section diffs gated via AskUserQuestion, auto-applies on confirm, then runs a final re-audit pass over the edited entries. User-invocable; not auto-fired.
-allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell, AskUserQuestion
+allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell(git *), PowerShell(Remove-Item *), PowerShell(node *), AskUserQuestion
 argument-hint: "[focus-area]"
 ---
 

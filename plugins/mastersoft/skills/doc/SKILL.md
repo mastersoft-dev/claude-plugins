@@ -1,7 +1,7 @@
 ---
 name: doc
 description: Author a project doc (ADR, PRD) under docs/<type>/ from a Mastersoft template. Use proactively when the user asks to "write an ADR", "create a PRD", "document this decision", "draft a requirements doc", or invokes /mastersoft:doc <type> "<title>". One skill, registry-driven, branches on the doc-type argument. For free-form prose docs (README, RFC, guides) use the tech-writer agent.
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(node:*), Bash(git:*), PowerShell
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(node:*), Bash(git:*), PowerShell(node *), PowerShell(git *)
 model: sonnet
 argument-hint: "<type> \"<title>\" [--draft]"
 arguments: [type, title]

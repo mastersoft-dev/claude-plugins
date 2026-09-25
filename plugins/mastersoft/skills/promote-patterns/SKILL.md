@@ -1,7 +1,7 @@
 ---
 name: promote-patterns
 description: Triage Claude Code auto-memory entries (any topic file except the MEMORY.md index and reference-type pointers) and decide whether each pattern belongs in repo rules (CLAUDE.md / .claude/rules/), in the user-global ~/.claude/CLAUDE.md, or stays in auto-memory. Use proactively when lint-engine signals `patterns-to-promote` or `memory-review-due`, when the user asks to "promote patterns", "review auto memory", "turn corrections into rules", or after a long session with many corrections.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(node:*), Bash(git:*), PowerShell, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(node:*), Bash(git:*), PowerShell(node *), PowerShell(git *), AskUserQuestion
 model: sonnet
 argument-hint: "[--user-only | --repo-only]"
 ---

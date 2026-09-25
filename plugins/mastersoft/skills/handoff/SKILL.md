@@ -3,7 +3,7 @@ name: handoff
 description: Save conversation-only context (goal, done, pending) as a file for next chat. Use proactively when the user says "handoff"/"/handoff"/"continue in next chat" or signals they're wrapping up to resume later. Same-session = /compact.
 model: sonnet
 effort: medium
-allowed-tools: Write, Bash(date:*), PowerShell
+allowed-tools: Write, Bash(date:*), PowerShell(Get-Date *)
 argument-hint: "[focus for next session | /compact for same chat]"
 ---
 
