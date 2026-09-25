@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/dev.sh` leaves out the SessionStart hook that copies the statusline
+  wrapper into `~/.claude`, so a dev session no longer replaces the wrapper the
+  installed plugin keeps there.
+
 ### Fixed
 
 - The statusline wrapper also finds the plugin synced from claude.ai
