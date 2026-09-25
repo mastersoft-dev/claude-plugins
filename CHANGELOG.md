@@ -8,6 +8,19 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps
+  from loading, with the two ways to load it.
+
+### Fixed
+
+- Lint signals count `AGENTS.md`, `.claude/CLAUDE.md` and `CLAUDE.local.md` as
+  project rules: `no-rules-file` no longer fires in a repo that has them, and the
+  size, staleness and stale-reference checks also scan `AGENTS.md`. They follow
+  the Project instructions setting and ignore `~/.claude/CLAUDE.md` at the home
+  directory.
+
 ## [3.6.0] — 2026-09-24
 
 ### Added

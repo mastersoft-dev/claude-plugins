@@ -6,6 +6,8 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const STDIN_TIMEOUT_MS = 2000;
+const CLAUDE_RULE_FILES = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md'), 'CLAUDE.local.md'];
+const AGENTS_RULE_FILES = ['AGENTS.md', path.join('.claude', 'AGENTS.md')];
 
 // Single source of truth for the plugin's state dir. Resolved identically in
 // EVERY execution context — the lint-engine / inject / reset hooks AND the
@@ -46,6 +48,52 @@ function resolveRepoRoot(cwd) {
   let p = gitToplevel(cwd) || cwd;
   try { p = fs.realpathSync(p); } catch {}
   return p;
+}
+
+const AGENTS_MD_PLUGIN = 'agents-md@builtin';
+const AGENTS_MD_MODES = ['claude-md-or-agents-md', 'claude-md-and-agents-md', 'claude-md', 'managed-only'];
+const DEFAULT_AGENTS_MD_MODE = 'claude-md-or-agents-md';
+
+/**
+ * The user's "Project instructions" setting for AGENTS.md, read from
+ * ~/.claude/settings.json (Claude Code ignores it in project settings).
+ * A disabled built-in agents-md plugin behaves like 'claude-md'.
+ */
+function agentsMdMode() {
+  let settings = {};
+  try { settings = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')); } catch {}
+  if (settings.enabledPlugins && settings.enabledPlugins[AGENTS_MD_PLUGIN] === false) return 'claude-md';
+  const configs = settings.pluginConfigs && settings.pluginConfigs[AGENTS_MD_PLUGIN];
+  const mode = configs && configs.options && configs.options.instructionFiles;
+  return AGENTS_MD_MODES.includes(mode) ? mode : DEFAULT_AGENTS_MD_MODE;
+}
+
+/**
+ * Project instruction files at repoRoot and which of them Claude Code loads.
+ * CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md always load. AGENTS.md and
+ * .claude/AGENTS.md load when no CLAUDE.md file exists (the default), always
+ * with 'claude-md-and-agents-md', never with 'claude-md' / 'managed-only'.
+ * At the home directory the .claude/ entries are the user-global files, so
+ * they are not project rules. Returns absolute paths: { mode, present,
+ * claudeFiles, agentsFiles, files (loaded entry points), candidates }.
+ */
+function projectRuleFiles(repoRoot, mode = agentsMdMode()) {
+  const atHome = path.resolve(repoRoot) === path.resolve(os.homedir());
+  const local = list => list.filter(f => !(atHome && f.startsWith('.claude' + path.sep)));
+  const abs = list => local(list).map(f => path.join(repoRoot, f));
+  const isFile = p => { try { return fs.statSync(p).isFile(); } catch { return false; } };
+  const claudeFiles = abs(CLAUDE_RULE_FILES).filter(isFile);
+  const agentsFiles = abs(AGENTS_RULE_FILES).filter(isFile);
+  const agentsLoad = mode === 'claude-md-and-agents-md'
+    || (mode === DEFAULT_AGENTS_MD_MODE && !claudeFiles.length);
+  return {
+    mode,
+    present: claudeFiles.length + agentsFiles.length > 0,
+    claudeFiles,
+    agentsFiles,
+    files: agentsLoad ? [...claudeFiles, ...agentsFiles] : claudeFiles,
+    candidates: abs([...CLAUDE_RULE_FILES, ...AGENTS_RULE_FILES]),
+  };
 }
 
 function readStdinJson() {
@@ -102,4 +150,4 @@ function saveState(filePath, state, maxSessions) {
   }
 }
 
-module.exports = { readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, resolveRepoRoot };
+module.exports = { readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, resolveRepoRoot, projectRuleFiles };

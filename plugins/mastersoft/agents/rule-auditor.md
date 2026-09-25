@@ -31,7 +31,7 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 ## Procedure
 
 1. **Inventory rule files** (skip silently if none):
-   - `<root>/CLAUDE.md`, all `<root>/.claude/rules/**/*.md` (recursive).
+   - `<root>/CLAUDE.md` and `<root>/.claude/CLAUDE.md`, or `<root>/AGENTS.md` and `<root>/.claude/AGENTS.md` when neither CLAUDE.md exists; all `<root>/.claude/rules/**/*.md` (recursive).
    - Follow `@path.md` import chains recursively — lint-engine follows them, so must you.
 
 2. **Inventory codebase signal**:

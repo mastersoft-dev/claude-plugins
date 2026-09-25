@@ -12,9 +12,7 @@
 // purpose) and any third-party agent doing work in a Mastersoft repo too — not
 // just plugin-owned ones. An allow-list also silently rots on any agent rename.
 
-const fs = require('fs');
-const path = require('path');
-const { readStdinJson } = require('./lib');
+const { readStdinJson, projectRuleFiles } = require('./lib');
 const { loadOrgTiers, orgMode, quietMutesOrg, cap } = require('./lib-org-rules');
 
 function main() {
@@ -48,10 +46,8 @@ function main() {
   let bootstrapNote = '';
   if (bareType === 'rule-auditor') {
     const projectDir = process.env.CLAUDE_PROJECT_DIR || input.cwd || '.';
-    let hasClaudeMd = false;
-    try { hasClaudeMd = fs.statSync(path.join(projectDir, 'CLAUDE.md')).isFile(); } catch {}
-    if (!hasClaudeMd) {
-      bootstrapNote = '\n\n_Note: this repo has no CLAUDE.md — no project rules are loaded. There may be nothing to audit yet._';
+    if (!projectRuleFiles(projectDir).present) {
+      bootstrapNote = '\n\n_Note: this repo has no AGENTS.md or CLAUDE.md — no project rules are loaded. There may be nothing to audit yet._';
     }
   }
 
