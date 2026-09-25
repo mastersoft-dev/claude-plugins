@@ -36,6 +36,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - Plugin hooks run in exec form, `node` with the script path in `args`, so the
   path reaches node as one argument with no shell quoting.
 
+### Removed
+
+- The `claude-md-large` signal for a root rules file over 100 lines.
+  `rule-file-oversize` still fires past `claude_max_lines` and now names
+  `/doctor`, which trims what Claude can derive from the codebase.
+
 ### Fixed
 
 - The `android-testing` raw-screencap override reaches the hook: it goes in the

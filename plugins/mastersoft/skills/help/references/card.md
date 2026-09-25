@@ -44,7 +44,6 @@ Stable `id` values:
 | `no-rules-file` | info | No `AGENTS.md`, `.claude/AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at repo root. Fires on prompt #1, exempt from the first-prompt diet. | `/mastersoft:init-rules` |
 | `agents-md-shadowed` | info | `AGENTS.md` present but not loaded: a `CLAUDE.md` file takes precedence without importing it, or AGENTS.md support is off in Project instructions. Fires on prompt #1. | `@AGENTS.md` in `CLAUDE.md`, or Project instructions `claude-md-and-agents-md` |
 | `rule-file-oversize` | warn | Root rules file (`CLAUDE.md` or `AGENTS.md`) or imported rule file > `claude_max_lines` (default 200) | `/mastersoft:refresh-rules` |
-| `claude-md-large` | info | Root `CLAUDE.md` or `AGENTS.md` > 100 lines and no `.claude/rules/` yet | `/mastersoft:refresh-rules` |
 | `rule-edited-midsession` | info | Rule file mtime > session start (cached rules outdated) | `/clear`, `/compact`, or restart |
 | `stale-path-refs` | warn | Path references in rule files point at missing files/dirs | `/mastersoft:refresh-rules` |
 | `refresh-overdue` | info | No `last-refresh-at` recorded within `refresh_interval_days` | `/mastersoft:refresh-rules` |

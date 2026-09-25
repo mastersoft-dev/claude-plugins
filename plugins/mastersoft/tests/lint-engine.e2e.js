@@ -308,6 +308,18 @@ test('oversize AGENTS.md is linted when there is no CLAUDE.md', () => {
   assertHasSignal(p2.signals, 'rule-file-oversize', 'the size lint must scan AGENTS.md as the entry point');
 });
 
+test('rule-file-oversize points at /doctor for trimming', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(260) } });
+  assertHasSignal(p2.signals, 'rule-file-oversize');
+  assert(p2.ctx.includes('/doctor'), 'the oversize body should name /doctor');
+});
+
+test('a mid-size CLAUDE.md under the line cap raises no size signal', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(150) } });
+  assertNoSignal(p2.signals, 'rule-file-oversize');
+  assertNoSignal(p2.signals, 'claude-md-large');
+});
+
 test('CLAUDE.local.md next to AGENTS.md flags agents-md-shadowed', () => {
   const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n', 'CLAUDE.local.md': '# mine\n' } });
   assertHasSignal(p1.signals, 'agents-md-shadowed');

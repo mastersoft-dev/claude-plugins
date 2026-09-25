@@ -446,8 +446,7 @@ function main() {
       const lines = rf.content.split('\n').length;
       const rfStale = fileStaleness(repoRoot, rf.path, RULE_STALE_COMMITS, RULE_STALE_DAYS);
       if (rfStale.stale) staleRuleFiles.push(`${rel} (${rfStale.reason})`);
-      if (lines > CLAUDE_MAX_LINES) findings.push({ id: 'rule-file-oversize', severity: 'warn', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is ${lines} lines (>${CLAUDE_MAX_LINES}). Split per-topic into .claude/rules/<topic>.md with \`paths:\` frontmatter.` });
-      else if ((rel === 'CLAUDE.md' || rel === 'AGENTS.md') && lines > 100 && !dirExists(rulesDir)) findings.push({ id: 'claude-md-large', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is sizable; consider .claude/rules/ split.` });
+      if (lines > CLAUDE_MAX_LINES) findings.push({ id: 'rule-file-oversize', severity: 'warn', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is ${lines} lines (>${CLAUDE_MAX_LINES}). /mastersoft:refresh-rules splits it per topic into .claude/rules/<topic>.md with \`paths:\` frontmatter; /doctor trims what Claude can derive from the codebase.` });
     }
     if (staleRuleFiles.length) findings.push({ id: 'rule-file-stale', severity: 'info', fix: '/mastersoft:verify', category: 'rules', body: `Rule file(s) untouched while repo moved: ${staleRuleFiles.join('; ')}. Re-verify rules still match the codebase.` });
 
