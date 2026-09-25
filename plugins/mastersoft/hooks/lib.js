@@ -337,7 +337,7 @@ function saveState(filePath, state, maxSessions) {
 }
 
 module.exports = {
-  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, runGit, gitToplevel, resolveRepoRoot,
+  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, runGit, gitToplevel, resolveRepoRoot, realpathOr,
   projectRuleFiles, agentsMdSetting, mainRepoRoot, claudeConfigDir, pluginsRoot, projectSlug, projectDataDir,
   autoMemoryDir,
 };

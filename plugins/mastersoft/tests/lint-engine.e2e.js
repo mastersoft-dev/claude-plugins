@@ -374,18 +374,19 @@ test('creating a rule file between prompts forces a rescan', () => {
   assertHasSignal(p3.signals, 'rule-file-oversize', 'a new CLAUDE.md must invalidate the cached scan');
 });
 
-test('user-global ~/.claude/CLAUDE.md is not linted as project rules at the home dir', () => {
+test('a session at the home dir gets no lint signals', () => {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-')));
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
   try {
     fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
     fs.writeFileSync(path.join(home, '.claude', 'CLAUDE.md'), '# global\n' + 'x\n'.repeat(260));
+    fs.mkdirSync(path.join(home, 'Downloads', 'tool'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'Downloads', 'tool', 'uv.lock'), 'version = 1\n');
     const env = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0' };
     const sessionId = 'e2e-home-' + Math.random().toString(36).slice(2);
     runHook(home, { sessionId, stateDir, env });
     const p2 = runHook(home, { sessionId, stateDir, env });
-    assertNoSignal(p2.signals, 'rule-file-oversize');
-    assertHasSignal(p2.signals, 'no-rules-file');
+    assert(p2.signals.length === 0, `expected no signals at the home dir, got ${p2.signals.map(s => s.id).join(', ')}`);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(stateDir, { recursive: true, force: true });

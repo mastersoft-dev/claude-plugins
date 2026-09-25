@@ -69,6 +69,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   mode.
 - `/mastersoft:recall` still counts a subdirectory whose first transcript has no
   working directory.
+- Lint signals stay quiet in a session opened at the home directory, which is no
+  project: its scan reported lockfiles and memory of unrelated folders there.
 
 ## [3.6.0] — 2026-09-24
 

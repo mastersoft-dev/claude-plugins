@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, realpathOr, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
 const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
@@ -310,9 +310,12 @@ function main() {
 
   // Skip the user's home ~/.claude/ dir — global rules live there with different
   // loading semantics (always loaded across projects) and our skills target repos.
+  // The home directory itself is no project either: a scan there reads lockfiles
+  // and memory of unrelated folders.
   const claudeHome = path.resolve(claudeConfigDir());
   const resolvedRoot = path.resolve(repoRoot);
-  if (resolvedRoot === claudeHome || resolvedRoot.startsWith(claudeHome + path.sep)) {
+  if (resolvedRoot === claudeHome || resolvedRoot.startsWith(claudeHome + path.sep)
+      || resolvedRoot === realpathOr(os.homedir())) {
     process.exit(0);
   }
 
