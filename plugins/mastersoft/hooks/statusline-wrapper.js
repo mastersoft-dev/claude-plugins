@@ -37,23 +37,35 @@ function readUserOverrideCommand() {
   return null;
 }
 
-// Newest cached version with a statusline.js. Claude Code marks a replaced
-// version dir `.orphaned_at` and deletes it only 14 days later, so those are
-// skipped even when their version string sorts highest.
+// Newest mastersoft copy with a statusline.js, by the version in its
+// plugin.json (the directory name for a cache entry without one). A plugin
+// installed from the marketplace lives in cache/mastersoft/mastersoft/<version>;
+// one synced from claude.ai lives in synced/<bucket>/mastersoft, or
+// mastersoft~g<N>, and once it loads from there Claude Code marks every cache
+// version `.orphaned_at`. Orphaned dirs are skipped, since they are deleted only
+// 14 days later and can sort highest.
+function mastersoftCopies() {
+  const list = (dir, keep) => {
+    try { return fs.readdirSync(dir).filter(keep).map(name => path.join(dir, name)); } catch { return []; }
+  };
+  const cache = list(path.join(PLUGINS_ROOT, 'cache', 'mastersoft', 'mastersoft'), () => true)
+    .filter(dir => !fs.existsSync(path.join(dir, '.orphaned_at')));
+  const synced = list(path.join(PLUGINS_ROOT, 'synced'), () => true)
+    .flatMap(bucket => list(bucket, name => /^mastersoft(~g\d+)?$/.test(name)));
+  return [...cache, ...synced];
+}
+
 function findMastersoftStatusline() {
-  const dir = path.join(PLUGINS_ROOT, 'cache', 'mastersoft', 'mastersoft');
-  try {
-    const entries = fs.readdirSync(dir)
-      .map(v => ({ v, p: path.join(dir, v, 'hooks/statusline.js'), orphaned: path.join(dir, v, '.orphaned_at') }))
-      .filter(x => {
-        try { return fs.statSync(x.p).isFile(); } catch { return false; }
-      })
-      .filter(x => !fs.existsSync(x.orphaned))
-      .sort((a, b) => a.v.localeCompare(b.v, undefined, { numeric: true }));
-    return entries.at(-1)?.p ?? null;
-  } catch {
-    return null;
-  }
+  const found = mastersoftCopies()
+    .map(dir => ({
+      p: path.join(dir, 'hooks/statusline.js'),
+      v: readJson(path.join(dir, '.claude-plugin', 'plugin.json'))?.version || path.basename(dir),
+    }))
+    .filter(x => {
+      try { return fs.statSync(x.p).isFile(); } catch { return false; }
+    })
+    .sort((a, b) => a.v.localeCompare(b.v, undefined, { numeric: true }));
+  return found.at(-1)?.p ?? null;
 }
 
 function spawnUserShell(cmd) {

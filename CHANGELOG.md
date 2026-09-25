@@ -8,6 +8,14 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- The statusline wrapper also finds the plugin synced from claude.ai
+  (`~/.claude/plugins/synced/<bucket>/mastersoft`) and picks the copy with the
+  highest `plugin.json` version: once Claude Code loads the synced copy it marks
+  every cached version orphaned, and the wrapper, which skipped those and looked
+  nowhere else, rendered an empty statusline.
+
 ## [3.8.0] — 2026-09-25
 
 ### Added
