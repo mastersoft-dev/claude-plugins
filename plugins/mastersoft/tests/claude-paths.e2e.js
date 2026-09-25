@@ -76,9 +76,9 @@ function withEnv(vars, fn) {
   }
 }
 
-function run(script, args, { cwd, env }) {
+function run(script, args, { cwd, env, input }) {
   const r = cp.spawnSync(process.execPath, [script, ...args], {
-    cwd, env: isolatedEnv(env), encoding: 'utf8', timeout: 15000,
+    cwd, env: isolatedEnv(env), input, encoding: 'utf8', timeout: 15000,
   });
   if (r.error) throw r.error;
   return { code: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
@@ -329,6 +329,59 @@ test('state.js claude-project-slug resolves long paths to the hashed dir', () =>
   assertEq(ok.stdout.trim(), hashed);
   fs.mkdirSync(path.join(config, 'projects', slug.slice(0, 200) + '-000000'), { recursive: true });
   assertEq(run(STATE, ['claude-project-slug'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } }).code, 1, 'ambiguous prefix fails');
+});
+
+const FINDING_BLOCKS = [
+  '## Finding 1 — AGENTS.md cites a missing lint script',
+  '**Severity**: High',
+  '**Class**: b',
+  '**Signal**: —',
+  '**Evidence**: AGENTS.md:8 says "Lint: `npm run lint`"; package.json has only `test`.',
+  '**Suggestion**: Drop the Lint line.',
+  '**Files**: `AGENTS.md`, package.json',
+  '',
+  '```json',
+  '{ "findings": [] }',
+  '```',
+  '',
+].join('\n');
+
+function savedFindings(repo, env) {
+  return JSON.parse(fs.readFileSync(run(STATE, ['findings-path'], { cwd: repo, env }).stdout.trim(), 'utf8'));
+}
+
+test('state.js write-findings persists finding blocks in the findings shape', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const env = { MASTERSOFT_STATE_DIR: mkTmp() };
+  const r = run(STATE, ['write-findings'], { cwd: repo, env, input: FINDING_BLOCKS });
+  assertEq(r.code, 0, r.stderr);
+  const saved = savedFindings(repo, env);
+  assertEq(JSON.stringify(saved.findings), JSON.stringify([{
+    summary: 'AGENTS.md cites a missing lint script',
+    severity: 'high',
+    class: 'b',
+    signal: null,
+    evidence: 'AGENTS.md:8 says "Lint: `npm run lint`"; package.json has only `test`.',
+    suggestion: 'Drop the Lint line.',
+    files: ['AGENTS.md', 'package.json'],
+  }]));
+  assertEq(saved.repoRoot, repo);
+});
+
+test('state.js write-findings takes "No issues detected." and rejects unknown input', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const env = { MASTERSOFT_STATE_DIR: mkTmp() };
+  assertEq(run(STATE, ['write-findings'], { cwd: repo, env, input: 'No issues detected.\n' }).code, 0);
+  assertEq(JSON.stringify(savedFindings(repo, env).findings), '[]');
+  assertEq(run(STATE, ['write-findings'], { cwd: repo, env, input: 'the audit found nothing\n' }).code, 1, 'unknown input fails');
+});
+
+test('state.js write-findings rejects a finding block without severity and evidence', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const env = { MASTERSOFT_STATE_DIR: mkTmp() };
+  const r = run(STATE, ['write-findings'], { cwd: repo, env, input: '## Finding 1 — Comando di lint inesistente\n**Severità**: alta\n' });
+  assertEq(r.code, 1, 'a block with translated labels fails');
+  assertIncludes(r.stderr, 'labels in English', 'stderr names the expected format');
 });
 
 console.log('\n4. recall — which transcripts count as the current project');

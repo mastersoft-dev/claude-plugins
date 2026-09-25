@@ -95,7 +95,7 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 
 Two parts, in this order.
 
-1. **Human-readable** — one block per finding:
+1. **Human-readable** — one block per finding, with the field labels in English whatever language you write the values in (`/mastersoft:verify` parses them):
 
 ```
 ## Finding N — <one-line summary>
@@ -104,6 +104,7 @@ Two parts, in this order.
 **Signal**: <signal id if this finding answers an input signal, else —>
 **Evidence**: <file>:<line> says "X"; <other-file>/code shows "Y".
 **Suggestion**: <one-line fix>.
+**Files**: <comma-separated paths the finding touches, or —>
 ```
 
 2. **Machine-readable** — a single fenced ```json block, last in your output, for the caller to persist:
