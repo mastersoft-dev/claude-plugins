@@ -2,7 +2,7 @@
 name: recall
 description: Look back over your own past Claude Code sessions. Read-only. Use proactively when the user asks "what was I working on", "did we discuss X before", "when did we decide Y", "find that past chat about Z", or wants a recap of recent sessions. Default (no query) recaps the current repo's recent sessions; a query searches past sessions for it. Scope another repo with --project <name>. For codebase questions use ask; for current-work root-cause use investigate.
 model: sonnet
-allowed-tools: Agent
+allowed-tools: Agent, Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/recall.js" *)
 argument-hint: "[query] [--project <name>] [--all-projects]"
 ---
 

@@ -34,6 +34,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/mastersoft:release`, `/mastersoft:sentry` and `/mastersoft:glab` load in
   default permission mode again: their context commands used `$(…)` and
   `{ …; }`, which the permission check refuses, so the skill aborted.
+- `/mastersoft:recall` runs its session index without a permission prompt: the
+  `hindsight` agent's `recall.js` calls are pre-approved.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds
