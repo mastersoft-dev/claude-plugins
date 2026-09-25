@@ -8,6 +8,9 @@
  * in the body and in the Bash rules of `allowed-tools`; none of them is
  * exported to the Bash tool's environment. In skill bodies it also replaces
  * `$N` with the (0-based) N-th argument.
+ * Outside auto mode, a skill whose injected !`command` fails the permission
+ * check aborts: command substitution and a cat outside the working
+ * directories always fail it, and so does a { ...; } group.
  * Each test fails with the offending file:line list.
  *
  * Usage: node plugins/mastersoft/tests/content-tokens.test.js
@@ -46,6 +49,24 @@ const RULES = [
     name: 'skill bodies contain no positional $N placeholders',
     pattern: /(?<![\\$\w])\$[0-9]/,
     hint: 'declare `arguments:` and use $name, or escape a literal as \\$N (awk/shell fields included)',
+    files: () => skillFiles(),
+  },
+  {
+    name: 'injected commands use no command substitution',
+    pattern: /!`[^`]*\$\(/,
+    hint: 'chain with || and exit codes instead: the permission check refuses $(...) and the skill aborts',
+    files: () => skillFiles(),
+  },
+  {
+    name: 'injected commands use no brace groups',
+    pattern: /!`[^`]*(?<!\$)\{\s/,
+    hint: 'drop the { ...; } group: the permission check refuses it and the skill aborts',
+    files: () => skillFiles(),
+  },
+  {
+    name: 'injected commands cat no plugin files',
+    pattern: new RegExp(`!\`[^\`]*\\bcat\\b[^\`]*\\$\\{${TOKEN_NAMES}\\}`),
+    hint: 'tell Claude to Read the file: cat outside the working directories is blocked and the skill aborts',
     files: () => skillFiles(),
   },
 ];
