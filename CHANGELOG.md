@@ -183,6 +183,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   Claude Code keeps for 14 days after an update, and the README's manual
   statusline install reads the installed path from `installed_plugins.json`
   instead of a glob that could match the stale copy.
+- The statusline's `rate_limit` segment no longer scans the transcripts for a
+  limit message Claude Code stopped writing: it shows the 7-day and spend-limit
+  windows next to the 5-hour one, and nothing when Claude Code sends no rate
+  limits.
 
 ## [3.7.0] — 2026-09-25
 

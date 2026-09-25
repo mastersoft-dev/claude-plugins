@@ -221,6 +221,53 @@ test('patches CLAUDE_CONFIG_DIR/settings.json and keeps the wrapper in ~/.claude
   assertEq(fs.existsSync(path.join(home, '.claude', 'mastersoft-statusline-wrapper.js')), true, 'wrapper in ~/.claude');
 }, { skip: noJq });
 
+console.log('\n6. statusline.js — rate limit segment (F16)');
+
+const STATUSLINE = path.resolve(__dirname, '../hooks/statusline.js');
+const statuslineSrc = fs.readFileSync(STATUSLINE, 'utf8');
+
+test('dead transcript-scan fallback is removed', () => {
+  for (const needle of ['scanProjectEntries', 'computeBlockTimeLeft', 'getBlockTimeLeft', '.block-cache.json', 'Claude AI usage limit reached']) {
+    if (statuslineSrc.includes(needle)) throw new Error(`statusline.js still references ${needle}`);
+  }
+});
+
+function runStatusline(input) {
+  const stateDir = mkDir();
+  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_STATUSLINE_SEGMENTS: 'rate_limit' };
+  const result = cp.spawnSync(process.execPath, [STATUSLINE], {
+    input: JSON.stringify(input),
+    env,
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  if (result.error) throw result.error;
+  return (result.stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+}
+
+test('renders nothing when rate_limits is absent', () => {
+  assertEq(runStatusline({ session_id: 'rl-1' }), '');
+});
+
+test('renders the five_hour window when present', () => {
+  const out = runStatusline({ session_id: 'rl-2', rate_limits: { five_hour: { used_percentage: 23, resets_at: Math.floor(Date.now() / 1000) + 3600 } } });
+  if (!/23%/.test(out)) throw new Error(`expected 23% in [${out}]`);
+});
+
+test('renders seven_day and spend_limit alongside five_hour', () => {
+  const out = runStatusline({
+    session_id: 'rl-3',
+    rate_limits: {
+      five_hour: { used_percentage: 10 },
+      seven_day: { used_percentage: 41 },
+      spend_limit: { used_percentage: 62 },
+    },
+  });
+  if (!/10%/.test(out)) throw new Error(`missing five_hour in [${out}]`);
+  if (!/7d 41%/.test(out)) throw new Error(`missing seven_day in [${out}]`);
+  if (!/\$ 62%/.test(out)) throw new Error(`missing spend_limit in [${out}]`);
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpHomes.forEach(h => { try { fs.rmSync(h, { recursive: true, force: true }); } catch {} });

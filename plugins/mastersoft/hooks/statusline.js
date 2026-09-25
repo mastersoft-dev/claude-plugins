@@ -4,7 +4,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readStdinJsonAsync, claudeConfigDir } = require('./lib');
+const { readStdinJsonAsync } = require('./lib');
 const { writeContextUsagePercent } = require('./lib-org-rules');
 
 const GIT_TIMEOUT_MS = 800;
@@ -94,7 +94,6 @@ const COL_MODEL = c(13);       // bright magenta
 const COL_ICON_COST = c(11);   // bright yellow
 const COL_TIN = c(14);         // bright cyan
 const COL_TOUT = c(10);        // bright green
-const COL_ICON_BLOCK = c(12);  // bright blue
 const COL_CONTEXT_GREEN = c(2);
 const COL_CONTEXT_YELLOW = c(3);
 const COL_CONTEXT_RED = c(1);
@@ -304,119 +303,6 @@ function computeContextInfo(data) {
   return { usedPercent, usedTokens, remainingPercent, remainingTokens, contextMaxTokens };
 }
 
-const BLOCK_DURATION_MS = 5 * 60 * 60 * 1000;
-const PROJECTS_DIRS = [
-  path.join(claudeConfigDir(), 'projects'),
-  path.join(os.homedir(), '.config', 'claude', 'projects'),
-];
-const BLOCK_CACHE_PATH = path.join(claudeConfigDir(), '.block-cache.json');
-const BLOCK_CACHE_TTL_MS = 30000;
-
-function floorToHour(ms) {
-  return ms - (ms % (60 * 60 * 1000));
-}
-
-function scanProjectEntries(cutoff) {
-  const timestamps = [];
-  let latestResetTime = null;
-
-  for (const projectsDir of PROJECTS_DIRS) {
-    try { if (!fs.existsSync(projectsDir)) continue; } catch { continue; }
-
-    for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory()) continue;
-      const dirPath = path.join(projectsDir, dir.name);
-      for (const file of fs.readdirSync(dirPath, { withFileTypes: true })) {
-        if (!file.isFile() || !file.name.endsWith('.jsonl')) continue;
-        const filePath = path.join(dirPath, file.name);
-        try {
-          if (fs.statSync(filePath).mtimeMs < cutoff) continue;
-          const lines = fs.readFileSync(filePath, 'utf8').split('\n');
-          for (const line of lines) {
-            if (!line) continue;
-            let entry;
-            try { entry = JSON.parse(line); } catch { continue; }
-            const ts = entry.timestamp || (entry.snapshot && entry.snapshot.timestamp);
-            if (ts) timestamps.push(new Date(ts).getTime());
-            if (entry.isApiErrorMessage === true) {
-              const content = ((entry.message || {}).content) || [];
-              for (const chunk of content) {
-                if (chunk.text && chunk.text.includes('Claude AI usage limit reached')) {
-                  const m = chunk.text.match(/\|(\d+)/);
-                  if (m) {
-                    const rt = parseInt(m[1], 10) * 1000;
-                    if (!latestResetTime || rt > latestResetTime) latestResetTime = rt;
-                  }
-                }
-              }
-            }
-          }
-        } catch { /* skip */ }
-      }
-    }
-  }
-
-  return { timestamps, latestResetTime };
-}
-
-function computeBlockTimeLeft() {
-  const now = Date.now();
-  const cutoff = now - (BLOCK_DURATION_MS + 60 * 60 * 1000);
-  const { timestamps, latestResetTime } = scanProjectEntries(cutoff);
-
-  if (!timestamps.length) return null;
-  timestamps.sort((a, b) => a - b);
-
-  let blockStart = floorToHour(timestamps[0]);
-  let lastEntryTime = timestamps[0];
-
-  for (let i = 1; i < timestamps.length; i++) {
-    const ts = timestamps[i];
-    const timeSinceBlockStart = ts - blockStart;
-    const timeSinceLastEntry = ts - lastEntryTime;
-
-    if (timeSinceBlockStart > BLOCK_DURATION_MS || timeSinceLastEntry > BLOCK_DURATION_MS) {
-      blockStart = floorToHour(ts);
-    }
-    lastEntryTime = ts;
-  }
-
-  const endTime = blockStart + BLOCK_DURATION_MS;
-  if (endTime <= now) return null;
-
-  const effectiveEnd = (latestResetTime && latestResetTime > blockStart && latestResetTime <= endTime + 60 * 60 * 1000)
-    ? latestResetTime
-    : endTime;
-  if (effectiveEnd <= now) return null;
-
-  const remainingSec = Math.max(0, Math.floor((effectiveEnd - now) / 1000));
-  const remH = Math.floor(remainingSec / 3600);
-  const remM = Math.floor((remainingSec % 3600) / 60);
-  return remH ? `${remH}h ${remM}m left` : `${remM}m left`;
-}
-
-function getBlockTimeLeft() {
-  try {
-    try {
-      const raw = fs.readFileSync(BLOCK_CACHE_PATH, 'utf8');
-      const cache = JSON.parse(raw);
-      if (Date.now() - cache.ts < BLOCK_CACHE_TTL_MS) return cache.result;
-    } catch { /* no cache or stale */ }
-
-    const result = computeBlockTimeLeft();
-
-    try {
-      const tmp = `${BLOCK_CACHE_PATH}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ ts: Date.now(), result }), 'utf8');
-      fs.renameSync(tmp, BLOCK_CACHE_PATH);
-    } catch { /* skip */ }
-
-    return result;
-  } catch {
-    return null;
-  }
-}
-
 function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
@@ -575,27 +461,35 @@ function renderContextRemaining(_data, ctx) {
   return `${iconPrefix(icon, col)}${formatCompact(remainingTokens)} (${remainingPercent}%)`;
 }
 
+function formatRateWindow(pct, resetAt) {
+  let label = `${pct}%`;
+  if (resetAt) {
+    const remainingSec = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+    if (remainingSec > 0) {
+      const remH = Math.floor(remainingSec / 3600);
+      const remM = Math.floor((remainingSec % 3600) / 60);
+      label += ` (${remH ? `${remH}h ${remM}m` : `${remM}m`})`;
+    }
+  }
+  return label;
+}
+
 function renderRateLimit(data) {
   const rl = data.rate_limits;
-  if (rl && rl.five_hour) {
-    const pct = Math.round(rl.five_hour.used_percentage || 0);
-    const resetAt = rl.five_hour.resets_at;
-    const col = pct <= 50 ? COL_CONTEXT_GREEN : pct <= 80 ? COL_CONTEXT_YELLOW : COL_CONTEXT_RED;
-    let label = `${pct}%`;
-    if (resetAt) {
-      const remainingSec = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-      if (remainingSec > 0) {
-        const remH = Math.floor(remainingSec / 3600);
-        const remM = Math.floor((remainingSec % 3600) / 60);
-        label += ` (${remH ? `${remH}h ${remM}m` : `${remM}m`})`;
-      }
-    }
-    return `${iconPrefix(ICONS.block, col)}${label}`;
+  if (!rl || !rl.five_hour) return '';
+
+  const pct = Math.round(rl.five_hour.used_percentage || 0);
+  const col = pct <= 50 ? COL_CONTEXT_GREEN : pct <= 80 ? COL_CONTEXT_YELLOW : COL_CONTEXT_RED;
+  const parts = [formatRateWindow(pct, rl.five_hour.resets_at)];
+
+  if (rl.seven_day) {
+    parts.push(`7d ${formatRateWindow(Math.round(rl.seven_day.used_percentage || 0), rl.seven_day.resets_at)}`);
+  }
+  if (rl.spend_limit) {
+    parts.push(`$ ${formatRateWindow(Math.round(rl.spend_limit.used_percentage || 0), rl.spend_limit.resets_at)}`);
   }
 
-  const timeLeft = getBlockTimeLeft();
-  if (!timeLeft) return '';
-  return `${iconPrefix(ICONS.block, COL_ICON_BLOCK)}${timeLeft}`;
+  return `${iconPrefix(ICONS.block, col)}${parts.join(' ')}`;
 }
 
 function renderCost(data) {

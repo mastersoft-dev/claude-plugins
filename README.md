@@ -88,7 +88,7 @@ Configured via `CLAUDE_STATUSLINE_SEGMENTS` env var (comma-separated). Default: 
 | `host` | short hostname | no |
 | `repo` | Repo name from `origin` | no |
 | `context_remaining` | Context remaining | no |
-| `rate_limit` | Claude.ai 5h block countdown | no |
+| `rate_limit` | Claude.ai rate limit usage: 5h window (with reset countdown), plus 7d and spend-limit windows when present | no |
 | `tokens_in` | Total input tokens | no |
 | `tokens_out` | Total output tokens | no |
 | `lines` | `+added -removed` lines | no |
