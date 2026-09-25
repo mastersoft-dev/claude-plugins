@@ -63,6 +63,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   instead of a Monitor watch, which expires after at most 30 minutes, and its
   troubleshooting notes say that a Bash timeout moves the call to the background
   instead of killing it.
+- `/mastersoft:refresh-rules` applies nothing when a question closes on the
+  auto-continue timeout, and lists the group as pending.
 
 ## [3.7.0] — 2026-09-25
 
