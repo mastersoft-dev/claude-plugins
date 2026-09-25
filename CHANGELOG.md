@@ -86,6 +86,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   descriptions are shorter, since their skills start them by name: the plugin's
   always-on cost drops from about 4,800 to 4,400 tokens per session (`claude
   plugin details`).
+- `ORG_RULES.md` says why the org rules ride on hooks rather than the managed
+  `claudeMd` key: Explore, Plan and agents with `omitClaudeMd` skip CLAUDE.md
+  content.
 
 ### Removed
 

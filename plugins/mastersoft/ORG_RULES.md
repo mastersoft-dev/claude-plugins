@@ -88,6 +88,10 @@ Cadence/visibility env (precedence: env > built-in):
 - `MASTERSOFT_ORG_TIER1_TEXT` / `_TIER2_TEXT` / `_TIER3_TEXT` — *replace* a tier's wording (string, `\n` allowed). Set via managed-settings `env` to retune without re-shipping the plugin.
 - `MASTERSOFT_ORG_TIER1_APPEND` / `_TIER2_APPEND` / `_TIER3_APPEND` — *append* on top of a tier's base. Use project-settings `env` to add a repo-conditional rule (e.g. tenant isolation) without restating the floor.
 
+The managed-settings `claudeMd` key could carry the same prose, but the
+Explore and Plan agents skip CLAUDE.md content, as does any agent with
+`omitClaudeMd`, so the hooks stay the one path that reaches every agent.
+
 Everything above the first `<!-- tier:* -->` marker is maintainer documentation
 and is **not** injected. Phrase tier content as declarative project facts, not
 imperative system commands (imperative framing can trip prompt-injection
