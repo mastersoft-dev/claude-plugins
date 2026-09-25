@@ -17,7 +17,7 @@
 | `/mastersoft:commit` | Atomic Conventional Commits with adaptive quality gates. |
 | `/mastersoft:handoff` | Save conversation-only context for the next chat. |
 | `/mastersoft:help` | This card. |
-| `/mastersoft:init-rules` | Scaffold `AGENTS.md` + a `CLAUDE.md` that imports it, `.claude/rules/`, `docs/adr/`, `docs/prd/` for a fresh repo. |
+| `/mastersoft:init-rules` | Scaffold `AGENTS.md` (drafted by the native `/init` when the repo has no rules), `.claude/rules/`, `docs/adr/`, `docs/prd/`. |
 | `/mastersoft:investigate` | Read-only root-cause diagnosis + stack-trace triage. |
 | `/mastersoft:promote-patterns` | Triage Claude Code auto-memory entries; route each to repo rules, user-global rules, or leave in auto-memory. |
 | `/mastersoft:recall` | Look back over your own past Claude Code sessions: recap recent ones, or search past sessions for a topic with resume ids. Delegates to the `hindsight` agent. |

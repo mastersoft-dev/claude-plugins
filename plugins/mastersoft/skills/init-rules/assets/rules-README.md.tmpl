@@ -4,7 +4,7 @@ Topic-scoped rules. Each file is a markdown doc with optional YAML frontmatter.
 
 ## Why this directory exists
 
-Root `CLAUDE.md` is loaded once at session start and cached in memory — mid-session edits don't apply until `/compact` or restart. Path-scoped rules in this directory load **on demand** when Claude reads a matching file, so edits take effect on the next matching read.
+The root rules file (`AGENTS.md` or `CLAUDE.md`) is loaded once at session start and cached in memory — mid-session edits don't apply until `/compact` or restart. Path-scoped rules in this directory load **on demand** when Claude reads a matching file, so edits take effect on the next matching read.
 
 Use this directory once `CLAUDE.md` exceeds ~200 lines, or when a rule only applies to a specific file type / sub-area.
 
@@ -48,7 +48,7 @@ paths:
 
 ## Caveats
 
-- Path-scoped rules trigger when matching files are **read**, not on every tool use. Bash-generated edits or `Write` to new files won't trigger them — keep must-follow rules unscoped (in root `CLAUDE.md` or unscoped here).
+- Path-scoped rules trigger when matching files are **read**, not on every tool use. Bash-generated edits or `Write` to new files won't trigger them — keep must-follow rules unscoped (in the root rules file or unscoped here).
 - After `/compact`, path-scoped rules are dropped from history until another matching file is read.
 - Globs use `.gitignore`-style patterns. Test with `git ls-files` to confirm matches.
 
