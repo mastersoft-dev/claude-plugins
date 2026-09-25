@@ -100,8 +100,9 @@ export PATH="$JAVA_HOME/bin:$PATH"
 # export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64
 ```
 
-Prefer setting `org.gradle.java.home` in `~/.gradle/gradle.properties` for
-durable selection across sessions.
+An `export` lasts only for its own Bash call, so chain it with `&&` into the
+same call as `./gradlew`. Prefer setting `org.gradle.java.home` in
+`~/.gradle/gradle.properties` for durable selection across sessions.
 
 ### Compose Test on Robolectric (no device needed)
 

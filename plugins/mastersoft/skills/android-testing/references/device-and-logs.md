@@ -78,8 +78,8 @@ adb -s "$SERIAL" shell am start -n com.example.app/.MainActivity
 adb -s "$SERIAL" shell pm grant com.example.app android.permission.CAMERA
 
 # Take a screenshot — hook-denied by default (the accessibility tree is the
-# observation channel). For a genuine forensic frame, export the override
-# into the session first: export ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1
+# observation channel). For a genuine forensic frame, ask the user to set
+# ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 (see references/lanes.md, Lane B)
 adb -s "$SERIAL" exec-out screencap -p > /tmp/screen.png
 
 # Press a key

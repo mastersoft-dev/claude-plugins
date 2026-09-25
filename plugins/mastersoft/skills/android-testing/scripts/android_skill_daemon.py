@@ -2118,7 +2118,7 @@ class Daemon:
             "type": {"target", "text", "clear", "clear_method", "clear_max"} | post_sync_keys,
             "key": {"code", "force"} | post_sync_keys,
             "screencap": {"path", "backend", "format", "quality"},
-            "snapshot": {"only_clickable", "max_lines", "include_bounds", "query"} | post_sync_keys,
+            "snapshot": {"only_clickable", "max_lines", "include_bounds", "query", "force_dump"} | post_sync_keys,
             "window_sig": set(),
             "health": set(),
             "trace_start": {"dir", "format", "quality"},

@@ -8,6 +8,35 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- `android-testing` says that its two guard hooks stay registered for the rest of
+  the session once the skill loads, as Claude Code now keeps skill hooks, and the
+  hooks return at once on commands without `adb`.
+
+### Fixed
+
+- The `android-testing` raw-screencap override reaches the hook: it goes in the
+  `env` block of `.claude/settings.local.json`, which the running session applies
+  on save, or in the environment `claude` starts with. An `export` in a Bash call
+  never reached it.
+- `android-testing` runs its scripts and flows without permission prompts in
+  default mode: flows go as `--ops '<json>'` instead of a JSON heredoc, scripts
+  run by their path, and the serial is written out, as each Bash call starts a
+  new shell.
+- `android-testing` Lane C stays within the Bash limits: the listener runs in the
+  foreground under a 540 s timeout instead of a `wait` of up to 600 s, and the
+  frame ring and the logcat tail run as background tasks stopped with `TaskStop`,
+  instead of through PID variables lost between Bash calls. The listener's notes
+  no longer mention the removed Monitor `persistent` option.
+- `android-testing` batches accept `force_dump` on `snapshot`, as the flow
+  reference documents: the batch validator rejected it with exit 64.
+- `android-testing`'s `ui_run_flow.py` answers a flow that isn't a JSON object,
+  such as a bare `[...]` list of ops, with the expected shape instead of a Python
+  traceback.
+- The `android-testing` wizard flow template runs as written: its notes moved out
+  of the JSON, which neither the JSON nor the YAML parser accepted.
+
 ## [3.7.0] — 2026-09-25
 
 ### Changed

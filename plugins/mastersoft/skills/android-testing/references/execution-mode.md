@@ -17,8 +17,7 @@ batch runs ~5× faster wall-clock and produces a single ordered trace.
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
     --require-anchor 'desc="Presenza"' \
-    --stdin <<'EOF'
-{"flow_timeout_ms": 60000, "ops":[
+    --ops '{"flow_timeout_ms": 60000, "ops":[
   {"op":"tap","args":{"target":"desc=\"Presenza\"","wait_for":["desc=\"Timbra\""]}},
   {"op":"tap","args":{"target":"desc=\"Timbra\"","wait_for":["desc=\"Inserisci codice\""]}},
   {"op":"tap","args":{"target":"desc=\"Inserisci codice\"","wait_for":["text=\"Inserisci codice badge\""]}},
@@ -40,8 +39,7 @@ ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
   {"op":"resolve_then_tap_sequence","args":{"selectors":["text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\""],"assume_stable_coords":true,"delay_ms":120,"wait_for":["text=\"Scuro\""],"timeout_ms":8000}},
   {"op":"tap","args":{"target":"text=\"Scuro\"","wait_for":["desc=\"Salva\""],"timeout_ms":5000}},
   {"op":"tap","args":{"target":"desc=\"Salva\"","wait_for_any":["desc=\"Salvato\"","desc=\"Indietro\""],"timeout_ms":8000}}
-]}
-EOF
+]}'
 ```
 
 ## Picking gear
@@ -80,41 +78,42 @@ its rc in `results[]` without aborting the rest of the flow.
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
     --require-anchor 'desc="<start-screen-anchor>"' \
-    --stdin <<'EOF'
-{"flow_timeout_ms": 90000, "ops":[
-  // --- enter wizard ---
+    --ops '{"flow_timeout_ms": 90000, "ops":[
   {"op":"tap","args":{"target":"desc=\"<module>\"","wait_for":["desc=\"<entry>\""],"timeout_ms":6000}},
   {"op":"tap","args":{"target":"desc=\"<entry>\"","wait_for":["text=\"Nome *\""],"timeout_ms":6000}},
 
-  // --- form fill: type ops use containment finder + send_keys (handles
-  //     Compose floating labels and two-column rows automatically) ---
   {"op":"type","args":{"target":"text=\"Nome *\"","text":"Mario"}},
   {"op":"type","args":{"target":"text=\"Cognome *\"","text":"Rossi"}},
   {"op":"type","args":{"target":"text=\"Email *\"","text":"mario@test.it"}},
   {"op":"dismiss_ime","args":{}},
 
-  // --- mid-batch diagnostic (NON-FATAL): proves form state landed
-  //     correctly. Failed describe records rc=1 in results but does
-  //     not abort. Splitting into a new batch for this check costs
-  //     the whole flow's idle-timer reset budget. ---
   {"op":"describe","args":{"selectors":["text=\"Mario\"","text=\"Rossi\"","text=\"mario@test.it\""]}},
 
-  // --- dropdown pick (KioskPicker has clickable wrapper + interactionSource
-  //     fallback — synthetic taps reliably open the menu) ---
   {"op":"tap","args":{"target":"text=\"Seleziona\"","wait_for":["text=\"Visitatore\""],"timeout_ms":5000}},
   {"op":"tap","args":{"target":"text=\"Visitatore\"","wait_for":["desc=\"Continua\""],"timeout_ms":4000}},
 
-  // --- multi-step navigation ---
   {"op":"tap","args":{"target":"desc=\"Continua\"","wait_for_any":["text=\"<contact-list>\"","text~\"Privacy\""],"timeout_ms":8000}},
-  // ... add per-step anchors as wait_for_any to handle conditional skips ...
 
-  // --- final outcome check (NON-FATAL describe so failed checks are
-  //     forensic, not flow-breaking) ---
   {"op":"sleep","args":{"ms":2000}},
   {"op":"describe","args":{"selectors":["text~\"completata\"","text~\"successo\"","desc=\"Conferma\""]}}
-]}
-EOF
+]}'
 ```
+
+The ops run in groups, in order:
+
+- **Enter the wizard.**
+- **Fill the form.** `type` uses the containment finder + send_keys, which
+  handles Compose floating labels and two-column rows.
+- **Mid-batch diagnostic.** The `describe` proves the form state landed. It is
+  non-fatal: a failed describe records rc=1 in `results[]` and the flow goes
+  on, while splitting into a new batch for this check costs the idle-timer
+  reset budget of the whole flow.
+- **Dropdown pick.** KioskPicker has a clickable wrapper + interactionSource
+  fallback, so synthetic taps reliably open the menu.
+- **Multi-step navigation.** Add per-step anchors as `wait_for_any` to handle
+  conditional skips.
+- **Final outcome check.** A non-fatal `describe`, so failed checks are
+  forensic, not flow-breaking.
 
 ### Rules embedded in the template
 

@@ -274,6 +274,10 @@ def main() -> int:
     args = p.parse_args()
 
     flow = _load_flow(args)
+    if not isinstance(flow, dict):
+        sys.stderr.write("ui_run_flow: the flow must be an object with an 'ops' list, "
+                         "e.g. {\"ops\":[{\"op\":\"health\",\"args\":{}}]}\n")
+        return 64
     ops = flow.get("ops")
     if not isinstance(ops, list) or not ops:
         sys.stderr.write("ui_run_flow: flow has no 'ops' list\n")

@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -292,6 +293,26 @@ def test_validate_accepts_post_sync_keys() -> bool:
             "timeout_ms": 8000,
             "wait_stable_ms": 500,
         }}
+    ])
+    return err == ""
+
+
+def test_ui_run_flow_rejects_non_object_flow() -> bool:
+    """A bare `[...]` list of ops must exit 64 naming the expected shape,
+    not crash with a Python traceback."""
+    proc = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent / "ui_run_flow.py"),
+         "--ops", '[{"op":"health","args":{}}]'],
+        capture_output=True, text=True, timeout=30,
+    )
+    return proc.returncode == 64 and "Traceback" not in proc.stderr and '{"ops":[' in proc.stderr
+
+
+def test_validate_accepts_snapshot_force_dump() -> bool:
+    """flow-composition.md documents `force_dump` on `snapshot`, and the
+    handler reads it; the validator must not reject it."""
+    err = daemon.Daemon._validate_batch_ops([
+        {"op": "snapshot", "args": {"max_lines": 80, "force_dump": True}}
     ])
     return err == ""
 
@@ -756,6 +777,8 @@ ALL = [
     "test_validate_rejects_timeout_typo_with_hint",
     "test_validate_rejects_unknown_arg",
     "test_validate_accepts_post_sync_keys",
+    "test_validate_accepts_snapshot_force_dump",
+    "test_ui_run_flow_rejects_non_object_flow",
     "test_summarise_drops_text_keeps_length",
     "test_summarise_collapses_taps_to_count",
     "test_summarise_collapses_long_wait_for",

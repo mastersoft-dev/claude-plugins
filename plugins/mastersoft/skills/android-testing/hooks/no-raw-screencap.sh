@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # no-raw-screencap.sh — PreToolUse hook for the android-testing skill.
 #
-# Scoped to the skill's lifecycle (only fires while the skill is active),
-# this hook DENIES the launder pattern the LLM falls into when it's
+# Claude Code registers it when the skill loads and keeps running it on
+# every Bash call for the rest of the session, so it returns at once when
+# the command doesn't mention adb. It DENIES the launder pattern the LLM
+# falls into when it's
 # uncertain about screen state:
 #
 #   1. `adb shell screencap -p /sdcard/cur.png`
@@ -19,7 +21,10 @@
 #
 # Override: `ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1` for genuine pre-flow
 # manual capture or composition the daemon's BG trace would miss
-# (e.g. capturing the splash screen before the daemon boots).
+# (e.g. capturing the splash screen before the daemon boots). The hook
+# inherits Claude Code's environment, not the Bash tool's shell, so the
+# variable is set at launch or in the `env` block of a settings file,
+# which a running session applies when the file is saved.
 #
 # Reads the PreToolUse JSON event from stdin and emits a JSON response.
 # Exit 0 + no body = allow. Exit 0 + JSON body with permissionDecision
@@ -32,7 +37,7 @@ if [[ "${ANDROID_SKILL_ALLOW_RAW_SCREENCAP:-0}" == "1" ]]; then
 fi
 
 INPUT="$(cat 2>/dev/null || true)"
-if [[ -z "$INPUT" ]]; then
+if [[ -z "$INPUT" ]] || [[ "$INPUT" != *adb* ]]; then
     exit 0
 fi
 
@@ -87,9 +92,10 @@ Tree thin (only \`[u1] id=content\`)? You are likely mid-transition (Compose acc
 
 Need a real frame for forensics? \`ui_run_flow.py\` BG-traces every mutation. On flow failure the rc != 0 stderr line prints the trace dir + trace.jsonl index — read those instead of capturing fresh.
 
-Override only when explicitly post-morteming pre-flow state (splash, before daemon boot, manual repro):
+Override only when explicitly post-morteming pre-flow state (splash, before daemon boot, manual repro), and only after the user agrees. The hook reads Claude Code's own environment, so the override goes there:
 
-  ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1   (export, then retry)
+  • this session: add \"env\": {\"ANDROID_SKILL_ALLOW_RAW_SCREENCAP\": \"1\"} to .claude/settings.local.json. It applies when the file is saved; set \"0\" to turn it off again.
+  • at launch: ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 claude
 
 See SKILL.md step 4 + references/failure-modes.md §13 (\"Tree returns only id=content after a transition\")."
 
