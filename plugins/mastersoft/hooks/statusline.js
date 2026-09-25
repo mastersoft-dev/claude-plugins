@@ -4,7 +4,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readStdinJsonAsync } = require('./lib');
+const { readStdinJsonAsync, claudeConfigDir } = require('./lib');
 const { writeContextUsagePercent } = require('./lib-org-rules');
 
 const GIT_TIMEOUT_MS = 800;
@@ -306,10 +306,10 @@ function computeContextInfo(data) {
 
 const BLOCK_DURATION_MS = 5 * 60 * 60 * 1000;
 const PROJECTS_DIRS = [
-  path.join(os.homedir(), '.claude', 'projects'),
+  path.join(claudeConfigDir(), 'projects'),
   path.join(os.homedir(), '.config', 'claude', 'projects'),
 ];
-const BLOCK_CACHE_PATH = path.join(os.homedir(), '.claude', '.block-cache.json');
+const BLOCK_CACHE_PATH = path.join(claudeConfigDir(), '.block-cache.json');
 const BLOCK_CACHE_TTL_MS = 30000;
 
 function floorToHour(ms) {

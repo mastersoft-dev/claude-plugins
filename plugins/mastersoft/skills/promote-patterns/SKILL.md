@@ -34,7 +34,8 @@ Default (no flag): walk everything, classify per-pattern, ask user.
    MEMDIR=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js memory-path)
    ```
 
-   Abort with one-line message if not in a git repo.
+   Abort with one-line message if not in a git repo. If `memory-path` prints
+   nothing, auto memory is off for this repo: say so and stop.
 
 2. **List candidate files.** Glob `${MEMDIR}/*.md`. Exclude `MEMORY.md`
    (it's the index) and any `reference` entry — detect those by EITHER a
