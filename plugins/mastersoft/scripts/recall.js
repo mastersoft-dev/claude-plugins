@@ -26,6 +26,7 @@ const readline = require('readline');
 const { execFileSync } = require('child_process');
 const { gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, projectDataDir } = require('../hooks/lib');
 
+const SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
 const CWD_PROBE_BYTES = 65536;
 
 function projectsRoot() {
@@ -218,7 +219,7 @@ function sessionFiles(dir) {
   let files;
   try { files = fs.readdirSync(dir); } catch { return []; }
   return files
-    .filter((f) => f.endsWith('.jsonl'))
+    .filter((f) => SESSION_FILE_RE.test(f))
     .map((f) => ({ id: f.slice(0, -6), file: path.join(dir, f) }));
 }
 
@@ -384,7 +385,7 @@ function findSession(sessionId, projectArg) {
   for (const d of dirs) {
     let fl;
     try { fl = fs.readdirSync(d); } catch { continue; }
-    const hit = fl.find((f) => f.endsWith('.jsonl') && f.startsWith(sessionId));
+    const hit = fl.find((f) => SESSION_FILE_RE.test(f) && f.startsWith(sessionId));
     if (hit) return { file: path.join(d, hit), label: path.basename(d) };
   }
   return null;

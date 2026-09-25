@@ -318,6 +318,20 @@ test('--project expands to the named repo subdirs and worktrees', () => {
   assertExcludes(r.stdout, 'SIBLING_SESSION');
 });
 
+console.log('\n4. recall — transcript files and format drift');
+
+test('orphaned and superseded transcripts are not sessions', () => {
+  const f = recallFixture();
+  const dir = path.join(f.projects, lib.projectSlug(f.repo));
+  fs.copyFileSync(path.join(dir, `${f.ids.root}.jsonl`), path.join(dir, `${f.ids.root}.orphaned-1758800000-ab12.jsonl`));
+  fs.copyFileSync(path.join(dir, `${f.ids.root}.jsonl`), path.join(dir, `${f.ids.root}.jsonl.superseded-1758800000`));
+  const r = run(RECALL, ['list'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertIncludes(r.stdout, '4 session(s)');
+  assertExcludes(r.stdout, 'orphaned');
+  const p = run(RECALL, ['projects'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertIncludes(p.stdout, `${lib.projectSlug(f.repo)}\n   1 session(s)`);
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpDirs.forEach((d) => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} });

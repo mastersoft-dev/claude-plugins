@@ -44,6 +44,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/mastersoft:recall` finds sessions started in the repo's subdirectories and
   worktrees, for the current repo and for `--project`, which now also matches repo
   paths with spaces or other punctuation.
+- `/mastersoft:recall` no longer lists set-aside `.orphaned-…` transcripts as extra
+  sessions.
+
 ## [3.6.0] — 2026-09-24
 
 ### Added
