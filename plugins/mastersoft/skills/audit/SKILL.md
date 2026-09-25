@@ -9,10 +9,9 @@ Task: Run a security audit on: $ARGUMENTS
 
 This skill is the user-facing entry point. It delegates the scan to the
 **security-auditor** agent, which owns the full methodology (input tracing,
-auth/access, secrets/config, dependencies, infrastructure, mobile) in its
-reference set and applies the shared severity framework
-(`agent-refs/security-auditor/severity-framework.md`). Findings return to
-this conversation.
+auth/access, secrets/config, dependencies, infrastructure, mobile) and the
+severity framework in its own definition. Findings return to this
+conversation.
 
 ## Delegate
 

@@ -8,7 +8,6 @@ All shipped content lives under `plugins/mastersoft/`:
 
 - `hooks/` — JS hooks loaded by Claude Code (`hooks.json` declares wiring)
 - `agents/` — Markdown agent definitions
-- `agent-refs/<agent>/<topic>.md` — progressive-disclosure reference files the agents load on demand via their "Required Reading" tables (the agent equivalent of a skill's `references/`)
 - `skills/<name>/SKILL.md` — skill entry points, with optional `references/` and `assets/` siblings
 - `scripts/` — installers and helper scripts
 

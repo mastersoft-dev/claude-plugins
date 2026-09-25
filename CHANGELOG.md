@@ -203,6 +203,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   come from, the `MASTERSOFT_PUSH_PROTECTED_BRANCHES` env var, the
   `push_protected_branches` plugin option or `ORG_RULES.md`, instead of citing
   only `ORG_RULES.md`.
+- `security-auditor`, `tech-writer`, `qa-specialist` and `system-architect` carry
+  their reference material in their own definition instead of reading
+  `agent-refs/` files, which sit outside the working directory: each read asked
+  for approval in default mode, and in a headless run the agents worked without
+  them.
 
 ## [3.7.0] — 2026-09-25
 
