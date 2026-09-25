@@ -51,6 +51,14 @@ function orphanVersion(pluginsRoot, version) {
   fs.writeFileSync(path.join(dir, '.orphaned_at'), String(Date.now()));
 }
 
+function syncedStatusline(pluginsRoot, bucket, name, version, marker) {
+  const root = path.join(pluginsRoot, 'synced', bucket, name);
+  fs.mkdirSync(path.join(root, 'hooks'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'hooks', 'statusline.js'), `console.log(${JSON.stringify(marker)});\n`);
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'mastersoft', version }));
+}
+
 function runWrapper(home, extraEnv = {}) {
   const env = { ...process.env, HOME: home, ...extraEnv };
   for (const k of ['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_PLUGIN_CACHE_DIR']) if (!(k in extraEnv)) delete env[k];
@@ -184,6 +192,33 @@ test('an orphaned version dir is skipped even when it sorts highest', () => {
   fakeStatusline(cache, '3.7.0', 'ORPHANED');
   orphanVersion(cache, '3.7.0');
   assertEq(runWrapper(home), 'GOOD');
+});
+
+test('a claude.ai synced copy is used when every cache version is orphaned', () => {
+  const home = mkHome();
+  const plugins = path.join(home, '.claude', 'plugins');
+  fakeStatusline(plugins, '3.7.0', 'ORPHANED');
+  orphanVersion(plugins, '3.7.0');
+  syncedStatusline(plugins, 'org_acct', 'mastersoft', '3.7.0', 'SYNCED');
+  assertEq(runWrapper(home), 'SYNCED');
+});
+
+test('synced and cached copies compete on their plugin.json version', () => {
+  const home = mkHome();
+  const plugins = path.join(home, '.claude', 'plugins');
+  fakeStatusline(plugins, '3.8.0', 'CACHE_380');
+  syncedStatusline(plugins, 'org_a', 'mastersoft~g2', '3.6.0', 'SYNCED_360');
+  syncedStatusline(plugins, 'org_b', 'mastersoft', '3.10.0', 'SYNCED_3100');
+  assertEq(runWrapper(home), 'SYNCED_3100');
+});
+
+test('other synced plugins and meta files are ignored', () => {
+  const home = mkHome();
+  const plugins = path.join(home, '.claude', 'plugins');
+  fakeStatusline(plugins, '3.6.0', 'CACHE');
+  syncedStatusline(plugins, 'org_a', 'mastersoft-commerciale', '9.0.0', 'OTHER');
+  fs.writeFileSync(path.join(plugins, 'synced', 'org_a', 'mastersoft.meta.json'), '{}');
+  assertEq(runWrapper(home), 'CACHE');
 });
 
 console.log('\n5. install-statusline.sh --apply');

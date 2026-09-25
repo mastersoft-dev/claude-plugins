@@ -8,6 +8,22 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.8.1] — 2026-09-26
+
+### Changed
+
+- `scripts/dev.sh` leaves out the SessionStart hook that copies the statusline
+  wrapper into `~/.claude`, so a dev session no longer replaces the wrapper the
+  installed plugin keeps there.
+
+### Fixed
+
+- The statusline wrapper also finds the plugin synced from claude.ai
+  (`~/.claude/plugins/synced/<bucket>/mastersoft`) and picks the copy with the
+  highest `plugin.json` version: once Claude Code loads the synced copy it marks
+  every cached version orphaned, and the wrapper, which skipped those and looked
+  nowhere else, rendered an empty statusline.
+
 ## [3.8.0] — 2026-09-25
 
 ### Added

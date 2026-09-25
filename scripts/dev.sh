@@ -6,8 +6,10 @@
 # $MASTERSOFT_DEV_DIR (default: $TMPDIR/mastersoft-dev), renames the manifest
 # to "mastersoft-dev", rewrites the copy's Markdown references from
 # "mastersoft:<name>" to "mastersoft-dev:<name>" so its skills delegate to its
-# own agents, and starts claude with --plugin-dir on that copy. Skills show up
-# as /mastersoft-dev:<name>. Every argument is passed through to claude.
+# own agents, drops the SessionStart hook that copies the statusline wrapper
+# into ~/.claude (the copy would replace the one the installed plugin keeps
+# there), and starts claude with --plugin-dir on that copy. Skills show up as
+# /mastersoft-dev:<name>. Every argument is passed through to claude.
 #
 # Usage:
 #   scripts/dev.sh [claude args...]
@@ -55,6 +57,16 @@ for (const file of walk(root).filter(f => f.endsWith(".md"))) {
   if (next !== text) fs.writeFileSync(file, next);
 }
 ' "$TARGET" "$DEV_NAME"
+
+node -e '
+const fs = require("fs");
+const file = process.argv[1];
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+config.hooks.SessionStart = config.hooks.SessionStart
+  .map(group => ({ ...group, hooks: group.hooks.filter(h => !(h.args || []).some(a => a.endsWith("/install-statusline-wrapper.js"))) }))
+  .filter(group => group.hooks.length);
+fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+' "$TARGET/hooks/hooks.json"
 
 echo "dev.sh: $SOURCE -> $TARGET as $DEV_NAME" >&2
 exec claude --plugin-dir "$TARGET" "$@"

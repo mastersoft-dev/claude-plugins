@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * E2E tests for lint-engine.js against real repos.
+ * E2E tests for lint-engine.js.
  *
- * Each test runs the hook with an isolated MASTERSOFT_STATE_DIR (temp dir) so
- * real repo state is never touched. Tests are read-only on the repos themselves.
+ * Each test builds a throwaway git repo and runs the hook against it with an
+ * isolated HOME and MASTERSOFT_STATE_DIR, so no real repo or state is touched.
  *
  * Usage: node plugins/mastersoft/tests/lint-engine.e2e.js [--verbose]
- * Requires repos to exist under REPOS_BASE (default: sibling of claude-plugins).
  */
 'use strict';
 
@@ -18,12 +17,9 @@ const cp   = require('child_process');
 const HOOK = path.resolve(__dirname, '../hooks/lint-engine.js');
 const { projectSlug } = require('../hooks/lib');
 const STATE_JS = path.resolve(__dirname, '../scripts/state.js');
-const REPOS_BASE = path.resolve(__dirname, '../../../../');
 const VERBOSE = process.argv.includes('--verbose');
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-function repo(name) { return path.join(REPOS_BASE, name); }
 
 function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2), stateDir, env = {} } = {}) {
   const input = JSON.stringify({ session_id: sessionId, cwd });
@@ -83,15 +79,12 @@ function sessionNoAck(cwd, opts = {}) {
 
 // ─── test runner ──────────────────────────────────────────────────────────────
 
-let passed = 0, failed = 0, skipped = 0;
+let passed = 0, failed = 0;
 const failures = [];
 
 function test(name, fn) {
   try { fn(); passed++; console.log(`  ✓  ${name}`); }
   catch (e) {
-    // requireRepo / explicit SKIP throws carry { skip: true } — a missing
-    // fixture repo is not a failure, just an environment without that repo.
-    if (e.skip) { skipped++; console.log(`  ⊘  ${name}\n     ${e.message}`); return; }
     failed++;
     failures.push({ name, message: e.message });
     console.log(`  ✗  ${name}\n     ${e.message}`);
@@ -104,9 +97,6 @@ function assertHasSignal(signals, id, msg) {
 }
 function assertNoSignal(signals, id, msg) {
   assert(!signals.some(s => s.id === id), msg || `unexpected signal '${id}' in [${signals.map(s => s.id).join(', ')}]`);
-}
-function requireRepo(name) {
-  if (!fs.existsSync(repo(name))) throw Object.assign(new Error(`SKIP: repo '${name}' not found at ${repo(name)}`), { skip: true });
 }
 
 const DAY_MS = 86400000;
@@ -185,7 +175,7 @@ function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memF
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
-console.log('\nlint-engine e2e — real repos\n');
+console.log('\nlint-engine e2e\n');
 
 // ── 1. First-prompt fix ───────────────────────────────────────────────────────
 // Regression: db07fc1 broke brief-deprecated on prompt #1 by placing it inside
@@ -235,35 +225,38 @@ test('brief-deprecated (p1) and security-audit-due (p2) fire independently', () 
 // high-severity signals must survive the budget cap even when emitted last.
 console.log('\n3. Severity-ordered budget (high-severity survives cap)');
 
-test('presente: security-audit-due (high) survives alongside rule-file-oversize', () => {
-  requireRepo('presente');
-  const { p2 } = sessionNoAck(repo('presente'));
-  // presente emits: security-audit-due (high) + rule-file-oversize (warn) + refresh-overdue + verify-due
-  assertHasSignal(p2.signals, 'security-audit-due',
-    'high-severity signal must survive the budget cap');
-  // Verify it appears first (severity ordering)
+const FM = (type, { metadata = false, extra = '' } = {}) =>
+  metadata ? `---\nname: x\nmetadata:\n${extra}  type: ${type}\n---\nbody\n`
+           : `---\nname: x\ntype: ${type}\n---\nbody\n`;
+const LOCKFILE = { 'requirements.txt': 'flask==2.0.0\n' };
+const OVERSIZE_RULES = '# rules\n' + 'x\n'.repeat(260);
+const order = signals => signals.map(s => `${s.severity}:${s.id}`).join(', ');
+
+test('security-audit-due (high) comes first alongside rule-file-oversize', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': OVERSIZE_RULES, ...LOCKFILE } });
+  assertHasSignal(p2.signals, 'rule-file-oversize');
+  assertHasSignal(p2.signals, 'security-audit-due', 'high-severity signal must survive the budget cap');
   const highIdx = p2.signals.findIndex(s => s.id === 'security-audit-due');
-  const firstSeverities = p2.signals.slice(0, highIdx).map(s => s.severity);
-  assert(firstSeverities.every(sv => sv === 'high'),
-    `security-audit-due should be first or only preceded by other high signals, got order: ${p2.signals.map(s => `${s.severity}:${s.id}`).join(', ')}`);
+  assert(p2.signals.slice(0, highIdx).every(s => s.severity === 'high'),
+    `security-audit-due should be first or only preceded by other high signals, got order: ${order(p2.signals)}`);
 });
 
-test('motu: security-audit-due (high) appears before no-rules-file (info)', () => {
-  requireRepo('motu');
-  const { p2 } = sessionNoAck(repo('motu'));
+test('security-audit-due (high) appears before no-rules-file (info)', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'README.md': '# demo\n', ...LOCKFILE } });
   const highIdx = p2.signals.findIndex(s => s.id === 'security-audit-due');
   const infoIdx = p2.signals.findIndex(s => s.severity === 'info');
-  if (highIdx === -1) throw Object.assign(new Error('SKIP: security-audit-due did not fire for motu'), { skip: true });
-  if (infoIdx === -1) return; // only high signals, trivially ordered
-  assert(highIdx < infoIdx,
-    `high-severity should precede info; got order: ${p2.signals.map(s => `${s.severity}:${s.id}`).join(', ')}`);
+  assert(highIdx !== -1, `security-audit-due missing, got order: ${order(p2.signals)}`);
+  assert(infoIdx !== -1, `expected an info signal, got order: ${order(p2.signals)}`);
+  assert(highIdx < infoIdx, `high-severity should precede info; got order: ${order(p2.signals)}`);
 });
 
-test('legion: no high signal dropped when budget is tight', () => {
-  requireRepo('legion');
-  const { p2 } = sessionNoAck(repo('legion'));
-  // legion emits brief-deprecated (migration/info) + security-audit-due (high) + verify-due (info)
-  // With severity ordering, high must appear even if info candidates exceed budget
+test('no high signal dropped when info signals crowd the budget', () => {
+  const memFiles = { 'feedback_a.md': FM('feedback'), 'project_b.md': FM('project'), 'user_c.md': FM('user') };
+  const { p2 } = tmpSession({
+    memFiles, dirAgeDays: 40,
+    repoFiles: { 'CLAUDE.md': OVERSIZE_RULES, 'BRIEF.md': '# brief\n', 'AGENTS.md': '# agents\n', 'CLAUDE.local.md': '# local\n', ...LOCKFILE },
+  });
+  assert(p2.signals.length >= 3, `expected several competing signals, got order: ${order(p2.signals)}`);
   assertHasSignal(p2.signals, 'security-audit-due');
 });
 
@@ -278,18 +271,10 @@ test('no-rules-file fires on prompt #1 in a repo without AGENTS.md or CLAUDE.md'
     'no-rules-file must fire on prompt #1 (bootstrap signal)');
 });
 
-test('presente: emitSignals-gated signals absent on prompt #1', () => {
-  requireRepo('presente');
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
-  try {
-    const p1 = runHook(repo('presente'), { sessionId: 'e2e-boot-2', stateDir,
-      env: { MASTERSOFT_LINTS_ACK_HOURS: '0' } });
-    // No bootstrap signals for presente (has CLAUDE.md, no BRIEF.md), so p1 should be empty
-    assert(p1.signals.length === 0,
-      `presente has no bootstrap signals — p1 should emit nothing, got [${p1.signals.map(s=>s.id).join(',')}]`);
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-  }
+test('emitSignals-gated signals absent on prompt #1', () => {
+  const { p1, p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n', ...LOCKFILE } });
+  assert(p1.signals.length === 0, `no bootstrap signal applies, so p1 should emit nothing, got [${p1.signals.map(s => s.id).join(',')}]`);
+  assertHasSignal(p2.signals, 'security-audit-due');
 });
 
 console.log('\n4b. Project instruction files (CLAUDE.md or AGENTS.md)');
@@ -481,12 +466,8 @@ test('the quiet plugin option suppresses everything, and MASTERSOFT_QUIET overri
 
 // ── 7. Auto-memory matcher + promotion signals (self-contained) ───────────────
 // These build a throwaway git repo + a temp HOME with a seeded auto-memory dir,
-// so they don't depend on any sibling repo or on real per-machine memory.
+// so they don't depend on real per-machine memory.
 console.log('\n7. Auto-memory matcher + memory-review-due (self-contained)');
-
-const FM = (type, { metadata = false, extra = '' } = {}) =>
-  metadata ? `---\nname: x\nmetadata:\n${extra}  type: ${type}\n---\nbody\n`
-           : `---\nname: x\ntype: ${type}\n---\nbody\n`;
 
 test('matcher counts user_/slug/nested entries and excludes reference (both cues)', () => {
   // 6 candidates + 2 references + index. Old prefix-only matcher saw 2.
@@ -668,7 +649,7 @@ test('repoRoot keys off git toplevel, not CLAUDE_PROJECT_DIR (hook ↔ recorder 
 
 // ─── summary ──────────────────────────────────────────────────────────────────
 
-console.log(`\n${passed + failed + skipped} tests — ${passed} passed, ${failed} failed, ${skipped} skipped\n`);
+console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
 if (failures.length) {
   failures.forEach(f => console.log(`  FAIL: ${f.name}\n       ${f.message}`));
   process.exit(1);
