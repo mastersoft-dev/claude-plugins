@@ -37,7 +37,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - Claude Code paths follow Claude Code's rules. Project slugs turn every
   non-alphanumeric character into `-`; the lint signals, `state.js`, the
   statusline and its wrapper honor `CLAUDE_CONFIG_DIR` and
-  `CLAUDE_CODE_PLUGIN_CACHE_DIR`; auto memory comes from `autoMemoryDirectory` or
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR`, and `install-statusline.sh --apply` patches the
+  `settings.json` Claude Code reads; auto memory comes from `autoMemoryDirectory` or
   the main checkout's dir that every worktree shares. With auto memory off, the
   memory signals stay quiet and `/mastersoft:promote-patterns` says so.
 - `/mastersoft:recall` finds sessions started in the repo's subdirectories and
