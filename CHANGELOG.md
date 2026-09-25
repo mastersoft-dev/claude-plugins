@@ -43,6 +43,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   too: with Bash in its tool list Claude Code left them out there. It no longer
   has Bash, so its read-only contract holds. `/mastersoft:doc` names its search
   steps without the Glob tool.
+- The `tech-writer` stage references no longer ask questions a subagent can't put
+  to the user: they record assumptions and open questions instead, and the
+  self-review stage states why it runs in one context.
 
 ## [3.7.0] — 2026-09-25
 
