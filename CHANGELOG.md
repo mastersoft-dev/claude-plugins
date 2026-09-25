@@ -75,6 +75,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   and `git log` failed there and aborted the skill before it loaded.
 - `/mastersoft:sentry` reads the `.sentryclirc` token in the same Bash call as the
   API request, since an `export` doesn't reach the next call.
+- `/mastersoft:ask`, `audit`, `adversary` and `help` no longer switch the session
+  to their own model and effort for the rest of the turn: the model they meant is
+  already set on the agent they start.
 
 ## [3.7.0] — 2026-09-25
 

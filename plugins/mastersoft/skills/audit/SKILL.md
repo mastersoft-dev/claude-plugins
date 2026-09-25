@@ -1,8 +1,6 @@
 ---
 name: audit
 description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
-model: opus
-effort: xhigh
 allowed-tools: Agent
 argument-hint: "path"
 ---
