@@ -19,7 +19,7 @@ SOURCE="$REPO_ROOT/plugins/mastersoft"
 TARGET="${MASTERSOFT_DEV_DIR:-${TMPDIR:-/tmp}/$DEV_NAME}"
 
 for tool in rsync node claude; do
-  command -v "$tool" >/dev/null 2>&1 || { echo "dev.sh: $tool not found in PATH" >&2; exit 1; }
+  command -v "$tool" >/dev/null 2>&1 || { echo "dev.sh: $tool not found in PATH; install it, or add the directory that holds it to PATH" >&2; exit 1; }
 done
 
 if [ -d "$TARGET" ] && [ -n "$(ls -A "$TARGET")" ] && [ ! -f "$TARGET/$MARKER" ]; then
