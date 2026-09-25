@@ -28,6 +28,7 @@ const { runGit, gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, proj
 
 const SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
 const CWD_PROBE_BYTES = 65536;
+const CWD_PROBE_FILES = 5;
 const CLI_TIMEOUT_MS = 3000;
 const DRIFT_SAMPLE = 3;
 
@@ -136,12 +137,10 @@ function insideRepo(dir, repoRoot) {
   return true;
 }
 
-function recordedCwd(dir) {
-  const sf = sessionFiles(dir)[0];
-  if (!sf) return null;
+function transcriptCwd(file) {
   let head = '';
   try {
-    const fd = fs.openSync(sf.file, 'r');
+    const fd = fs.openSync(file, 'r');
     try {
       const buf = Buffer.alloc(CWD_PROBE_BYTES);
       head = buf.toString('utf8', 0, fs.readSync(fd, buf, 0, CWD_PROBE_BYTES, 0));
@@ -151,6 +150,16 @@ function recordedCwd(dir) {
     let o;
     try { o = JSON.parse(line); } catch { continue; }
     if (o && typeof o.cwd === 'string') return o.cwd;
+  }
+  return null;
+}
+
+// A session closed before its first prompt may carry no cwd, so a few
+// transcripts are tried before the dir is given up on.
+function recordedCwd(dir) {
+  for (const sf of sessionFiles(dir).slice(0, CWD_PROBE_FILES)) {
+    const cwd = transcriptCwd(sf.file);
+    if (cwd) return cwd;
   }
   return null;
 }

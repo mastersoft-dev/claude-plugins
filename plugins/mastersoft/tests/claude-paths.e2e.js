@@ -421,6 +421,18 @@ test('--project expands to the named repo subdirs and worktrees', () => {
   assertExcludes(r.stdout, 'SIBLING_SESSION');
 });
 
+test('a subdirectory still counts when its first transcript has no cwd', () => {
+  const f = recallFixture();
+  const docs = path.join(f.repo, 'docs');
+  fs.mkdirSync(docs);
+  const dirName = lib.projectSlug(docs);
+  const bare = sessionId();
+  write(path.join(f.projects, dirName, `${bare}.jsonl`), JSON.stringify({ type: 'summary', summary: 'no cwd yet' }) + '\n');
+  transcript(f.projects, dirName, { cwd: docs, title: 'DOCS_SESSION', prompt: 'docs work', ts: '2026-09-23T12:00:00Z' });
+  const r = run(RECALL, ['list'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertIncludes(r.stdout, 'DOCS_SESSION');
+});
+
 console.log('\n5. recall — transcript files and format drift');
 
 test('orphaned and superseded transcripts are not sessions', () => {

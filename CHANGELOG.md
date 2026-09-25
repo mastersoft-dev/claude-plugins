@@ -64,6 +64,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   `managed-only` and rule files in parent directories, and say when the
   agents-md plugin is disabled; init-rules and the rule auditor read the same
   mode.
+- `/mastersoft:recall` still counts a subdirectory whose first transcript has no
+  working directory.
 
 ## [3.6.0] — 2026-09-24
 
