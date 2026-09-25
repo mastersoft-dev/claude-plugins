@@ -19,7 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { resolveStateDir } = require('./lib');
+const { resolveStateDir, loadState, saveState } = require('./lib');
 
 const ORG_RULES_PATH = path.join(__dirname, '..', 'ORG_RULES.md');
 // Claude Code caps additionalContext at 10000 chars (past it the text is
@@ -27,10 +27,14 @@ const ORG_RULES_PATH = path.join(__dirname, '..', 'ORG_RULES.md');
 const TIER_CAP = 9500;
 
 // Shared with the hook state. The statusline writes the live context-window
-// usage here every render; the tier-2 distance gate (inject-turn) reads it.
+// usage here every render, keyed by session_id; the tier-2 distance gate
+// (inject-turn) reads its own session's entry. Same MAX_SESSIONS cap as
+// inject-turn.js's own state file, so a long-running machine doesn't grow this
+// unbounded across sessions.
 const STATE_DIR = resolveStateDir();
 const CONTEXT_USAGE_FILE = path.join(STATE_DIR, 'context-usage.json');
 const CONTEXT_USAGE_MAX_AGE_MS = 5 * 60 * 1000;
+const CONTEXT_USAGE_MAX_SESSIONS = 50;
 const DEFAULT_DISTANCE_PCT = 15;
 
 // ORG_RULES.md frontmatter carries every tunable hook default (precedence per
@@ -165,12 +169,15 @@ function distancePct() {
   return Number.isFinite(n) && n >= 0 ? n : DEFAULT_DISTANCE_PCT;
 }
 
-// Latest context-window usage percent, or null if the statusline hasn't
-// written it recently (e.g. a non-Mastersoft statusline is active).
-function readContextUsagePercent() {
+// Latest context-window usage percent for sessionId, or null if the statusline
+// hasn't written it recently for that session (e.g. a non-Mastersoft
+// statusline is active, or a different session wrote last).
+function readContextUsagePercent(sessionId) {
+  if (!sessionId) return null;
   try {
-    const o = JSON.parse(fs.readFileSync(CONTEXT_USAGE_FILE, 'utf8'));
-    if (typeof o.usedPercent === 'number' && typeof o.ts === 'number'
+    const state = loadState(CONTEXT_USAGE_FILE);
+    const o = state[sessionId];
+    if (o && typeof o.usedPercent === 'number' && typeof o.ts === 'number'
         && Date.now() - o.ts <= CONTEXT_USAGE_MAX_AGE_MS) {
       return o.usedPercent;
     }
@@ -178,12 +185,13 @@ function readContextUsagePercent() {
   return null;
 }
 
-function writeContextUsagePercent(usedPercent) {
+function writeContextUsagePercent(sessionId, usedPercent) {
+  if (!sessionId) return;
   try {
     fs.mkdirSync(STATE_DIR, { recursive: true });
-    const tmp = `${CONTEXT_USAGE_FILE}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ usedPercent, ts: Date.now() }), 'utf8');
-    fs.renameSync(tmp, CONTEXT_USAGE_FILE);
+    const state = loadState(CONTEXT_USAGE_FILE);
+    state[sessionId] = { usedPercent, ts: Date.now() };
+    saveState(CONTEXT_USAGE_FILE, state, CONTEXT_USAGE_MAX_SESSIONS);
   } catch { /* statusline must never fail on this */ }
 }
 

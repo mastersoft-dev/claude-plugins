@@ -268,6 +268,45 @@ test('renders seven_day and spend_limit alongside five_hour', () => {
   if (!/\$ 62%/.test(out)) throw new Error(`missing spend_limit in [${out}]`);
 });
 
+console.log('\n7. lib-org-rules — context usage percent is per-session (F29)');
+
+const LIB_ORG_RULES = path.resolve(__dirname, '../hooks/lib-org-rules.js');
+
+function runNode(code) {
+  const stateDir = mkDir();
+  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir };
+  const result = cp.spawnSync(process.execPath, ['-e', code], { env, encoding: 'utf8', timeout: 5000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`node -e failed: ${result.stderr}`);
+  return (result.stdout || '').trim();
+}
+
+test('context usage percent is tracked separately per session_id', () => {
+  const out = runNode(`
+    const { writeContextUsagePercent, readContextUsagePercent } = require(${JSON.stringify(LIB_ORG_RULES)});
+    writeContextUsagePercent('session-a', 80);
+    writeContextUsagePercent('session-b', 20);
+    console.log(JSON.stringify({
+      a: readContextUsagePercent('session-a'),
+      b: readContextUsagePercent('session-b'),
+      missing: readContextUsagePercent('session-c'),
+    }));
+  `);
+  assertEq(out, JSON.stringify({ a: 80, b: 20, missing: null }));
+});
+
+test('old sessions are trimmed once more than the cap accumulate', () => {
+  const out = runNode(`
+    const { writeContextUsagePercent, readContextUsagePercent } = require(${JSON.stringify(LIB_ORG_RULES)});
+    for (let i = 0; i < 60; i++) writeContextUsagePercent('s' + i, i);
+    console.log(JSON.stringify({
+      first: readContextUsagePercent('s0'),
+      last: readContextUsagePercent('s59'),
+    }));
+  `);
+  assertEq(out, JSON.stringify({ first: null, last: 59 }));
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpHomes.forEach(h => { try { fs.rmSync(h, { recursive: true, force: true }); } catch {} });

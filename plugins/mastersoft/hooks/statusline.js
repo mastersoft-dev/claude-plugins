@@ -611,10 +611,11 @@ async function main() {
   const ctx = buildContext(data);
 
   // Persist live context-window usage for the org-rule tier-2 distance gate
-  // (inject-turn.js reads it). Always runs, regardless of which segments render.
+  // (inject-turn.js reads it), keyed by session_id so concurrent sessions don't
+  // clobber each other. Always runs, regardless of which segments render.
   try {
     const ci = ctx.context;
-    if (ci && typeof ci.usedPercent === 'number') writeContextUsagePercent(ci.usedPercent);
+    if (ci && typeof ci.usedPercent === 'number') writeContextUsagePercent(data.session_id, ci.usedPercent);
   } catch { /* never break the statusline */ }
 
   const segmentNames = parseSegmentList(process.env.CLAUDE_STATUSLINE_SEGMENTS);

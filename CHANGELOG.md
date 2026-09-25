@@ -187,6 +187,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   limit message Claude Code stopped writing: it shows the 7-day and spend-limit
   windows next to the 5-hour one, and nothing when Claude Code sends no rate
   limits.
+- The context usage that the statusline shares with the mid-session tier-2
+  re-injection is kept per session, so two sessions on one machine no longer read
+  each other's percentage.
 
 ## [3.7.0] — 2026-09-25
 
