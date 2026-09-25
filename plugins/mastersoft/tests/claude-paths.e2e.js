@@ -332,6 +332,29 @@ test('orphaned and superseded transcripts are not sessions', () => {
   assertIncludes(p.stdout, `${lib.projectSlug(f.repo)}\n   1 session(s)`);
 });
 
+function unreadable(projects, dirName, cwd, mtimeSec) {
+  const file = path.join(projects, dirName, `${sessionId()}.jsonl`);
+  write(file, JSON.stringify({ type: 'turn', cwd, timestamp: '2026-09-25T10:00:00Z', body: 'renamed record type' }) + '\n');
+  fs.utimesSync(file, mtimeSec, mtimeSec);
+}
+
+test('newest transcripts without user or assistant records warn on stderr', () => {
+  const f = recallFixture();
+  const now = Date.now() / 1000;
+  for (let i = 1; i <= 3; i++) unreadable(f.projects, lib.projectSlug(f.repo), f.repo, now + i);
+  const r = run(RECALL, ['list'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0);
+  assertIncludes(r.stderr, 'transcript format may have changed');
+});
+
+test('one session closed before its first prompt does not warn', () => {
+  const f = recallFixture();
+  unreadable(f.projects, lib.projectSlug(f.repo), f.repo, Date.now() / 1000 + 10);
+  const r = run(RECALL, ['list'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0);
+  assertEq(r.stderr, '');
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpDirs.forEach((d) => { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} });
