@@ -150,6 +150,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The org rules, `android-testing` and the `system-architect` agent no longer name
   `TodoWrite`, which current models don't have by default: plans go to the task
   list (`TaskCreate`) or plan mode.
+- Tier 1 of the org rules drafts plans in the reply under the Proactive output
+  style instead of pushing plan mode, which that style enters only when asked.
 
 ## [3.7.0] — 2026-09-25
 
