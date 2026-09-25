@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-09-25
+
 ### Changed
 
 - `/mastersoft:init-rules` keeps project rules in `AGENTS.md`, which every coding
