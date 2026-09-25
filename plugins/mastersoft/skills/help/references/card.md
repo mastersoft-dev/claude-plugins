@@ -34,6 +34,8 @@
 |---|---|
 | `Brief` | The shortest correct answer: no preamble, no recap, stricter than the built-in Concise style. Pick it with `/output-style` or `/config`. |
 
+The built-in `Concise` style (Claude Code 2.1.237+) is the standard pick; `Brief` also caps answers at 3 lines and trades completeness for length. Output styles shape only the main conversation and forks, so the org rules still carry the brevity rule to subagents.
+
 ## Lint signal catalog
 
 Each per-prompt signal is emitted as a two-line bullet:

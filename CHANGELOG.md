@@ -53,6 +53,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   --marketplace mastersoft-dev/claude-plugins` (Claude Code 2.1.275+), or with the
   two `claude plugin` shell commands, and says when `/reload-plugins` is still
   needed.
+- The `Brief` output style describes itself as stricter than the built-in
+  `Concise` style (Claude Code 2.1.237+), which the help card names as the
+  standard pick.
 
 ### Removed
 
