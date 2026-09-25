@@ -4,7 +4,7 @@ description: Orchestrate OpenAI Codex CLI non-interactively for code generation 
 model: opus
 effort: high
 # Bash intentionally unscoped: this skill manages the codex process lifecycle
-# (codex/git/awk/find/kill + Monitor recovery), not a fixed command set.
+# (codex/git/sed/find/kill + Monitor recovery), not a fixed command set.
 allowed-tools: Bash, Monitor, Read, Glob, Grep
 argument-hint: "[subcommand] prompt_or_flags"
 ---
