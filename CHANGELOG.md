@@ -31,6 +31,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   the background instead of the blocking `--live` view.
 - `/mastersoft:vet` says that it reviews what it is handed without running git,
   instead of claiming that it has no git access.
+- `scripts/dev.sh` rewrites `mastersoft:` agent names to `mastersoft-dev:` in the
+  copy it loads, so its skills start the copy's agents.
 
 ### Fixed
 
