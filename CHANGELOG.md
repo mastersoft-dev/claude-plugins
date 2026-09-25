@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.8.1] — 2026-09-26
+
 ### Changed
 
 - `scripts/dev.sh` leaves out the SessionStart hook that copies the statusline
