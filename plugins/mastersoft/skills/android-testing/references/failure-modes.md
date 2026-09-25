@@ -285,7 +285,7 @@ Now the batch writes itself: every tap target is on the list, every
 budget).
 
 **Then file the plan in the task tool.** Use whatever plan/todo/task
-tool is loaded (`TodoWrite`, `TaskCreate`, or the harness equivalent).
+tool is loaded (`TaskCreate`, or the harness equivalent).
 One task per screen transition. Title = transition (`<A> → <B>`),
 description carries the anchor selector. Mark complete as each
 `wait_for` lands. Effects:

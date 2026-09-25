@@ -5,7 +5,7 @@ description: >-
   an architecture before building — e.g. "design the X subsystem", "how should I structure Y",
   "review this architecture". For diagnosing or comprehending existing code, use the investigate
   skill.
-tools: Read, Glob, Grep, TodoWrite, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
+tools: Read, Glob, Grep, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: opus
 effort: xhigh
 maxTurns: 35

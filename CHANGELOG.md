@@ -144,6 +144,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `ORG_RULES.md` names the Claude Code version floor (`minimumVersion`,
   `requiredMinimumVersion`) instead of a minimum plugin version, which no managed
   key sets, and lists `fork` among the session starts that inject tier 1.
+- The org rules, `android-testing` and the `system-architect` agent no longer name
+  `TodoWrite`, which current models don't have by default: plans go to the task
+  list (`TaskCreate`) or plan mode.
 
 ## [3.7.0] — 2026-09-25
 

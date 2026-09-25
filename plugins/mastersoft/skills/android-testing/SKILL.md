@@ -29,7 +29,7 @@ Operate the Android toolchain: pick devices, run Gradle test tasks, drive multi-
 
 Skipping a step burns 50-200 K tokens recovering. Full detail in `references/protocol.md`.
 
-1. **PLAN** — file the screen path in `TodoWrite` / `TaskCreate` before any device call. Source order: grep the navhost → `adb shell dumpsys activity activities` → `references/maestro.md` → ask the user. Title each task `<Screen A> → <Screen B>` with the arrival anchor in the description.
+1. **PLAN** — file the screen path in the task list (`TaskCreate`), or as a numbered plan in your reply when no task tool is loaded, before any device call. Source order: grep the navhost → `adb shell dumpsys activity activities` → `references/maestro.md` → ask the user. Title each task `<Screen A> → <Screen B>` with the arrival anchor in the description.
 2. **ANCHOR** — `describe` the current screen with the expected selector. On miss the response carries `nearby[]` (12 selectors) + `foreground` as the correction signal. Never `Read()` a screencap to "check the screen".
 3. **BATCH** — one `ui_run_flow.py` with the WHOLE flow. Chain `wait_for` between ops, `wait_for_any` on branches, `--require-anchor` for pre-flight. Eight 1-3 op batches is the worst-observed anti-pattern. To inspect mid-flow, embed a `describe` op (read-only ops are non-fatal in batches) — do NOT split the batch.
 4. **INSPECT** — the tree IS the observation channel. `describe`, `snapshot --query`, `window_sig`. `Read()` a frame ONLY when the flow failed AND the tree is structurally insufficient AND you have a specific pixel-level question.
