@@ -29,6 +29,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   reasoning on that turn, and points to `--xhigh` for codex alone.
 - `/mastersoft:glab` waits for a running pipeline with `glab ci status --wait` in
   the background instead of the blocking `--live` view.
+- `/mastersoft:vet` says that it reviews what it is handed without running git,
+  instead of claiming that it has no git access.
 
 ### Fixed
 
