@@ -44,6 +44,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/mastersoft:init-rules` renames `CLAUDE.md` to `AGENTS.md` without a permission
   prompt: Claude Code never pre-approves `mv` with flags, so the old `mv -n` rules
   never matched.
+- `/mastersoft:verify` saves its findings and the verify time without permission
+  prompts. In an interactive session the audit agent ran in the background and
+  reported in a later turn, where the skill's `allowed-tools` no longer applied;
+  verify now runs as a forked `rule-auditor` that waits in the invoking turn, and
+  `write-findings` reads the finding blocks, since the permission check refuses
+  JSON in a heredoc.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds
