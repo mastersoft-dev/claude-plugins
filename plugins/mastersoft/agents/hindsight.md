@@ -37,7 +37,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/recall.js" <subcommand> [options]
 
 Notes:
 - For the current repo, leave `--project` out. `--project <name>` targets another repo and takes a substring of its path (e.g. `legion`, `officegenius`). If it's ambiguous the script lists the candidates — relay them and ask which.
-- Sessions older than ~30 days may be gone (Claude Code prunes transcripts by default). If a recap looks short, say so rather than implying nothing happened.
+- A session can be missing because Claude Code pruned it (`cleanupPeriodDays`, default 30), never wrote it (`CLAUDE_CODE_SKIP_PROMPT_HISTORY`, `--no-session-persistence`), or `claude project purge` removed it. If a recap looks short, say so rather than implying nothing happened.
 - If the script warns that the transcript format may have changed, relay the warning with your answer: results may be incomplete.
 
 ## Protocol
