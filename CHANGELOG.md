@@ -33,6 +33,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   instead of claiming that it has no git access.
 - `scripts/dev.sh` rewrites `mastersoft:` agent names to `mastersoft-dev:` in the
   copy it loads, so its skills start the copy's agents.
+- Plugin hooks run in exec form, `node` with the script path in `args`, so the
+  path reaches node as one argument with no shell quoting.
 
 ### Fixed
 
