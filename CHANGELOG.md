@@ -24,6 +24,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   default mode: flows go as `--ops '<json>'` instead of a JSON heredoc, scripts
   run by their path, and the serial is written out, as each Bash call starts a
   new shell.
+- `android-testing` Lane C stays within the Bash limits: the listener runs in the
+  foreground under a 540 s timeout instead of a `wait` of up to 600 s, and the
+  frame ring and the logcat tail run as background tasks stopped with `TaskStop`,
+  instead of through PID variables lost between Bash calls. The listener's notes
+  no longer mention the removed Monitor `persistent` option.
 
 ## [3.7.0] — 2026-09-25
 

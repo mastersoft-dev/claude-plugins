@@ -66,6 +66,7 @@ The skill pre-approves `adb`, `emulator`, `./gradlew` and the scripts under `${C
 - Write the scripts path above in place of the variable, and the serial `device_pick.sh` printed in place of `$SERIAL`. Each Bash call starts a new shell, so a variable set in one call is empty in the next.
 - Start the command with the script path, as each script is executable. A `python3`, `bash`, `cd` or `VAR=value` in front of it needs the user's approval.
 - Pass a flow to `ui_run_flow.py` as `--ops '<json>'`, or as `--file <path>` when the JSON contains a single quote. A heredoc holding JSON always needs the user's approval.
+- Start a command that outlives the call (a logcat tail, a frame ring) with `run_in_background: true`, and stop it with `TaskStop` on its task id.
 
 Once this skill loads, its two guard hooks stay registered for the rest of the session: raw `adb shell input tap|swipe|text` and raw screencaps stay denied on every later Bash call, Android task or not.
 

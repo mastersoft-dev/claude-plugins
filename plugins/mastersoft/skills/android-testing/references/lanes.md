@@ -95,39 +95,55 @@ multiple sources (logcat / activity / selector) and emits the host timestamp
 on the first match, and the model reads ±2 s of frames around the event
 instead of every frame.
 
-```bash
-SERIAL=$(${CLAUDE_SKILL_DIR}/scripts/device_pick.sh)
-SESSION=$(date +%s%N); RING_DIR="/tmp/android-skill-ring/$SESSION"
-mkdir -p "$RING_DIR"
+Run each step as its own Bash call, and write the same literal ring
+directory in each (pick `<session>` once, for example the current epoch
+seconds):
 
-${CLAUDE_SKILL_DIR}/scripts/screen_ring.sh \
-    --serial "$SERIAL" --out-dir "$RING_DIR" \
-    --interval 0.5 --max-age-min 10 --session-cap-mb 1024 --quiet &
-RING_PID=$!
+1. Start the ring with `run_in_background: true`. `--max-duration` bounds it
+   if the flow stops before step 5.
 
-${CLAUDE_SKILL_DIR}/scripts/state_listener.sh \
-    --serial "$SERIAL" --pkg com.example.app \
-    --on-logcat 'Successfully logged in' \
-    --on-activity '\.HomeActivity' \
-    --on-selector 'text~"Welcome"' \
-    --event-file /tmp/android-skill-event \
-    --bundle-out /tmp/android-skill-bundle \
-    --ring-dir "$RING_DIR" --timeout-sec 600 &
-LISTENER_PID=$!
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/screen_ring.sh \
+       --serial "$SERIAL" --out-dir /tmp/android-skill-ring/<session> \
+       --interval 0.5 --max-age-min 10 --session-cap-mb 1024 --max-duration 900 --quiet
+   ```
 
-${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" tap 'text="Sign in"'
-wait $LISTENER_PID; LISTENER_RC=$?
+2. Trigger the action.
 
-if [[ $LISTENER_RC -eq 0 ]]; then
-    EVENT_MS=$(sed -nE 's/.*host_epoch_ms=([0-9]+).*/\1/p' /tmp/android-skill-event)
-    FRAMES=$(${CLAUDE_SKILL_DIR}/scripts/ring_window.sh \
-        --dir "$RING_DIR" --around "$EVENT_MS" --span-ms 2000 --max 5)
-    # model now reads only those 5 frames
-elif [[ $LISTENER_RC -eq 124 ]]; then
-    cat /tmp/android-skill-bundle  # diagnostic bundle for re-evaluation
-fi
-kill -TERM $RING_PID 2>/dev/null
-```
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" tap 'text="Sign in"'
+   ```
+
+3. Run the listener in the foreground with the Bash `timeout: 600000`. It
+   exits on the first match (rc 0, `EVENT host_epoch_ms=<ms> source=...`) or
+   at `--timeout-sec` (rc 124, `TIMEOUT ...` plus the diagnostic bundle on
+   stderr). Keep `--timeout-sec` under the 600 s Bash cap. It reads the logcat
+   buffer from its start and polls activity and selector state, so starting
+   it after the trigger misses nothing.
+
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/state_listener.sh \
+       --serial "$SERIAL" --pkg com.example.app \
+       --on-logcat 'Successfully logged in' \
+       --on-activity '\.HomeActivity' \
+       --on-selector 'text~"Welcome"' \
+       --ring-dir /tmp/android-skill-ring/<session> --timeout-sec 540
+   ```
+
+4. On rc 0, list the frames around the event and read only those:
+
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/ring_window.sh \
+       --dir /tmp/android-skill-ring/<session> --around <host_epoch_ms> --span-ms 2000 --max 5
+   ```
+
+   On rc 124, re-evaluate from the bundle (see below).
+
+5. Stop the ring with `TaskStop` on the task id from step 1.
+
+The listener stays in the foreground because the skill's pre-approvals last
+only for the turn that loaded it. A background listener would report back in
+a later turn, where each follow-up command needs the user's approval.
 
 Why a ring + listener and not "screenshot every step": every PNG in
 conversation context is 50–200 KB. The ring keeps frames on disk only; the

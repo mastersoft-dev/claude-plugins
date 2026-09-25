@@ -16,10 +16,12 @@
 # --ring-dir if given), the current foreground activity, and a fresh
 # ui_snapshot dump preview. Caller can then re-evaluate the lane.
 #
-# Designed to run in the background. With the Monitor tool, set
-# `persistent: false` and rely on this script's --timeout-sec for the kill.
-# With Bash run_in_background, the script exits on the first match or
-# timeout.
+# Exits on the first match or at --timeout-sec, so it runs in the
+# foreground under a Bash timeout above --timeout-sec (the Bash tool caps a
+# call at 600 s: use --timeout-sec 540 with timeout: 600000), or with Bash
+# run_in_background. Under the Monitor tool, set timeout_ms above
+# --timeout-sec * 1000 (a watch lasts at most 30 minutes), or the watch
+# kills the script before it writes the TIMEOUT bundle.
 #
 # Filters use `grep --line-buffered -E` per Claude Code Monitor docs (else
 # pipe buffering kills latency).

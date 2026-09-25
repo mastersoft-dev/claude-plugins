@@ -186,24 +186,27 @@ inside `ui_run_flow.py` so no host-side gap exists.
 
 Snapshot once, act many, confirm via a `--wait-for` anchor at the end.
 
-```bash
-SERIAL=$(${CLAUDE_SKILL_DIR}/scripts/device_pick.sh)
-adb -s "$SERIAL" shell am start -n com.example.app/.MainActivity
-${CLAUDE_SKILL_DIR}/scripts/logcat_tail.sh --serial "$SERIAL" --pkg com.example.app \
-    --summarize-crashes --output /tmp/log.txt &
-LOG_PID=$!
+Start the logcat tail as its own Bash call with `run_in_background: true`,
+then drive the screen in the calls that follow:
 
+```bash
+${CLAUDE_SKILL_DIR}/scripts/logcat_tail.sh --serial "$SERIAL" --pkg com.example.app \
+    --summarize-crashes --output /tmp/log.txt
+```
+
+```bash
+adb -s "$SERIAL" shell am start -n com.example.app/.MainActivity
 ${CLAUDE_SKILL_DIR}/scripts/ui_snapshot.py --serial "$SERIAL" --only-clickable
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" tap  'text="Sign in"'  --wait-for 'class=EditText,id=email'
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" type 'class=EditText,id=email' "alice@example.com"
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" key  KEYCODE_ENTER --wait-for 'text~"Welcome"'
-
-# Outcome is already confirmed by the --wait-for anchor above — the tree is
-# the observation channel. Raw screencap is hook-denied; for a genuine
-# forensic frame, read the BG trace ui_run_flow.py writes, or export
-# ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 to capture explicitly.
-kill -TERM $LOG_PID
 ```
+
+The `--wait-for` anchor already confirms the outcome: the tree is the
+observation channel. Raw screencap is hook-denied; for a genuine forensic
+frame, read the BG trace `ui_run_flow.py` writes, or ask the user to set
+`ANDROID_SKILL_ALLOW_RAW_SCREENCAP` (see `references/lanes.md`, Lane B).
+Stop the tail with `TaskStop` on its task id.
 
 `[uX]` uid form (`tap u3`) is a fallback — valid only between snapshot+act
 with no filter changes in between, and only inside the 15 s sidecar TTL
