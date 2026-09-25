@@ -16,6 +16,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   (`userConfig`), which `/plugin configure mastersoft@mastersoft` and `/config`
   show and change and an admin can set in managed `pluginConfigs`. The matching
   `MASTERSOFT_*` env var still wins over the option.
+- A README at the plugin root, and the `Brief` output style listed in the README
+  and the help card. The marketplace entry no longer carries its own description,
+  so `/plugin` shows the one from `plugin.json`, and the README hook list includes
+  `inject-session` and the PowerShell matcher.
 
 ### Changed
 

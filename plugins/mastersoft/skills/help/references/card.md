@@ -28,6 +28,12 @@
 | `/mastersoft:verify` | Semantic verify of rule files against actual repo state via the read-only `rule-auditor` agent (Sonnet). |
 | `/mastersoft:vet` | Read-only static code review with severity ratings. |
 
+## Output styles
+
+| Style | Purpose |
+|---|---|
+| `Brief` | The shortest correct answer: no preamble, no recap, stricter than the built-in Concise style. Pick it with `/output-style` or `/config`. |
+
 ## Lint signal catalog
 
 Each per-prompt signal is emitted as a two-line bullet:
