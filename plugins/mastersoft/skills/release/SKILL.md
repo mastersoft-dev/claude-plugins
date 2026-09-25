@@ -45,7 +45,7 @@ shapes; **detect which the repo uses before acting**:
 4. **Respect, don't migrate.** When detection is clear, proceed in that workflow — do not suggest switching an established untagged repo to tagged.
 5. **Record the decision** so future runs skip detection. **Edit the file with the `Edit`/`Write` tool — never shell-append (`>>`/`echo`).** Read it first; if a `## Release` section or a `Release workflow:` line already exists, update it in place; otherwise insert a `## Release` section with one line, matching the file's heading style:
    `Release workflow: <tagged|untagged> — <one-line reason>.`
-   Target the **imported rules file**: follow `@`-imports from `CLAUDE.md` (so `@AGENTS.md` → edit `AGENTS.md`); if `CLAUDE.md` holds inline rules, edit there. If **no rules file exists**, don't create one just for this — recommend the `init-rules` skill and proceed with the in-session choice. (Rule files are cached at session start, so the record applies to *future* runs; this run already holds the decision — don't ask the user to `/clear`.)
+   Target the **imported rules file**: follow `@`-imports from `CLAUDE.md` (so `@AGENTS.md` → edit `AGENTS.md`); if `CLAUDE.md` holds inline rules, edit there; with no `CLAUDE.md`, edit `AGENTS.md`. If **no rules file exists**, don't create one just for this — recommend the `init-rules` skill and proceed with the in-session choice. (Rule files are cached at session start, so the record applies to *future* runs; this run already holds the decision — don't ask the user to `/clear`.)
 
 ### Tagged workflow
 

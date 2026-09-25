@@ -8,6 +8,15 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- `/mastersoft:init-rules` keeps project rules in `AGENTS.md`, which every coding
+  agent reads. A repo with no rules gets them drafted by the native `/init`; a repo
+  with only `CLAUDE.md` is offered a `git mv` to `AGENTS.md`. The `CLAUDE.md`
+  pointer to `@AGENTS.md` is written only on request.
+- `/mastersoft:init-rules` no longer suggests a `/schedule` routine for
+  `/mastersoft:verify`: cloud routines don't load plugins.
+
 ### Added
 
 - `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps

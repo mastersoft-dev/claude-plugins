@@ -1,7 +1,7 @@
 # {{REPO_NAME}} — project rules
 
-Project-specific working rules, shared across coding agents. Claude Code loads
-these via the `@AGENTS.md` import in `CLAUDE.md`; re-injected on `/compact`.
+Project-specific working rules, shared across coding agents. Claude Code
+2.1.277+ reads this file directly when the repo has no `CLAUDE.md`.
 
 ## Stack
 
@@ -9,7 +9,7 @@ these via the `@AGENTS.md` import in `CLAUDE.md`; re-injected on `/compact`.
 
 ## Conventions
 
-- Keep this file under 200 lines. Beyond that, split per-topic into `.claude/rules/<topic>.md` with `paths:` frontmatter so the rule only loads when matching files are read. See `.claude/rules/README.md`.
+- Keep this file under 200 lines. Rules for one directory go in that directory's own `AGENTS.md`, which every coding agent reads when it works there. `.claude/rules/<topic>.md` with `paths:` frontmatter is for Claude-only rules scoped by file glob; see `.claude/rules/README.md`.
 - Architecture decisions go in `docs/adr/`. Product requirements in `docs/prd/`.
 - Keep to stable rules + conventions. Settled decisions → `docs/adr/`; don't track ephemeral state (current focus, in-progress work) here.
 
@@ -32,4 +32,4 @@ these via the `@AGENTS.md` import in `CLAUDE.md`; re-injected on `/compact`.
 ## Workflow
 
 - Run `/mastersoft:refresh-rules` when lint signals flag stale or contradictory rules.
-- Edits to this file do not apply until `/compact` or restart (Claude Code caches imported rule files at session start).
+- Edits to this file do not apply until `/compact` or restart (Claude Code reads rule files at session start).

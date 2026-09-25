@@ -16,8 +16,8 @@ here changes.
 
 ## Hard rule
 
-Every doc this skill writes lands under `docs/<type>/`. The ONLY doc allowed
-at repo root is `CLAUDE.md`. Never write a doc-type file anywhere else, and
+Every doc this skill writes lands under `docs/<type>/`. The ONLY docs allowed
+at repo root are `CLAUDE.md` and `AGENTS.md`. Never write a doc-type file anywhere else, and
 refuse (don't relocate) if you find one misplaced.
 
 ## Procedure
