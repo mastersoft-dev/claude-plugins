@@ -8,6 +8,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `/mastersoft:glab`'s MR review flow names `claude --worktree <MR URL>` and
+  `/code-review !N --comment` as alternatives to a manual checkout.
+
 ### Changed
 
 - `android-testing` says that its two guard hooks stay registered for the rest of
