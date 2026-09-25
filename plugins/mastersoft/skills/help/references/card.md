@@ -109,7 +109,7 @@ The env var wins over the option whichever settings file sets it: an `env` value
 ## Updating org rules
 
 1. Edit `plugins/mastersoft/ORG_RULES.md` (frontmatter for thresholds, body for prose).
-2. Bump `plugins/mastersoft/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the same new version.
+2. Bump `version` in `plugins/mastersoft/.claude-plugin/plugin.json`.
 3. Open a PR. Users pick up changes on `/plugin marketplace update mastersoft` + `/reload-plugins`.
 
 ## Reporting bugs

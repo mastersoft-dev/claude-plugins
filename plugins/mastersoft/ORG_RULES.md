@@ -2,7 +2,7 @@
 # Mastersoft org-wide plugin config + preamble text.
 #
 # Edit this single file to tune lint-signal behavior. Bump the plugin version
-# (plugin.json + marketplace.json) when shipping changes so users pick
+# (plugin.json) when shipping changes so users pick
 # them up on /reload-plugins.
 #
 # Per-key precedence: env var > this frontmatter > built-in default.

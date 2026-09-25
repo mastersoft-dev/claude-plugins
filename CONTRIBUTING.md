@@ -12,7 +12,7 @@ All shipped content lives under `plugins/mastersoft/`:
 - `skills/<name>/SKILL.md` — skill entry points, with optional `references/` and `assets/` siblings
 - `scripts/` — installers and helper scripts
 
-The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at `plugins/mastersoft` and pins the version.
+The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at `plugins/mastersoft`. The plugin version lives only in `plugins/mastersoft/.claude-plugin/plugin.json`.
 
 ## Local development
 
@@ -62,12 +62,7 @@ Atomic commits — one concern per commit. Do not mix a refactor with a feature.
 
 ## Versioning
 
-Any change inside `plugins/mastersoft/` requires bumping the version in:
-
-- `plugins/mastersoft/.claude-plugin/plugin.json`
-- `.claude-plugin/marketplace.json`
-
-Both must match. Use semver: bug fix = patch, additive change = minor, breaking change = major.
+Any change inside `plugins/mastersoft/` requires bumping `version` in `plugins/mastersoft/.claude-plugin/plugin.json`. The marketplace entry carries no version: Claude Code reads `plugin.json` first, and `claude plugin validate` reports a mismatch when both set one. Use semver: bug fix = patch, additive change = minor, breaking change = major.
 
 ## Pull request checklist
 

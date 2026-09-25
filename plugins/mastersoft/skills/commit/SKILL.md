@@ -161,7 +161,7 @@ feat: add GitLab CLI skill and migrate release workflow
   MRs, issues, labels, CI/CD pipelines, releases, auth
 - release skill: switch tagged-release flow from Gitea to GitLab
 - help card: replace /mastersoft:tea entry with /mastersoft:glab
-- bump marketplace.json + plugin.json to 3.3.0
+- bump plugin.json to 3.3.0
 ```
 
 The subject is fine. The body is a file/change list — exactly the diff itself, re-stated in prose. Drop the body; ship subject only.

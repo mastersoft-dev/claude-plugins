@@ -42,6 +42,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The push check's notes record that its confirmation also stopped a push in
   `bypassPermissions` mode on Claude Code 2.1.282, which the docs don't promise
   for a hook's `ask`.
+- The marketplace entry no longer repeats the plugin version: `plugin.json` is the
+  one place to bump it. Claude Code reads `plugin.json` first and `claude plugin
+  validate` flags a second, different value.
 
 ### Removed
 
