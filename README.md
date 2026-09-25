@@ -37,8 +37,9 @@ Or declarative, in `~/.claude/settings.json`:
 ```
 
 Without org-managed settings the status line isn't wired automatically — wire it
-once. `--apply` patches `~/.claude/settings.json` (requires `jq`); without the flag
-the wrapper is copied and the JSON block is printed to paste manually:
+once. `--apply` patches the `settings.json` in `$CLAUDE_CONFIG_DIR` (default
+`~/.claude`; requires `jq`); without the flag the wrapper is copied and the JSON
+block is printed to paste manually:
 
 ```bash
 bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply

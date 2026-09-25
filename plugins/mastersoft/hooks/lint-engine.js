@@ -3,8 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFileSync } = require('child_process');
-const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, realpathOr, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
 const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
@@ -63,14 +62,6 @@ const UNKNOWN_FRONTMATTER_KEYS = Object.keys(ORG.config)
 
 function ensureStateDir() {
   try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
-}
-
-function git(args, cwd) {
-  try {
-    return execFileSync('git', args, {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { return null; }
 }
 
 function readFileSafe(filePath) {
@@ -164,15 +155,6 @@ function findLockfile(repoRoot) {
 // under `metadata:`). We therefore exclude a `reference` by EITHER cue and
 // count everything else — keying off the filename prefix alone would miss the
 // slug-style entries the current convention writes.
-//
-// claudeProjectSlug is intentionally duplicated from scripts/state.js (same
-// 1-line function). Hooks run synchronously per-prompt; importing from scripts/
-// would add a require path resolution that's not worth the few bytes saved.
-// Keep both copies in sync — if one changes, change the other.
-function claudeProjectSlug(repoRoot) {
-  return repoRoot.replace(/[/._\\]/g, '-');
-}
-
 function isReferenceMemory(memDir, entry) {
   if (entry.startsWith('reference_')) return true;
   try {
@@ -180,9 +162,8 @@ function isReferenceMemory(memDir, entry) {
   } catch { return false; }
 }
 
-function countAutoMemoryPatterns(repoRoot) {
-  const slug = claudeProjectSlug(repoRoot);
-  const memDir = path.join(os.homedir(), '.claude', 'projects', slug, 'memory');
+function countAutoMemoryPatterns(memDir) {
+  if (!memDir) return { count: 0, dir: null };
   let entries;
   try { entries = fs.readdirSync(memDir); } catch { return { count: 0, dir: memDir }; }
   const candidates = entries.filter(e =>
@@ -282,6 +263,33 @@ function listRuleFiles(rulesDir) {
   return out;
 }
 
+function homeRelative(p) {
+  const home = os.homedir();
+  return p === home || p.startsWith(home + path.sep) ? '~' + p.slice(home.length) : p;
+}
+
+function agentsShadowedSignal(repoRoot, projectRules, skipped) {
+  const shadow = projectRules.shadowedBy;
+  const inRepo = Boolean(shadow) && !path.relative(repoRoot, shadow).startsWith('..');
+  const entry = inRepo ? shadow : path.join(repoRoot, 'CLAUDE.md');
+  const entryRel = path.relative(repoRoot, entry);
+  const names = skipped.map(f => path.relative(repoRoot, f)).join(' and ');
+  const verb = skipped.length > 1 ? 'are' : 'is';
+  const imports = skipped.map(f => `\`@${path.relative(path.dirname(entry), f)}\``).join(' and ');
+  const addImport = inRepo ? `Add ${imports} to ${entryRel}` : `Add a ${entryRel} with ${imports}`;
+  let reason = 'Project instructions is set to `claude-md`';
+  let alternative = 'allow AGENTS.md in /config';
+  if (projectRules.pluginDisabled) {
+    reason = 'the built-in agents-md plugin is disabled';
+    alternative = 'enable it in /plugin';
+  } else if (projectRules.mode !== 'claude-md') {
+    reason = `${inRepo ? entryRel : homeRelative(shadow)} takes precedence`;
+    alternative = 'set Project instructions to `claude-md-and-agents-md` in /config';
+  }
+  const body = `${names} ${verb} not loaded: ${reason}. ${addImport}, or ${alternative}.`;
+  return { id: 'agents-md-shadowed', severity: 'info', category: 'rules', body };
+}
+
 function main() {
   ensureStateDir();
   const input = readStdinJson();
@@ -302,21 +310,25 @@ function main() {
 
   // Skip the user's home ~/.claude/ dir — global rules live there with different
   // loading semantics (always loaded across projects) and our skills target repos.
-  const claudeHome = path.resolve(path.join(os.homedir(), '.claude'));
+  // The home directory itself is no project either: a scan there reads lockfiles
+  // and memory of unrelated folders.
+  const claudeHome = path.resolve(claudeConfigDir());
   const resolvedRoot = path.resolve(repoRoot);
-  if (resolvedRoot === claudeHome || resolvedRoot.startsWith(claudeHome + path.sep)) {
+  if (resolvedRoot === claudeHome || resolvedRoot.startsWith(claudeHome + path.sep)
+      || resolvedRoot === realpathOr(os.homedir())) {
     process.exit(0);
   }
 
   const isGitRepo = git(['rev-parse', '--is-inside-work-tree'], repoRoot) === 'true';
   const briefPath = path.join(repoRoot, 'BRIEF.md');
-  const claudePath = path.join(repoRoot, 'CLAUDE.md');
+  const projectRules = projectRuleFiles(repoRoot, agentsMdSetting(cwd));
   const rulesDir = path.join(repoRoot, '.claude', 'rules');
 
   // BRIEF.md is deprecated — no longer read, injected, or staleness-linted.
   // We only detect its presence to nudge migration (notice below).
   const briefPresent = fileExists(briefPath);
-  const claudeContent = readFileSafe(claudePath);
+  const hasProjectRules = projectRules.present;
+  const memDir = autoMemoryDir(cwd);
 
   const state = loadState(STATE_FILE);
   const sessionState = state[sessionId] || {};
@@ -384,13 +396,12 @@ function main() {
   // in additionalContext and can act on it. No per-session gate needed —
   // standard ack/suppress.
 
-  // Resolve @import chains starting from CLAUDE.md. Per Claude Code memory
-  // docs, `@path/to/file.md` references in CLAUDE.md load additional files on
-  // session start (e.g. CLAUDE.md as a 1-line pointer to AGENTS.md). fs-only,
-  // cheap — needed both for the change-signature and the scan below.
-  const importedRuleFiles = claudeContent
-    ? resolveImports(repoRoot, claudePath)
-    : [];
+  // Resolve @import chains from every instruction file Claude Code loads
+  // (CLAUDE.md files, or AGENTS.md files when there are none). fs-only, cheap —
+  // needed both for the change-signature and the scan below.
+  const importVisited = new Set();
+  const importedRuleFiles = projectRules.files
+    .flatMap(f => resolveImports(repoRoot, f, importVisited));
 
   // Per-repo timestamps + cache. State shape: state.__repos[<repoRoot>] = {
   //   last_refresh_at, last_verify_at, last_audit_at, last_promotion_check_at,
@@ -458,19 +469,19 @@ function main() {
     return findings;
   }
 
-  // Bootstrap signal — EXEMPT from the first-prompt diet above. Claude Code
-  // loads only CLAUDE.md, never AGENTS.md (memory docs: "Claude Code reads
-  // CLAUDE.md, not AGENTS.md"), so when CLAUDE.md is absent no project rules
-  // are in context — even if an AGENTS.md sits there. "Set up project rules"
-  // is most actionable on prompt #1 of a fresh repo, so unlike the hygiene
-  // signals this fires regardless of promptIndex. The recommended fix is a
-  // CLAUDE.md whose body is `@AGENTS.md` (the import auto-injects it).
-  if (!claudeContent) {
-    const hasAgents = fileExists(path.join(repoRoot, 'AGENTS.md'));
-    const body = hasAgents
-      ? 'AGENTS.md present but Claude Code loads only CLAUDE.md — its rules are not in context. Add a CLAUDE.md whose body is `@AGENTS.md`.'
-      : 'No project rules (CLAUDE.md) in this repo. Scaffold them so every session shares the same conventions.';
-    addSignal({ id: 'no-rules-file', severity: 'info', fix: '/mastersoft:init-rules', category: 'rules', body });
+  // Bootstrap signals — EXEMPT from the first-prompt diet above: "set up
+  // project rules" is most actionable on prompt #1 of a fresh repo. An
+  // AGENTS.md is out of context when a CLAUDE.md file here or above takes
+  // precedence (or AGENTS.md support is off) and nothing imports it; symlinks
+  // count as loaded. 'managed-only' loads no project file, so both stay quiet.
+  const projectFilesLoad = projectRules.mode !== 'managed-only';
+  if (projectFilesLoad && !hasProjectRules && !projectRules.inherited.length) {
+    addSignal({ id: 'no-rules-file', severity: 'info', fix: '/mastersoft:init-rules', category: 'rules', body: 'No project rules (AGENTS.md or CLAUDE.md) in this repo. Scaffold them so every session shares the same conventions.' });
+  } else if (projectFilesLoad && projectRules.agentsFiles.length) {
+    const real = p => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+    const loaded = new Set(importedRuleFiles.map(rf => real(rf.path)));
+    const skipped = projectRules.agentsFiles.filter(f => !loaded.has(real(f)));
+    if (skipped.length) addSignal(agentsShadowedSignal(repoRoot, projectRules, skipped));
   }
 
   // Bootstrap signal — EXEMPT from the first-prompt diet, same as no-rules-file
@@ -488,14 +499,13 @@ function main() {
     // forces a fresh scan; otherwise the cached findings are replayed.
     const headSha = isGitRepo ? (git(['rev-parse', 'HEAD'], repoRoot) || '') : 'nogit';
     const lockProbe = findLockfile(repoRoot);
-    const memDir = path.join(os.homedir(), '.claude', 'projects', claudeProjectSlug(repoRoot), 'memory');
     const sig = [
       headSha,
-      mtimeOf(claudePath),
+      ...projectRules.candidates.map(mtimeOf),
       ...importedRuleFiles.map(rf => mtimeOf(rf.path)),
       mtimeOf(rulesDir),
       lockProbe ? Math.floor(lockProbe.mtime) : 0,
-      mtimeOf(memDir),
+      memDir ? mtimeOf(memDir) : 0,
     ].join(':');
 
     let scanFindings;
@@ -526,7 +536,7 @@ function main() {
 
     // Timestamp-reactive signals — cheap (readdir/stat/math), computed fresh so
     // they clear the moment the relevant skill records a new timestamp.
-    const patterns = countAutoMemoryPatterns(repoRoot);
+    const patterns = countAutoMemoryPatterns(memDir);
     let memDirMtime = 0;
     try { memDirMtime = fs.statSync(patterns.dir).mtimeMs; } catch {}
     let promoteSignaled = false;
@@ -549,8 +559,8 @@ function main() {
       }
     }
 
-    if (claudeContent && (!lastRefreshAt || (nowMs - lastRefreshAt) / 86400000 > REFRESH_INTERVAL_DAYS)) {
-      addSignal({ id: 'refresh-overdue', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'No recent /mastersoft:refresh-rules run recorded for this repo. Consider weekly `/schedule run /mastersoft:verify --report-only`.' });
+    if (hasProjectRules && (!lastRefreshAt || (nowMs - lastRefreshAt) / 86400000 > REFRESH_INTERVAL_DAYS)) {
+      addSignal({ id: 'refresh-overdue', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: 'No recent /mastersoft:refresh-rules run recorded for this repo. Run `/mastersoft:verify --report-only` periodically to catch drift.' });
     }
 
     if (AUDIT_ENABLED) {
@@ -620,10 +630,10 @@ function main() {
   const hasHigh = chosen.some(c => c.severity === 'high');
   let systemMessage = null;
   if (signals.length && (!sessionState.lintsNoticeShown || hasHigh)) {
-    if (!claudeContent) {
-      // A repo with no CLAUDE.md needs init-rules (scaffold), not the per-signal
-      // routing below (there is nothing yet to refresh).
-      systemMessage = '[Mastersoft] No CLAUDE.md in this repo — run /mastersoft:init-rules to scaffold project rules, or /mastersoft:ack-lints to silence.';
+    if (!hasProjectRules) {
+      // A repo with no project rules needs init-rules (scaffold), not the
+      // per-signal routing below (there is nothing yet to refresh).
+      systemMessage = '[Mastersoft] No AGENTS.md or CLAUDE.md in this repo — run /mastersoft:init-rules to scaffold project rules, or /mastersoft:ack-lints to silence.';
     } else {
       const lines = chosen.map(c =>
         `  • ${c.id}${c.severity ? ` (${c.severity})` : ''}${c.fix ? ` → ${c.fix}` : ''}`);

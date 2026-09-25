@@ -3,8 +3,11 @@
 #
 # Wrapper at ~/.claude/mastersoft-statusline-wrapper.js mediates statusline:
 #   1. Reads ~/.claude/statusline.local.json {command: "..."} (override slot)
-#   2. Reads ~/.claude/settings.json statusLine.command (skips self-references)
+#   2. Reads <config>/settings.json statusLine.command (skips self-references)
 #   3. Falls back to latest mastersoft statusline.js in plugin cache
+#
+# <config> is $CLAUDE_CONFIG_DIR, default ~/.claude. The wrapper itself always
+# lives in ~/.claude, because the org-managed statusLine.command points there.
 #
 # Use this script to bootstrap manually. On every session start the plugin's
 # SessionStart hook also refreshes the wrapper file from the installed plugin
@@ -12,7 +15,7 @@
 # plugin is loaded.
 #
 # Flags:
-#   --apply        Patch ~/.claude/settings.json with the statusLine block
+#   --apply        Patch <config>/settings.json with the statusLine block
 #                  automatically (requires jq). Atomic write via temp file.
 #                  Skipped if a statusLine entry already exists; use
 #                  ~/.claude/statusline.local.json to override in that case.
@@ -29,7 +32,7 @@ for arg in "$@"; do
     --apply) MODE="apply" ;;
     --dry-run) MODE="dry-run" ;;
     -h|--help)
-      sed -n '2,21p' "$0"
+      sed -n '2,24p' "$0"
       exit 0
       ;;
     *)
@@ -52,14 +55,15 @@ fi
 
 SRC="$PLUGIN_ROOT/hooks/statusline-wrapper.js"
 DST="$HOME/.claude/mastersoft-statusline-wrapper.js"
-SETTINGS="$HOME/.claude/settings.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+SETTINGS="$CONFIG_DIR/settings.json"
 
 if [ ! -f "$SRC" ]; then
   printf '\033[31m✗\033[0m wrapper source not found at %s\n' "$SRC" >&2
   exit 1
 fi
 
-mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude" "$CONFIG_DIR"
 cp "$SRC" "$DST"
 printf '\033[32m✓\033[0m wrapper installed at %s\n' "$DST"
 
@@ -104,14 +108,14 @@ case "$MODE" in
         printf '     %s\n' "$EXISTING"
         printf '   Refusing to overwrite. To use mastersoft alongside your custom one,\n'
         printf '   create ~/.claude/statusline.local.json with {"command":"..."} to override at\n'
-        printf '   runtime via the wrapper, or edit ~/.claude/settings.json by hand.\n'
+        printf '   runtime via the wrapper, or edit %s by hand.\n' "$SETTINGS"
         exit 0
         ;;
     esac
     ;;
   dry-run)
     echo
-    echo 'Add this block to ~/.claude/settings.json (or managed-settings.json):'
+    printf 'Add this block to %s (or managed-settings.json):\n' "$SETTINGS"
     echo
     cat <<'JSON_EOF'
   "statusLine": {
@@ -121,10 +125,10 @@ case "$MODE" in
   }
 JSON_EOF
     echo
-    echo 'Or re-run with --apply to patch ~/.claude/settings.json directly (needs jq).'
+    printf 'Or re-run with --apply to patch %s directly (needs jq).\n' "$SETTINGS"
     echo
     echo 'To override with your own statusLine, either:'
-    echo '  - Edit ~/.claude/settings.json statusLine.command (works only if no managed-settings.json)'
+    printf '  - Edit %s statusLine.command (works only if no managed-settings.json)\n' "$SETTINGS"
     echo '  - OR create ~/.claude/statusline.local.json with {"command":"..."}'
     echo
     echo 'Reload: /reload-plugins (or restart Claude Code).'

@@ -40,7 +40,7 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
 
 - sentry-cli: !`command -v sentry-cli >/dev/null 2>&1 && sentry-cli --version || echo "MISSING"`
 - repo `.sentryclirc`: !`test -f .sentryclirc && echo "present" || echo "absent (using env / ~/.sentryclirc)"`
-- auth + resolved server/org/project: !`out=$(sentry-cli info 2>&1) && printf '%s\n' "$out" | grep -vi token | head -12 || echo "not authenticated"`
+- auth + resolved server/org/project: !`sentry-cli info 2>&1 | grep -vi token | head -12`
 - git remote: !`git remote get-url origin 2>/dev/null || echo "no remote"`
 
 ## Procedure

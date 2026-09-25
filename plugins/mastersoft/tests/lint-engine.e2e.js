@@ -16,6 +16,7 @@ const path = require('path');
 const cp   = require('child_process');
 
 const HOOK = path.resolve(__dirname, '../hooks/lint-engine.js');
+const { projectSlug } = require('../hooks/lib');
 const STATE_JS = path.resolve(__dirname, '../scripts/state.js');
 const REPOS_BASE = path.resolve(__dirname, '../../../../');
 const VERBOSE = process.argv.includes('--verbose');
@@ -112,14 +113,22 @@ const DAY_MS = 86400000;
  *    ack         contents for `.claude/.mastersoft-lints-ack`, kept ACTIVE; when
  *                null, any ack is neutralized via MASTERSOFT_LINTS_ACK_HOURS=0.
  *    memFiles    files to seed into the per-repo auto-memory dir under HOME.
+ *    parentFiles files to seed into a temp dir the repo is created inside.
  *    dirAgeDays / lastPromotionAgeDays   optional auto-memory staleness seeds.
+ *    homeFiles   files to write under the temp HOME (e.g. .claude/settings.json).
+ *    symlinks    { link: target } created in the repo before the commit.
+ *    beforeThird callback(repoPath) run between prompt #2 and #3.
  *  The temp HOME also isolates auto-memory, so the real machine's memory never
  *  leaks promotion signals into a test. Returns { p1, p2 } and self-cleans. */
-function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memFiles = null, dirAgeDays = null, lastPromotionAgeDays = null, thirdPrompt = false, env = {} } = {}) {
+function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memFiles = null, dirAgeDays = null, lastPromotionAgeDays = null, thirdPrompt = false, env = {}, homeFiles = null, symlinks = null, beforeThird = null, parentFiles = null } = {}) {
   const home     = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-'));
-  const repoRaw  = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-repo-'));
+  const parent   = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-parent-'));
+  const repoRaw  = path.join(parent, 'repo');
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
+  const managed  = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-managed-'));
   try {
+    fs.mkdirSync(repoRaw);
+    for (const [name, content] of Object.entries(parentFiles || {})) fs.writeFileSync(path.join(parent, name), content);
     const realRepo = fs.realpathSync(repoRaw);
     const g = args => cp.execFileSync('git', args, { cwd: realRepo, stdio: 'ignore' });
     g(['init', '-q']);
@@ -131,6 +140,12 @@ function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memF
       fs.mkdirSync(path.dirname(fp), { recursive: true });
       fs.writeFileSync(fp, content);
     }
+    for (const [link, target] of Object.entries(symlinks || {})) fs.symlinkSync(target, path.join(realRepo, link));
+    for (const [name, content] of Object.entries(homeFiles || {})) {
+      const fp = path.join(home, name);
+      fs.mkdirSync(path.dirname(fp), { recursive: true });
+      fs.writeFileSync(fp, content);
+    }
     g(['add', '-A']);
     g(['commit', '-q', '-m', 'init']);
     if (ack !== null) {
@@ -139,7 +154,7 @@ function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memF
     }
 
     if (memFiles) {
-      const slug = realRepo.replace(/[/._\\]/g, '-');
+      const slug = projectSlug(realRepo);
       const memDir = path.join(home, '.claude', 'projects', slug, 'memory');
       fs.mkdirSync(memDir, { recursive: true });
       for (const [name, content] of Object.entries(memFiles)) fs.writeFileSync(path.join(memDir, name), content);
@@ -152,16 +167,15 @@ function tmpSession({ repoFiles = { 'CLAUDE.md': '# rules\n' }, ack = null, memF
     }
 
     const sessionId = 'e2e-tmp-' + Math.random().toString(36).slice(2);
-    const runEnv = { HOME: home, ...env };
+    const runEnv = { HOME: home, MASTERSOFT_MANAGED_SETTINGS_DIR: managed, ...env };
     if (ack === null) runEnv.MASTERSOFT_LINTS_ACK_HOURS = '0';
     const p1 = runHook(realRepo, { sessionId, stateDir, env: runEnv });
     const p2 = runHook(realRepo, { sessionId, stateDir, env: runEnv });
-    const p3 = thirdPrompt ? runHook(realRepo, { sessionId, stateDir, env: runEnv }) : null;
+    if (beforeThird) beforeThird(realRepo);
+    const p3 = thirdPrompt || beforeThird ? runHook(realRepo, { sessionId, stateDir, env: runEnv }) : null;
     return { p1, p2, p3 };
   } finally {
-    fs.rmSync(home,     { recursive: true, force: true });
-    fs.rmSync(repoRaw,  { recursive: true, force: true });
-    fs.rmSync(stateDir, { recursive: true, force: true });
+    for (const dir of [home, parent, stateDir, managed]) fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -254,17 +268,10 @@ test('legion: no high signal dropped when budget is tight', () => {
 // the promptIndex > 1 gate). Verify neither requires a warm session.
 console.log('\n4. Bootstrap signals fire on prompt #1');
 
-test('motu: no-rules-file fires on prompt #1 (no ack)', () => {
-  requireRepo('motu');
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
-  try {
-    const p1 = runHook(repo('motu'), { sessionId: 'e2e-boot-1', stateDir,
-      env: { MASTERSOFT_LINTS_ACK_HOURS: '0' } });
-    assertHasSignal(p1.signals, 'no-rules-file',
-      'no-rules-file must fire on prompt #1 (bootstrap signal)');
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-  }
+test('no-rules-file fires on prompt #1 in a repo without AGENTS.md or CLAUDE.md', () => {
+  const { p1 } = tmpSession({ repoFiles: { 'README.md': '# demo\n' } });
+  assertHasSignal(p1.signals, 'no-rules-file',
+    'no-rules-file must fire on prompt #1 (bootstrap signal)');
 });
 
 test('presente: emitSignals-gated signals absent on prompt #1', () => {
@@ -281,21 +288,124 @@ test('presente: emitSignals-gated signals absent on prompt #1', () => {
   }
 });
 
+console.log('\n4b. Project instruction files (CLAUDE.md or AGENTS.md)');
+
+test('AGENTS.md alone counts as project rules', () => {
+  const { p1, p2 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' } });
+  assertNoSignal(p1.signals, 'no-rules-file');
+  assertNoSignal(p2.signals, 'no-rules-file');
+  assertNoSignal(p2.signals, 'agents-md-shadowed');
+  assertHasSignal(p2.signals, 'refresh-overdue', 'hygiene signals apply to an AGENTS.md-only repo');
+});
+
+test('.claude/CLAUDE.md alone counts as project rules', () => {
+  const { p1 } = tmpSession({ repoFiles: { '.claude/CLAUDE.md': '# rules\n' } });
+  assertNoSignal(p1.signals, 'no-rules-file');
+});
+
+test('oversize AGENTS.md is linted when there is no CLAUDE.md', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' + 'x\n'.repeat(260) } });
+  assertHasSignal(p2.signals, 'rule-file-oversize', 'the size lint must scan AGENTS.md as the entry point');
+});
+
+test('CLAUDE.local.md next to AGENTS.md flags agents-md-shadowed', () => {
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n', 'CLAUDE.local.md': '# mine\n' } });
+  assertHasSignal(p1.signals, 'agents-md-shadowed');
+  assertNoSignal(p1.signals, 'no-rules-file');
+});
+
+test('.claude/AGENTS.md alone counts as project rules', () => {
+  const { p1 } = tmpSession({ repoFiles: { '.claude/AGENTS.md': '# rules\n' } });
+  assertNoSignal(p1.signals, 'no-rules-file');
+});
+
+test('CLAUDE.md symlinked to AGENTS.md does not flag agents-md-shadowed', () => {
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' }, symlinks: { 'CLAUDE.md': 'AGENTS.md' } });
+  assertNoSignal(p1.signals, 'agents-md-shadowed');
+});
+
+test('claude-md-and-agents-md setting loads and scans AGENTS.md next to CLAUDE.md', () => {
+  const settings = JSON.stringify({ pluginConfigs: { 'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } } } });
+  const { p2 } = tmpSession({
+    repoFiles: { 'CLAUDE.md': '# rules\n', 'AGENTS.md': '# rules\n' + 'x\n'.repeat(260) },
+    homeFiles: { '.claude/settings.json': settings },
+  });
+  assertNoSignal(p2.signals, 'agents-md-shadowed');
+  assertHasSignal(p2.signals, 'rule-file-oversize', 'AGENTS.md loaded by the setting must be scanned');
+});
+
+test('claude-md setting flags an AGENTS.md-only repo as shadowed', () => {
+  const settings = JSON.stringify({ pluginConfigs: { 'agents-md@builtin': { options: { instructionFiles: 'claude-md' } } } });
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' }, homeFiles: { '.claude/settings.json': settings } });
+  assertHasSignal(p1.signals, 'agents-md-shadowed');
+  assertNoSignal(p1.signals, 'no-rules-file');
+});
+
+test('managed-only setting keeps both bootstrap signals quiet', () => {
+  const settings = JSON.stringify({ pluginConfigs: { 'agents-md@builtin': { options: { instructionFiles: 'managed-only' } } } });
+  const empty = tmpSession({ repoFiles: { 'README.md': '# x\n' }, homeFiles: { '.claude/settings.json': settings } });
+  assertNoSignal(empty.p1.signals, 'no-rules-file');
+  const agentsOnly = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' }, homeFiles: { '.claude/settings.json': settings } });
+  assertNoSignal(agentsOnly.p1.signals, 'agents-md-shadowed');
+});
+
+test('a CLAUDE.md above the repo counts as rules and shadows its AGENTS.md', () => {
+  const noRules = tmpSession({ repoFiles: { 'README.md': '# x\n' }, parentFiles: { 'CLAUDE.md': '# parent\n' } });
+  assertNoSignal(noRules.p1.signals, 'no-rules-file');
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n' }, parentFiles: { 'CLAUDE.md': '# parent\n' } });
+  assertHasSignal(p1.signals, 'agents-md-shadowed');
+  assert(/ms-parent-\w+\/CLAUDE\.md takes precedence/.test(p1.ctx), 'signal should name the parent CLAUDE.md');
+  assert(p1.ctx.includes('Add a CLAUDE.md with `@AGENTS.md`'), 'signal should suggest a repo CLAUDE.md importing AGENTS.md');
+});
+
+test('a disabled agents-md plugin in project settings is named in the signal', () => {
+  const settings = JSON.stringify({ enabledPlugins: { 'agents-md@builtin': false } });
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n', '.claude/settings.json': settings } });
+  assertHasSignal(p1.signals, 'agents-md-shadowed');
+  assert(p1.ctx.includes('the built-in agents-md plugin is disabled'), 'signal should name the disabled plugin');
+});
+
+test('creating a rule file between prompts forces a rescan', () => {
+  const { p2, p3 } = tmpSession({
+    repoFiles: { 'AGENTS.md': '# rules\n' },
+    beforeThird: repoPath => fs.writeFileSync(path.join(repoPath, 'CLAUDE.md'), '# rules\n' + 'x\n'.repeat(260)),
+  });
+  assertNoSignal(p2.signals, 'rule-file-oversize');
+  assertHasSignal(p3.signals, 'rule-file-oversize', 'a new CLAUDE.md must invalidate the cached scan');
+});
+
+test('a session at the home dir gets no lint signals', () => {
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-')));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
+  try {
+    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(home, '.claude', 'CLAUDE.md'), '# global\n' + 'x\n'.repeat(260));
+    fs.mkdirSync(path.join(home, 'Downloads', 'tool'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'Downloads', 'tool', 'uv.lock'), 'version = 1\n');
+    const env = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0' };
+    const sessionId = 'e2e-home-' + Math.random().toString(36).slice(2);
+    runHook(home, { sessionId, stateDir, env });
+    const p2 = runHook(home, { sessionId, stateDir, env });
+    assert(p2.signals.length === 0, `expected no signals at the home dir, got ${p2.signals.map(s => s.id).join(', ')}`);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('CLAUDE.md importing @AGENTS.md does not flag agents-md-shadowed', () => {
+  const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n', 'CLAUDE.md': '@AGENTS.md\n' } });
+  assertNoSignal(p1.signals, 'agents-md-shadowed');
+});
+
 // ── 5. systemMessage routing ──────────────────────────────────────────────────
 // When signals fire, systemMessage routes to the right skill.
 console.log('\n5. systemMessage routing');
 
-test('motu (no CLAUDE.md): systemMessage routes to init-rules', () => {
-  requireRepo('motu');
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
-  try {
-    const p1 = runHook(repo('motu'), { sessionId: 'e2e-sm-1', stateDir,
-      env: { MASTERSOFT_LINTS_ACK_HOURS: '0' } });
-    assert(p1.systemMessage.includes('init-rules'),
-      `expected init-rules in systemMessage, got: "${p1.systemMessage}"`);
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-  }
+test('no project rules: systemMessage routes to init-rules', () => {
+  const { p1 } = tmpSession({ repoFiles: { 'README.md': '# demo\n' } });
+  assert(p1.systemMessage.includes('init-rules'),
+    `expected init-rules in systemMessage, got: "${p1.systemMessage}"`);
 });
 
 test('systemMessage routes to ack-lints/refresh-rules when CLAUDE.md present and a signal fires', () => {
@@ -364,6 +474,16 @@ test('matcher counts user_/slug/nested entries and excludes reference (both cues
   assert(m && Number(m[1]) === 6, `expected 6 counted candidates, got ${m ? m[1] : 'none'}`);
   assertNoSignal(p2.signals, 'memory-review-due',
     'memory-review-due must stay silent while patterns-to-promote fires (mutual exclusion)');
+});
+
+test('memory signals stay quiet when auto memory is off', () => {
+  const memFiles = { 'feedback_a.md': FM('feedback'), 'project_b.md': FM('project'), 'user_c.md': FM('user') };
+  const { p2 } = tmpSession({ memFiles, dirAgeDays: 40, env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } });
+  assertNoSignal(p2.signals, 'patterns-to-promote');
+  assertNoSignal(p2.signals, 'memory-review-due');
+  const setting = tmpSession({ memFiles, dirAgeDays: 40, repoFiles: { 'CLAUDE.md': '# rules\n', '.claude/settings.json': '{"autoMemoryEnabled":false}' } });
+  assertNoSignal(setting.p2.signals, 'patterns-to-promote');
+  assertNoSignal(setting.p2.signals, 'memory-review-due');
 });
 
 test('memory-review-due fires for stale never-triaged dir (below volume threshold)', () => {

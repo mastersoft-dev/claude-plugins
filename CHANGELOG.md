@@ -8,6 +8,89 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-09-25
+
+### Changed
+
+- `/mastersoft:init-rules` keeps project rules in `AGENTS.md`, which every coding
+  agent reads. A repo with no rules gets them drafted by the native `/init`; a repo
+  with only `CLAUDE.md` is offered a `git mv` to `AGENTS.md`. The `CLAUDE.md`
+  pointer to `@AGENTS.md` is written only on request.
+- `/mastersoft:init-rules` no longer suggests a `/schedule` routine for
+  `/mastersoft:verify`: cloud routines don't load plugins.
+- `/mastersoft:recall` lists every reason a session can be missing: pruning after
+  `cleanupPeriodDays`, `CLAUDE_CODE_SKIP_PROMPT_HISTORY`, `--no-session-persistence`
+  and `claude project purge`.
+
+### Added
+
+- `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps
+  from loading, with the two ways to load it.
+- `/mastersoft:recall` warns when the newest transcripts have no records it can
+  read, since the transcript format is internal to Claude Code and can change.
+
+### Fixed
+
+- `/mastersoft:help` prints the reference card in every permission mode instead
+  of failing and searching the plugin cache for it.
+- `/mastersoft:release`, `/mastersoft:sentry` and `/mastersoft:glab` load in
+  default permission mode again: their context commands used `$(…)` and
+  `{ …; }`, which the permission check refuses, so the skill aborted.
+- `/mastersoft:recall` runs its session index without a permission prompt: the
+  `hindsight` agent's `recall.js` calls are pre-approved.
+- `/mastersoft:promote-patterns` resolves its paths with two plain `state.js`
+  calls, which its `allowed-tools` pre-approve, instead of `$(…)` assignments
+  that asked for permission.
+- `/mastersoft:init-rules` renames `CLAUDE.md` to `AGENTS.md` without a permission
+  prompt: Claude Code never pre-approves `mv` with flags, so the old `mv -n` rules
+  never matched.
+- `/mastersoft:verify` saves its findings and the verify time without permission
+  prompts. In an interactive session the audit agent ran in the background and
+  reported in a later turn, where the skill's `allowed-tools` no longer applied;
+  verify now runs as a forked `rule-auditor` that waits in the invoking turn, and
+  `write-findings` reads the finding blocks, since the permission check refuses
+  JSON in a heredoc.
+- The rule audit behind `/mastersoft:verify` and `/mastersoft:refresh-rules` no
+  longer reports a missing `CLAUDE.md` pointer for an `AGENTS.md` that Claude Code
+  loads on its own.
+- `/mastersoft:recall` runs its session index again: the `hindsight` agent was
+  calling `/scripts/recall.js` and fell back to reading transcripts by hand.
+- `/mastersoft:doc` reads the type and title from the right arguments and finds
+  its templates without a fallback.
+- `/mastersoft:codex` — the background recipe keeps the log path when the skill
+  is invoked with three or more arguments.
+- Lint signals count `AGENTS.md`, `.claude/CLAUDE.md` and `CLAUDE.local.md` as
+  project rules: `no-rules-file` no longer fires in a repo that has them, and the
+  size, staleness and stale-reference checks also scan `AGENTS.md`. They follow
+  the Project instructions setting and ignore `~/.claude/CLAUDE.md` at the home
+  directory.
+- Claude Code paths follow Claude Code's rules. Project slugs turn every
+  non-alphanumeric character into `-`; the lint signals, `state.js`, the
+  statusline and its wrapper honor `CLAUDE_CONFIG_DIR` and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR`, and `install-statusline.sh --apply` patches the
+  `settings.json` Claude Code reads; auto memory comes from `autoMemoryDirectory` or
+  the main checkout's dir that every worktree shares. With auto memory off, the
+  memory signals stay quiet and `/mastersoft:promote-patterns` says so.
+- `/mastersoft:recall` finds sessions started in the repo's subdirectories and
+  worktrees, for the current repo and for `--project`, which now also matches repo
+  paths with spaces or other punctuation.
+- `/mastersoft:recall` no longer lists set-aside `.orphaned-…` transcripts as extra
+  sessions.
+- A project path whose name is past 200 characters resolves to its hashed dir
+  only when exactly one matches, instead of the first one found;
+  `state.js claude-project-slug` prints that hashed name.
+- Settings are read where Claude Code reads them: `.claude/settings.json` from the
+  session's directory, `.claude/settings.local.json` from the repository root (the
+  main checkout in a worktree), and managed settings (`remote-settings.json`,
+  `managed-settings.json` and its drop-ins) first. The lint signals follow
+  `managed-only` and rule files in parent directories, and say when the
+  agents-md plugin is disabled; init-rules and the rule auditor read the same
+  mode.
+- `/mastersoft:recall` still counts a subdirectory whose first transcript has no
+  working directory.
+- Lint signals stay quiet in a session opened at the home directory, which is no
+  project: its scan reported lockfiles and memory of unrelated folders there.
+
 ## [3.6.0] — 2026-09-24
 
 ### Added

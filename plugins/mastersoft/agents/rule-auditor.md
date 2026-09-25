@@ -31,7 +31,9 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 ## Procedure
 
 1. **Inventory rule files** (skip silently if none):
-   - `<root>/CLAUDE.md`, all `<root>/.claude/rules/**/*.md` (recursive).
+   - The files `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js rule-files` prints from `<root>`: the project rule files Claude Code loads at launch under the current Project instructions mode (both CLAUDE.md and AGENTS.md with `claude-md-and-agents-md`). Add all `<root>/.claude/rules/**/*.md` (recursive).
+   - It prints nothing under `managed-only`, where Claude Code loads no project rules (`state.js agents-md-mode` confirms): report that and stop.
+   - Its output is the authority on what loads. An `AGENTS.md` it lists is in context natively, so a missing `CLAUDE.md` pointer is no finding.
    - Follow `@path.md` import chains recursively — lint-engine follows them, so must you.
 
 2. **Inventory codebase signal**:
@@ -94,7 +96,7 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 
 Two parts, in this order.
 
-1. **Human-readable** — one block per finding:
+1. **Human-readable** — one block per finding, with the field labels in English whatever language you write the values in (`/mastersoft:verify` parses them):
 
 ```
 ## Finding N — <one-line summary>
@@ -103,6 +105,7 @@ Two parts, in this order.
 **Signal**: <signal id if this finding answers an input signal, else —>
 **Evidence**: <file>:<line> says "X"; <other-file>/code shows "Y".
 **Suggestion**: <one-line fix>.
+**Files**: <comma-separated paths the finding touches, or —>
 ```
 
 2. **Machine-readable** — a single fenced ```json block, last in your output, for the caller to persist:
@@ -117,7 +120,7 @@ If zero findings: print `No issues detected.` then a `json` block of `{ "finding
 
 ## Hard rules
 
-- **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`). Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
+- **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`/`rule-files`/`agents-md-mode`). The one exception is a task that asks you to persist the audit, as `/mastersoft:verify` does: then run the `state.js write-findings` and `state.js record-verify` commands it names, which write the plugin's own state and never the repo. Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
 - **Evidence or silence.** A finding without a file/line or a reproducible command is not a finding.
 - **Confidence tiers.** File/line contradiction = high. Re-derived count mismatch = medium. Auto-memory pattern or placement nit = low/advisory.
 - **Cost ceiling.** You are Sonnet and rare-fire. Do not chain other agents or skills.

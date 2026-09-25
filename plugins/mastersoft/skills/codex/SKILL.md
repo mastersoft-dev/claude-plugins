@@ -4,7 +4,7 @@ description: Orchestrate OpenAI Codex CLI non-interactively for code generation 
 model: opus
 effort: high
 # Bash intentionally unscoped: this skill manages the codex process lifecycle
-# (codex/git/awk/find/kill + Monitor recovery), not a fixed command set.
+# (codex/git/sed/find/kill + Monitor recovery), not a fixed command set.
 allowed-tools: Bash, Monitor, Read, Glob, Grep
 argument-hint: "[subcommand] prompt_or_flags"
 ---
@@ -103,7 +103,7 @@ codex exec <scope-flags> "<prompt>" \
 echo "PID=$!"
 ```
 
-Next Bash call recovers paths + PID from the harness task-output file (`awk -F= '/^LOG=/{print $2}'`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
+Next Bash call recovers paths + PID from the harness task-output file (`sed -n 's/^LOG=//p'`, same for `FINAL=` and `PID=`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
 
 ```bash
 until grep -qE '^\{"type":"turn\.(completed|failed)"|^\{"type":"error"' "$log" 2>/dev/null \

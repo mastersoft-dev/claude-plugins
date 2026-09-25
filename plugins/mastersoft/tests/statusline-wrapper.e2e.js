@@ -17,6 +17,8 @@ const path = require('path');
 const cp   = require('child_process');
 
 const WRAPPER = path.resolve(__dirname, '../hooks/statusline-wrapper.js');
+const INSTALLER = path.resolve(__dirname, '../scripts/install-statusline.sh');
+const HAS_JQ = cp.spawnSync('sh', ['-c', 'command -v jq']).status === 0;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,10 +34,24 @@ function mkHome(files = {}) {
   return home;
 }
 
-function runWrapper(home) {
+function mkDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-wrapper-'));
+  tmpHomes.push(dir);
+  return dir;
+}
+
+function fakeStatusline(pluginsRoot, version, marker) {
+  const hooks = path.join(pluginsRoot, 'cache', 'mastersoft', 'mastersoft', version, 'hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  fs.writeFileSync(path.join(hooks, 'statusline.js'), `console.log(${JSON.stringify(marker)});\n`);
+}
+
+function runWrapper(home, extraEnv = {}) {
+  const env = { ...process.env, HOME: home, ...extraEnv };
+  for (const k of ['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_PLUGIN_CACHE_DIR']) if (!(k in extraEnv)) delete env[k];
   const result = cp.spawnSync(process.execPath, [WRAPPER], {
     input: '',
-    env: { ...process.env, HOME: home },
+    env,
     encoding: 'utf8',
     timeout: 5000,
   });
@@ -43,10 +59,11 @@ function runWrapper(home) {
   return (result.stdout || '').trim();
 }
 
-let passed = 0, failed = 0;
+let passed = 0, failed = 0, skipped = 0;
 const failures = [];
 
-function test(name, fn) {
+function test(name, fn, { skip } = {}) {
+  if (skip) { skipped++; console.log(`  -  ${name} (skipped: ${skip})`); return; }
   try { fn(); passed++; console.log(`  ✓  ${name}`); }
   catch (e) {
     failed++;
@@ -130,11 +147,71 @@ test('whitespace-only command is rejected', () => {
   assertEq(runWrapper(home), 'SETTINGS');
 });
 
+console.log('\n4. config dir + plugin cache');
+
+test('CLAUDE_CONFIG_DIR settings.json is read instead of ~/.claude', () => {
+  const home = mkHome({ 'settings.json': JSON.stringify({ statusLine: { command: echo('HOME') } }) });
+  const config = mkDir();
+  fs.writeFileSync(path.join(config, 'settings.json'), JSON.stringify({ statusLine: { command: echo('CONFIG') } }));
+  assertEq(runWrapper(home, { CLAUDE_CONFIG_DIR: config }), 'CONFIG');
+});
+
+test('fallback statusline is found under CLAUDE_CONFIG_DIR/plugins', () => {
+  const home = mkHome();
+  const config = mkDir();
+  fakeStatusline(path.join(config, 'plugins'), '3.6.0', 'CONFIG_CACHE');
+  assertEq(runWrapper(home, { CLAUDE_CONFIG_DIR: config }), 'CONFIG_CACHE');
+});
+
+test('CLAUDE_CODE_PLUGIN_CACHE_DIR wins, and the highest version is picked', () => {
+  const home = mkHome();
+  fakeStatusline(path.join(home, '.claude', 'plugins'), '9.0.0', 'DEFAULT_CACHE');
+  const cache = mkDir();
+  fakeStatusline(cache, '3.9.0', 'OLD');
+  fakeStatusline(cache, '3.10.0', 'NEW');
+  assertEq(runWrapper(home, { CLAUDE_CODE_PLUGIN_CACHE_DIR: cache }), 'NEW');
+});
+
+console.log('\n5. install-statusline.sh --apply');
+
+function runInstaller(home, extraEnv = {}) {
+  const env = { ...process.env, HOME: home, ...extraEnv };
+  delete env.CLAUDE_PLUGIN_ROOT;
+  if (!('CLAUDE_CONFIG_DIR' in extraEnv)) delete env.CLAUDE_CONFIG_DIR;
+  const result = cp.spawnSync('sh', [INSTALLER, '--apply'], { env, encoding: 'utf8', timeout: 5000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`installer exit ${result.status}: ${result.stderr}`);
+}
+
+function readJsonFile(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+const wiredCommand = (file) => readJsonFile(file)?.statusLine?.command ?? null;
+
+const noJq = HAS_JQ ? undefined : 'jq not installed';
+
+test('patches ~/.claude/settings.json by default', () => {
+  const home = mkHome();
+  runInstaller(home);
+  assertEq(wiredCommand(path.join(home, '.claude', 'settings.json')), 'node ~/.claude/mastersoft-statusline-wrapper.js');
+  assertEq(fs.existsSync(path.join(home, '.claude', 'mastersoft-statusline-wrapper.js')), true, 'wrapper copied');
+}, { skip: noJq });
+
+test('patches CLAUDE_CONFIG_DIR/settings.json and keeps the wrapper in ~/.claude', () => {
+  const home = mkHome();
+  const config = mkDir();
+  runInstaller(home, { CLAUDE_CONFIG_DIR: config });
+  assertEq(wiredCommand(path.join(config, 'settings.json')), 'node ~/.claude/mastersoft-statusline-wrapper.js');
+  assertEq(fs.existsSync(path.join(home, '.claude', 'settings.json')), false, '~/.claude/settings.json untouched');
+  assertEq(fs.existsSync(path.join(home, '.claude', 'mastersoft-statusline-wrapper.js')), true, 'wrapper in ~/.claude');
+}, { skip: noJq });
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpHomes.forEach(h => { try { fs.rmSync(h, { recursive: true, force: true }); } catch {} });
 
-console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
+console.log(`\n${passed + failed + skipped} tests — ${passed} passed, ${failed} failed, ${skipped} skipped\n`);
 if (failures.length) {
   failures.forEach(f => console.log(`  FAIL: ${f.name}\n       ${f.message}`));
   process.exit(1);

@@ -7,6 +7,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const HOME = os.homedir();
+const CONFIG_DIR = (process.env.CLAUDE_CONFIG_DIR || '').trim() || path.join(HOME, '.claude');
+const PLUGINS_ROOT = (process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR || '').trim() || path.join(CONFIG_DIR, 'plugins');
 const IS_WIN = process.platform === 'win32';
 const SELF_MARKER = 'mastersoft-statusline-wrapper';
 
@@ -30,13 +32,13 @@ function isForeignCommand(cmd) {
 function readUserOverrideCommand() {
   const overrideCmd = extractCommand(readJson(path.join(HOME, '.claude/statusline.local.json')));
   if (isForeignCommand(overrideCmd)) return overrideCmd;
-  const userCmd = extractCommand(readJson(path.join(HOME, '.claude/settings.json')));
+  const userCmd = extractCommand(readJson(path.join(CONFIG_DIR, 'settings.json')));
   if (isForeignCommand(userCmd)) return userCmd;
   return null;
 }
 
 function findMastersoftStatusline() {
-  const dir = path.join(HOME, '.claude/plugins/cache/mastersoft/mastersoft');
+  const dir = path.join(PLUGINS_ROOT, 'cache', 'mastersoft', 'mastersoft');
   try {
     const entries = fs.readdirSync(dir)
       .map(v => ({ v, p: path.join(dir, v, 'hooks/statusline.js') }))
