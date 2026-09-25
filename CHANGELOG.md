@@ -34,6 +34,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `android-testing`'s `ui_run_flow.py` answers a flow that isn't a JSON object,
   such as a bare `[...]` list of ops, with the expected shape instead of a Python
   traceback.
+- The `android-testing` wizard flow template runs as written: its notes moved out
+  of the JSON, which neither the JSON nor the YAML parser accepted.
 
 ## [3.7.0] — 2026-09-25
 
