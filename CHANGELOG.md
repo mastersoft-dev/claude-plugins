@@ -16,6 +16,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The `rule-auditor` agent starts without the user, project and local CLAUDE.md
   files (`omitClaudeMd`, Claude Code 2.1.271+), and reads the rule files it audits
   from disk.
+- `security-auditor` and `system-architect` keep their memory per project
+  (`memory: local`, in `.claude/agent-memory-local/`) instead of across every
+  project, so notes about one codebase stay out of the others. Notes saved under
+  `~/.claude/agent-memory/` no longer load.
 
 ### Fixed
 
