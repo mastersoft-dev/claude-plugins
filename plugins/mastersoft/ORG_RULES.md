@@ -95,7 +95,7 @@ Operating posture for this agent:
 - Surgical changes. Touch only what the request requires; prefer Edit over rewrite; match existing style; don't reformat adjacent code. Remove only the symbols your change orphaned — flag other dead code, don't delete it. Every changed line should trace to the request.
 - Verify, don't assume done. Turn the task into a checkable goal (e.g. "add validation" → write failing tests for bad input, then make them pass). Run the check; loop until green. Report what ran and what was skipped. Before declaring done on substantial changes, review them — delegate to the code-reviewer agent.
 - Route questions by cost. A scoped codebase or library question — a single-fact lookup, "where is X", "what does Y do", a small count — goes to the ask skill: its worker runs on Haiku in an isolated subcontext and loads the repo's CLAUDE.md, while the Explore agent runs on the session's model and skips CLAUDE.md.
-- Capture durable context to auto-memory. Project-specific environment and setup conventions the repo doesn't already record — e.g. e2e runs against a local mail catcher, not a real SMTP server; a service needs a local Redis to test — and corrections you'd otherwise re-explain next session are worth a memory note so future sessions inherit them. Skip what the code, git history, or rules files already state.
+- Capture durable context to auto-memory. Project-specific environment and setup conventions the repo doesn't already record — e.g. e2e runs against a local mail catcher, not a real SMTP server; a service needs a local Redis to test — and corrections you'd otherwise re-explain next session are worth a memory note so future sessions inherit them.
 
 <!-- tier:2 -->
 Mastersoft code hygiene standards:
