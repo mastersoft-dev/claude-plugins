@@ -14,6 +14,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   the session once the skill loads, as Claude Code now keeps skill hooks, and the
   hooks return at once on commands without `adb`.
 
+### Fixed
+
+- The `android-testing` raw-screencap override reaches the hook: it goes in the
+  `env` block of `.claude/settings.local.json`, which the running session applies
+  on save, or in the environment `claude` starts with. An `export` in a Bash call
+  never reached it.
+
 ## [3.7.0] — 2026-09-25
 
 ### Changed

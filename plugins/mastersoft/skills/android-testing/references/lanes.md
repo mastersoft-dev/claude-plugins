@@ -60,21 +60,23 @@ latest `diagnose_tree.py` re-probe.
 
 Per-action cost ~200 ms (one screencap + one tap + one verifier screencap).
 
+Lane B is the sanctioned pixel lane, and raw screencap is hook-denied by
+default, so it starts with the user's go-ahead. The hook reads Claude Code's
+own environment: the user adds `"env": {"ANDROID_SKILL_ALLOW_RAW_SCREENCAP": "1"}`
+to `.claude/settings.local.json`, which the running session applies when the
+file is saved (`"0"` turns it off again), or launches Claude Code with
+`ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 claude`.
+
 ```bash
-# Lane B is the sanctioned pixel lane. Raw screencap is hook-denied by
-# default; the hook reads the session env, so export the override first
-# (an inline VAR=1 prefix won't reach the hook process):
-export ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1
 adb -s "$SERIAL" exec-out screencap -p > /tmp/before.png
 # (model inspects /tmp/before.png, decides target is at 540,1200)
-BEFORE_HASH=$(${CLAUDE_SKILL_DIR}/scripts/screen_hash.sh --serial "$SERIAL")
+${CLAUDE_SKILL_DIR}/scripts/screen_hash.sh --serial "$SERIAL"
 ${CLAUDE_SKILL_DIR}/scripts/ui_act.py --serial "$SERIAL" tap-point 540 1200
-RESULT=$(${CLAUDE_SKILL_DIR}/scripts/screen_hash.sh --serial "$SERIAL" --diff "$BEFORE_HASH")
-case "$RESULT" in
-    differ*) ;;  # state changed — action accepted
-    same*)   echo "Lane B: no pixel delta — escalate to Lane C" >&2 ;;
-esac
+${CLAUDE_SKILL_DIR}/scripts/screen_hash.sh --serial "$SERIAL" --diff <hash printed before the tap>
 ```
+
+`differ <hash>` means the state changed and the action landed; `same <hash>`
+means no pixel delta, so escalate to Lane C.
 
 Region-cropped hash via `screen_hash.sh --region X,Y,W,H` reduces dilution from
 stable UI chrome (requires ImageMagick).

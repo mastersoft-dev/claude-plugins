@@ -80,6 +80,13 @@ test('pulling a frame is denied', () => {
   assertEq(runHook(SCREENCAP_HOOK, 'adb pull /sdcard/cur.png /tmp/cur.png').decision, 'deny');
 });
 
+test('the screencap denial asks the user for a settings env override', () => {
+  const { reason } = runHook(SCREENCAP_HOOK, 'adb shell screencap -p /sdcard/x.png');
+  assertEq(reason.includes('.claude/settings.local.json'), true, 'reason names settings.local.json');
+  assertEq(reason.includes('after the user agrees'), true, 'reason defers to the user');
+  assertEq(/\bexport\b/.test(reason), false, 'reason drops export');
+});
+
 test('ANDROID_SKILL_ALLOW_RAW_SCREENCAP=1 in the hook environment allows screencap', () => {
   const r = runHook(SCREENCAP_HOOK, 'adb exec-out screencap -p > /tmp/x.png', { ANDROID_SKILL_ALLOW_RAW_SCREENCAP: '1' });
   assertEq(r.decision, 'pass');
