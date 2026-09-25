@@ -26,12 +26,13 @@ Default (no flag): walk everything, classify per-pattern, ask user.
 
 ## Procedure
 
-1. **Resolve repo root + paths.** Compute via the cross-platform helper —
-   this also gives the dash-encoded slug Claude Code uses for auto-memory:
+1. **Resolve repo root + paths.** Run the cross-platform helper twice, as two
+   separate commands, and keep the outputs as `REPO` and `MEMDIR` (the memory
+   path carries the dash-encoded slug Claude Code uses for auto-memory):
 
    ```
-   REPO=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js repo-root)
-   MEMDIR=$(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js memory-path)
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js repo-root
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js memory-path
    ```
 
    Abort with one-line message if not in a git repo. If `memory-path` prints

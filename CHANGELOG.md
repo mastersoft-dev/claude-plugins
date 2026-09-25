@@ -36,6 +36,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   `{ …; }`, which the permission check refuses, so the skill aborted.
 - `/mastersoft:recall` runs its session index without a permission prompt: the
   `hindsight` agent's `recall.js` calls are pre-approved.
+- `/mastersoft:promote-patterns` resolves its paths with two plain `state.js`
+  calls, which its `allowed-tools` pre-approve, instead of `$(…)` assignments
+  that asked for permission.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds
