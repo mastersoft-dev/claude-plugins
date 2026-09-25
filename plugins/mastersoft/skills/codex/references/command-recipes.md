@@ -55,7 +55,7 @@ codex exec "<prompt>" \
 echo "PID=$!"
 ```
 
-Monitor command (poll-loop, three exit conditions):
+Wait loop, as a second Bash call with `run_in_background: true` (three exit conditions; its exit is the notification):
 
 ```bash
 until grep -qE '^\{"type":"turn\.(completed|failed)"|^\{"type":"error"' "$log" 2>/dev/null \
@@ -73,7 +73,7 @@ Exit reasons:
 
 Anchor regex to line-start `^\{` so JSONL events match but `aggregated_output` fields containing the literal string `"type":"turn.completed"` (from rg / grep output the agent ran) do NOT false-match.
 
-Never `tail -F | grep -m1 …` — `tail -F` blocks after match waiting for next write; Monitor stays armed until wall-clock timeout.
+Never `tail -F | grep -m1 …` — `tail -F` blocks after match waiting for next write, so the wait never ends.
 
 On match: inspect last line. Terminal event → read `$final`. Stall/dead → Rule 5 (SIGTERM + rollout-parse + resume).
 

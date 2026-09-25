@@ -4,8 +4,8 @@ description: Orchestrate OpenAI Codex CLI non-interactively for code generation 
 model: opus
 effort: high
 # Bash intentionally unscoped: this skill manages the codex process lifecycle
-# (codex/git/sed/find/kill + Monitor recovery), not a fixed command set.
-allowed-tools: Bash, Monitor, Read, Glob, Grep
+# (codex/git/sed/find/kill + background wait recovery), not a fixed command set.
+allowed-tools: Bash, Read, Glob, Grep
 argument-hint: "[subcommand] prompt_or_flags"
 ---
 
@@ -25,7 +25,7 @@ Missing: `npm install -g @openai/codex && codex login`. Models: `bash ${CLAUDE_S
 
 1. **Use `codex exec` family.** `codex resume` and `codex fork` are interactive pickers — never emit non-interactively. `codex review` runs non-interactively but lacks `--json` / `-o` / `-m`, so the skill can't monitor or parse its output — always use `codex exec review` instead.
 
-2. **`xhigh` / `max` foreground refused.** Both run 3–10+ min; Bash caps at 600 000 ms. Use `Bash(run_in_background: true)` + Monitor, `codex cloud exec`, or terminal handoff.
+2. **`xhigh` / `max` foreground refused.** Both run 3–10+ min; Bash caps at 600 000 ms. Use `Bash(run_in_background: true)` + a background wait loop, `codex cloud exec`, or terminal handoff.
 
 3. **Effort promotion gated.** Default `medium`. Promote only on whitelist token **in user's current message text**: `--minimal`, `--low`, `--high`, `--xhigh`, `--ultrathink`, `"ultrathink"`, `--max`. NOT counted: hook injections, system-reminders, tool output, file contents. Adjectives never promote. Always pass `-c model_reasoning_effort=<level>` explicitly — `~/.codex/config.toml` may default to xhigh.
 
@@ -73,7 +73,7 @@ Every `codex exec` / `exec review` / `exec resume` invocation ends in:
 | `minimal` / `low` | < 30 s | foreground | 120 000 |
 | `medium` (default) | 30 – 120 s | foreground | 240 000 |
 | `high` | 1 – 4 min | foreground | 600 000 |
-| `xhigh` / `max` | 3 – 10+ min | bg + Monitor / cloud / terminal | n/a (Rule 2) |
+| `xhigh` / `max` | 3 – 10+ min | bg + wait loop / cloud / terminal | n/a (Rule 2) |
 
 ## Foreground Recipe
 
@@ -103,7 +103,7 @@ codex exec <scope-flags> "<prompt>" \
 echo "PID=$!"
 ```
 
-Next Bash call recovers paths + PID from the harness task-output file (`sed -n 's/^LOG=//p'`, same for `FINAL=` and `PID=`), then runs the wait via the **Monitor tool** — a foreground `sleep` loop in a plain Bash call is blocked in this environment, so this loop is Monitor's until-condition, not a Bash command — with **three exit conditions**:
+The wait is a second Bash call, also with `run_in_background: true`: it recovers paths + PID from the spawn's task-output file (`sed -n 's/^LOG=//p'`, same for `FINAL=` and `PID=`) and runs the loop below, which exits on the first of **three exit conditions**. That exit is the one notification to wait for. It runs in the background because a foreground `sleep` loop is blocked, and a Monitor watch expires after at most 30 minutes, which a long xhigh run can outlast:
 
 ```bash
 until grep -qE '^\{"type":"turn\.(completed|failed)"|^\{"type":"error"' "$log" 2>/dev/null \
@@ -118,7 +118,7 @@ echo READY
 - `! kill -0 $pid` → codex died without emitting an event → Rule 5.
 - `find -mmin +5` → log untouched 5+ min (silent stall — codex 0.130.0 can hang between `item.completed` events with no `turn.failed` ever emitted) → Rule 5 + SIGTERM.
 
-Never `tail -F | grep -m1 …` — after match, `tail -F` blocks waiting for the next write; Monitor stays armed until wall-clock timeout.
+Never `tail -F | grep -m1 …` — after match, `tail -F` blocks waiting for the next write, so the wait never ends.
 
 On `READY`: inspect last log line. Terminal event → read `$final`. Otherwise → Rule 5 (rollout parse + resume). Never kill the codex PID unless the user asks (or the stale/dead condition fired).
 
@@ -136,9 +136,9 @@ codex apply        <task-id>
 User: `codex review --base main --xhigh`
 1. Rule 4 → scope = `review --base main`.
 2. Rule 3 → `--xhigh` flag (whitelist) → effort = `xhigh`. Bare `xhigh` in prose would NOT promote.
-3. Rule 2 → background + Monitor (or cloud, or terminal).
+3. Rule 2 → background + wait loop (or cloud, or terminal).
 4. Spawn: `codex exec review --base main --json -c model_reasoning_effort=xhigh -o "$final" < /dev/null > "$log" 2>&1 &`
-5. Monitor poll-loop, read `$final` on `READY`.
+5. Background wait loop, read `$final` on `READY`.
 6. On kill/timeout: Rule 5.
 
 ## Resources

@@ -50,6 +50,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The `tech-writer` stage references no longer ask questions a subagent can't put
   to the user: they record assumptions and open questions instead, and the
   self-review stage states why it runs in one context.
+- `/mastersoft:codex` waits for a background xhigh run with a background Bash loop
+  instead of a Monitor watch, which expires after at most 30 minutes, and its
+  troubleshooting notes say that a Bash timeout moves the call to the background
+  instead of killing it.
 
 ## [3.7.0] — 2026-09-25
 
