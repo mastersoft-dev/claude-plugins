@@ -46,7 +46,7 @@ refuse (don't relocate) if you find one misplaced.
 4. **Select the template** = `references/<type>.md`. Hold its frontmatter spec
    and skeleton body (everything after the closing `---`).
 
-5. **Outside-docs/ guard** (type-derived, no hardcoded patterns). Glob for
+5. **Outside-docs/ guard** (type-derived, no hardcoded patterns). Search for
    stray docs of THIS type outside `docs/`, deriving the search from the
    template's own `type` + `title-prefix` frontmatter:
    - filename-prefix glob: `**/{<type>,<TYPE>}-*.md` (e.g. `adr-*.md`, `ADR-*.md`)
@@ -63,7 +63,7 @@ refuse (don't relocate) if you find one misplaced.
      proceed anyway]". Never move files yourself; that's the user's destructive op.
 
 6. **Compute the filename** from the spec's `filename`:
-   - `numbered` (ADR): Glob `docs/<type>/*.md`, extract leading `NNNN` from each.
+   - `numbered` (ADR): list `docs/<type>/*.md`, extract leading `NNNN` from each.
      Next number = (max existing, or 0 if the dir is empty/absent) + 1,
      zero-padded to 4 digits — so the FIRST doc is `0001`. Slug = kebab-case of
      the title. Result: `docs/<type>/NNNN-slug.md`.

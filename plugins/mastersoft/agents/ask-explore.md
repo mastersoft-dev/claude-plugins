@@ -6,7 +6,7 @@ description: >-
   skill over calling this agent directly. Answers "what does X do", "where is Y defined",
   "how does Z work". For deep root-cause analysis use the investigate skill; for code review
   feedback use the vet skill.
-tools: Read, Glob, Grep, Bash, WebFetch, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
+tools: Read, Glob, Grep, WebFetch, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: haiku
 maxTurns: 15
 ---

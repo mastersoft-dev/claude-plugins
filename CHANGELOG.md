@@ -36,6 +36,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   traceback.
 - The `android-testing` wizard flow template runs as written: its notes moved out
   of the JSON, which neither the JSON nor the YAML parser accepted.
+- The `ask-explore` agent searches with the Glob and Grep tools on macOS and Linux
+  too: with Bash in its tool list Claude Code left them out there. It no longer
+  has Bash, so its read-only contract holds. `/mastersoft:doc` names its search
+  steps without the Glob tool.
 
 ## [3.7.0] — 2026-09-25
 
