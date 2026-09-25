@@ -119,6 +119,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   start: Claude Code reports them as `fork` rather than `resume` since 2.1.214.
 - The `verify-due` signal is also skipped in CI (`CI=true`): `CLAUDE_CODE_REMOTE`,
   which it checked alone, marks only cloud sessions.
+- `ORG_RULES.md` says that users get a new plugin version after `/plugin
+  marketplace update mastersoft` and `/reload-plugins`, since background
+  auto-update is off for this marketplace unless managed settings turn it on. A
+  reload alone kept the cached version.
 
 ## [3.7.0] — 2026-09-25
 
