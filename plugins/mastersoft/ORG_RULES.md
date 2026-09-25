@@ -58,6 +58,13 @@ enforces it — read this table before editing.
 | **Lint** | `hooks/lint-engine.js` per-prompt signals | CLAUDE.md/AGENTS.md staleness; file-size caps; audit cadence; stale path refs | YAML frontmatter above (each key comments its env-var override) |
 | **Model** | Injected `additionalContext`, tiered (see below) | tier 1 operating posture; tier 2 code hygiene standards; tier 3 brevity | tier prose below |
 
+Claude's commit trailer and PR attribution come from Claude Code's
+`attribution` setting, not from these rules. To drop them for the org, set
+`"attribution": false` in managed settings (Claude Code 2.1.281+); for a
+fleet with older clients, set `commit` and `pr` to `""` and `sessionUrl` to
+`false` instead, since older versions reject the `false` value. A value set in
+managed settings wins over any CLAUDE.md or memory rule about attribution.
+
 Mute everything in a shell: `MASTERSOFT_QUIET=1`. Mute lint signals only
 (keep the ORG preamble): `MASTERSOFT_QUIET=lints`. Mute only the per-prompt
 nudge (tier 3): `MASTERSOFT_QUIET=tier3`. Per-repo persistent suppress:

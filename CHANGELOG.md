@@ -30,6 +30,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The help card lists what the plugin costs in context, including the org rules
   the hooks inject, which `claude plugin details` doesn't count: about 1k tokens
   per session start, 30 per prompt and 600 per subagent.
+- `ORG_RULES.md` explains how to drop Claude's commit and PR attribution for the
+  whole org through the managed `attribution` setting, with the form older clients
+  accept.
 
 ### Changed
 
