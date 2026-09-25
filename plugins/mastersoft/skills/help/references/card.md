@@ -64,6 +64,10 @@ Stable `id` values:
 
 Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote, memory-review-due), `verify` (verify-due), `migration` (brief-deprecated). `/mastersoft:ack-lints defer` with no extra args acks **all** categories; `defer rules` acks only the `rules` category and leaves `migration`, `audit`, `patterns`, and `verify` firing. This is why `/mastersoft:refresh-rules` uses `defer rules` — it must not silence orthogonal concerns.
 
+## Context cost
+
+`claude plugin details mastersoft` shows the always-on cost of the skill and agent listing, about 4.4k tokens per session. It leaves out what the hooks inject, which `/context` in a session includes: about 1k tokens of org rules (tiers 1 and 2) at each session start, `/clear` and compaction, about 30 tokens (tier 3) on every prompt, and about 600 tokens (tiers 2 and 3) into every subagent. `MASTERSOFT_ORG_RULES` and `MASTERSOFT_QUIET` trim them.
+
 ## Suppression mechanisms
 
 | Mechanism | Scope | How |

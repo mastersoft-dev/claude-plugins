@@ -27,6 +27,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - A GitLab pipeline that runs `claude plugin validate --strict` on the plugin and
   the marketplace, the hook suites and the Android daemon tests on every merge
   request, with no credentials.
+- The help card lists what the plugin costs in context, including the org rules
+  the hooks inject, which `claude plugin details` doesn't count: about 1k tokens
+  per session start, 30 per prompt and 600 per subagent.
 
 ### Changed
 
