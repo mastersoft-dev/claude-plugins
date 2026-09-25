@@ -1,7 +1,7 @@
 ---
 name: sentry
 description: Triage Sentry issues for this repo via sentry-cli — list unresolved errors, rank by impact, pull the latest event's stack trace, and propose repo-aware fixes. Self-hosted friendly (SENTRY_URL). Read-only by default; --fix gates resolve/mute behind confirmation. Use when the user wants to review Sentry errors, on schedule, or on demand. For deep single-issue root cause use investigate.
-allowed-tools: Read, Grep, Glob, Bash(sentry-cli:*), Bash(curl:*), Bash(command:*), Bash(git:*), AskUserQuestion
+allowed-tools: Read, Grep, Glob, Bash(sentry-cli:*), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/sentry-api.js" *), Bash(command:*), Bash(git:*), AskUserQuestion
 argument-hint: "[query] [--limit N] [--org <slug>] [--project <slug>] [--fix]"
 ---
 
@@ -25,8 +25,8 @@ and **mute/resolve/unresolve** — nothing else:
 
 There is **no stack-trace / issue-detail command** in this CLI (that lives only
 in the newer unified `sentry` CLI). So the root-cause step pulls the latest
-event via the Sentry **REST API** with `curl`, against the same host + token —
-which works on self-hosted identically.
+event via the Sentry **REST API** with the plugin's `sentry-api.js`, against the
+same host + token — which works on self-hosted identically.
 
 ## Config resolution
 
@@ -81,22 +81,18 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    payload (stack trace) via REST. Sentry documents this as "Retrieve Latest
    Event for Issue" (scope `event:read`):
    ```
-   curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
-     "$SENTRY_URL/api/0/issues/<numeric-issue-id>/events/latest/"
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/sentry-api.js" --summary issues/<numeric-issue-id>/events/latest/
    ```
-   **`curl` does not read `.sentryclirc` — only `sentry-cli` does.** The REST step
-   therefore needs `$SENTRY_URL` and `$SENTRY_AUTH_TOKEN` in the environment. When
-   the Context block shows creds live only in `.sentryclirc` (env absent), derive
-   the host from `sentry-cli info` and read the token from `.sentryclirc` (`[auth]
-   token=`) in the same Bash call as the `curl`, for example
-   `SENTRY_AUTH_TOKEN=$(sed -n 's/^token=//p' <path to .sentryclirc>) curl …`.
-   Each Bash call starts a new shell, so a token exported in an earlier call is
-   gone by the time `curl` runs: the header is empty and the request silently
-   401s. Reading it with `$(…)` also keeps the token out of the transcript.
-   `$SENTRY_URL` is the on-prem host on self-hosted,
-   `https://sentry.io` on SaaS.
-   If an instance does not expose it, fall back to the org-scoped events list
-   `/api/0/organizations/<org>/issues/<numeric-issue-id>/events/` and take the first. Read the
+   The script takes the host and token the way `sentry-cli` does
+   (`SENTRY_URL`/`SENTRY_AUTH_TOKEN`, then `.sentryclirc` from the working
+   directory up, then `~/.sentryclirc`), so the token never reaches the shell or
+   the transcript. `--summary` prints title, culprit, tags, request and each
+   exception's last frames in a few KB; drop it only for a field it leaves out,
+   since a full event runs to tens of KB. Run it exactly as shown: `curl` with the
+   token read by `$(…)` from a `.sentryclirc` asks for approval every time. On a
+   non-zero exit, report its stderr (no token, HTTP status) instead of retrying.
+   If an instance does not expose the endpoint, fall back to the org-scoped events list
+   `organizations/<org>/issues/<numeric-issue-id>/events/` and take the first. Read the
    repo files at the top in-app frames, then state root cause + a concrete fix.
    For anything gnarly, hand off: `/mastersoft:investigate <issue>`.
 
