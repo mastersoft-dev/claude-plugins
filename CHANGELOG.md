@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-09-25
+
 ### Added
 
 - `/mastersoft:glab`'s MR review flow names `claude --worktree <MR URL>` and
