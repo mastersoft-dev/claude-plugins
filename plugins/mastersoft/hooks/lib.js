@@ -8,6 +8,8 @@ const { execFileSync } = require('child_process');
 const STDIN_TIMEOUT_MS = 2000;
 const CLAUDE_RULE_FILES = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md'), 'CLAUDE.local.md'];
 const AGENTS_RULE_FILES = ['AGENTS.md', path.join('.claude', 'AGENTS.md')];
+const PROJECT_SLUG_MAX = 200;
+const PROJECT_DIR_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 // Single source of truth for the plugin's state dir. Resolved identically in
 // EVERY execution context — the lint-engine / inject / reset hooks AND the
@@ -41,13 +43,98 @@ function gitToplevel(cwd) {
 // did) split the __repos key between writer and reader exactly the way
 // CLAUDE_PLUGIN_DATA split the state dir — the recorded timestamp lands under a
 // different key than the hook reads and the signal re-fires forever. Key off
-// `git rev-parse --show-toplevel` from the same cwd both sides pass (subdir,
-// worktree and submodule all collapse to the real repo root), then realpath so
-// /var vs /private/var and other symlink forms match across sessions.
+// `git rev-parse --show-toplevel` from the same cwd both sides pass (a subdir
+// collapses to the toplevel; a linked worktree keeps its own toplevel), then
+// realpath so /var vs /private/var and other symlink forms match across sessions.
 function resolveRepoRoot(cwd) {
   let p = gitToplevel(cwd) || cwd;
   try { p = fs.realpathSync(p); } catch {}
   return p;
+}
+
+/** The main working tree for cwd, shared by all its linked worktrees; the toplevel otherwise. */
+function mainRepoRoot(cwd) {
+  try {
+    const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (path.basename(common) === '.git') return fs.realpathSync(path.dirname(common));
+  } catch {}
+  return resolveRepoRoot(cwd);
+}
+
+/** Claude Code's config directory: CLAUDE_CONFIG_DIR, else ~/.claude. */
+function claudeConfigDir() {
+  return (process.env.CLAUDE_CONFIG_DIR || '').trim() || path.join(os.homedir(), '.claude');
+}
+
+/** Claude Code's plugins root: CLAUDE_CODE_PLUGIN_CACHE_DIR, else <config>/plugins. */
+function pluginsRoot() {
+  return (process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR || '').trim() || path.join(claudeConfigDir(), 'plugins');
+}
+
+/** The <project> name Claude Code derives from a directory: every non-alphanumeric character becomes '-'. */
+function projectSlug(dir) {
+  return dir.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/**
+ * <config>/projects/<project> for a directory, where Claude Code keeps its
+ * transcripts and auto memory. CLAUDE_CODE_PROJECT_DIR_NAME replaces the
+ * derived name when CLAUDE_CONFIG_DIR is also set. A derived name over 200
+ * characters is truncated with an undocumented hash, so it resolves to the
+ * existing directory that shares its first 200 characters, or null.
+ */
+function projectDataDir(dir) {
+  const root = path.join(claudeConfigDir(), 'projects');
+  const pinned = (process.env.CLAUDE_CODE_PROJECT_DIR_NAME || '').trim();
+  if (pinned && (process.env.CLAUDE_CONFIG_DIR || '').trim() && PROJECT_DIR_NAME_RE.test(pinned)) {
+    return path.join(root, pinned);
+  }
+  const slug = projectSlug(dir);
+  if (slug.length <= PROJECT_SLUG_MAX) return path.join(root, slug);
+  const prefix = slug.slice(0, PROJECT_SLUG_MAX);
+  try {
+    const hit = fs.readdirSync(root).find(name => name.startsWith(prefix));
+    return hit ? path.join(root, hit) : null;
+  } catch { return null; }
+}
+
+function readJsonFile(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+/** First value of a settings key across local, project and user settings, in Claude Code's precedence order. */
+function settingValue(repoRoot, key) {
+  const files = [
+    path.join(repoRoot, '.claude', 'settings.local.json'),
+    path.join(repoRoot, '.claude', 'settings.json'),
+    path.join(claudeConfigDir(), 'settings.json'),
+  ];
+  for (const file of files) {
+    const settings = readJsonFile(file);
+    if (settings && settings[key] !== undefined) return settings[key];
+  }
+  return undefined;
+}
+
+/**
+ * The auto-memory directory Claude Code uses for cwd, or null when auto
+ * memory is off (CLAUDE_CODE_DISABLE_AUTO_MEMORY, autoMemoryEnabled: false).
+ * autoMemoryDirectory wins; otherwise <project>/memory of the main working
+ * tree, which every linked worktree and subdirectory shares.
+ */
+function autoMemoryDir(cwd) {
+  const env = (process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY || '').trim().toLowerCase();
+  if (env === '1' || env === 'true') return null;
+  const root = mainRepoRoot(cwd);
+  const forcedOn = env === '0' || env === 'false';
+  if (!forcedOn && settingValue(root, 'autoMemoryEnabled') === false) return null;
+  const custom = settingValue(root, 'autoMemoryDirectory');
+  if (typeof custom === 'string' && custom.startsWith('~/')) return path.join(os.homedir(), custom.slice(2));
+  if (typeof custom === 'string' && path.isAbsolute(custom)) return custom;
+  const data = projectDataDir(root);
+  return data ? path.join(data, 'memory') : null;
 }
 
 const AGENTS_MD_PLUGIN = 'agents-md@builtin';
@@ -56,12 +143,11 @@ const DEFAULT_AGENTS_MD_MODE = 'claude-md-or-agents-md';
 
 /**
  * The user's "Project instructions" setting for AGENTS.md, read from
- * ~/.claude/settings.json (Claude Code ignores it in project settings).
+ * <config>/settings.json (Claude Code ignores it in project settings).
  * A disabled built-in agents-md plugin behaves like 'claude-md'.
  */
 function agentsMdMode() {
-  let settings = {};
-  try { settings = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')); } catch {}
+  const settings = readJsonFile(path.join(claudeConfigDir(), 'settings.json')) || {};
   if (settings.enabledPlugins && settings.enabledPlugins[AGENTS_MD_PLUGIN] === false) return 'claude-md';
   const configs = settings.pluginConfigs && settings.pluginConfigs[AGENTS_MD_PLUGIN];
   const mode = configs && configs.options && configs.options.instructionFiles;
@@ -150,4 +236,7 @@ function saveState(filePath, state, maxSessions) {
   }
 }
 
-module.exports = { readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, resolveRepoRoot, projectRuleFiles };
+module.exports = {
+  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, gitToplevel, resolveRepoRoot, projectRuleFiles,
+  mainRepoRoot, claudeConfigDir, pluginsRoot, projectSlug, projectDataDir, autoMemoryDir,
+};

@@ -16,15 +16,14 @@
 //   write-findings                — stdin JSON → verify-findings/<slug>.json
 //   state-path                    — print canonical state file path
 //   findings-path [slug]          — print canonical verify findings path
-//   memory-path                   — print Claude Code auto-memory dir for current repo
+//   memory-path                   — print Claude Code auto-memory dir for current repo (nothing when it's off)
 //   repo-root                     — print canonicalized repo root for current cwd
 //   slug                          — print plugin-internal repo slug (underscore-encoded)
 //   claude-project-slug           — print Claude Code's per-project slug (dash-encoded)
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-const { loadState, saveState, resolveStateDir, resolveRepoRoot } = require('../hooks/lib');
+const { loadState, saveState, resolveStateDir, resolveRepoRoot, projectSlug, autoMemoryDir } = require('../hooks/lib');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -37,28 +36,6 @@ function repoSlug(repoRoot) {
   // verify-findings/<slug>.json would collide and refresh-rules could
   // consume findings from the wrong repo.
   return repoRoot.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/^_+/, '');
-}
-
-function claudeProjectSlug(repoRoot) {
-  // Encode matching Claude Code's own per-project dir convention under
-  // ~/.claude/projects/<slug>/. Empirically: every `/`, `\`, `.` AND `_`
-  // becomes `-`, leading `-` is kept. Examples:
-  //   /Users/alex/.claude        →  -Users-alex--claude
-  //   /Users/alex/dev/app        →  -Users-alex-dev-app
-  //   /Users/alex/dev/foo_bar    →  -Users-alex-dev-foo-bar
-  //   C:\Users\alex\dev\app      →  C--Users-alex-dev-app
-  // The `_` mapping is required: a path like `.../master_soft/...` lands in
-  // `.../master-soft/...` on disk, so omitting it makes the lookup miss.
-  // Backslash inclusion is required for Windows native paths returned by
-  // fs.realpathSync — without it, the slug would have no separators and
-  // the ~/.claude/projects/<slug>/ lookup would silently miss.
-  // Required for any caller that wants to read Claude Code's auto-memory
-  // or transcript dirs — those live under the dash-encoded slug, not the
-  // underscore-encoded repoSlug used for the plugin's own state files.
-  //
-  // Intentionally duplicated in hooks/lint-engine.js (same 1-line function).
-  // Keep both copies in sync — see the note over there.
-  return repoRoot.replace(/[/._\\]/g, '-');
 }
 
 function ensureDir(p) {
@@ -175,12 +152,9 @@ switch (cmd) {
     break;
   }
   case 'memory-path': {
-    // Use Claude Code's own dash-encoding so the returned path actually
-    // matches the dir where auto-memory is written. Earlier this used
-    // repoSlug (underscore + stripped leading), which never matched
-    // Claude Code's layout — callers got a phantom path.
-    const slug = claudeProjectSlug(resolveRepoRoot(process.cwd()));
-    process.stdout.write(path.join(os.homedir(), '.claude', 'projects', slug, 'memory') + '\n');
+    const memDir = autoMemoryDir(process.cwd());
+    if (memDir) process.stdout.write(memDir + '\n');
+    else process.stderr.write('Auto memory is off for this repo (autoMemoryEnabled or CLAUDE_CODE_DISABLE_AUTO_MEMORY).\n');
     break;
   }
   case 'record-promotion-check':
@@ -193,7 +167,7 @@ switch (cmd) {
     process.stdout.write(repoSlug(resolveRepoRoot(process.cwd())) + '\n');
     break;
   case 'claude-project-slug':
-    process.stdout.write(claudeProjectSlug(resolveRepoRoot(process.cwd())) + '\n');
+    process.stdout.write(projectSlug(resolveRepoRoot(process.cwd())) + '\n');
     break;
   default:
     process.stderr.write(

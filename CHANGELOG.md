@@ -16,12 +16,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   pointer to `@AGENTS.md` is written only on request.
 - `/mastersoft:init-rules` no longer suggests a `/schedule` routine for
   `/mastersoft:verify`: cloud routines don't load plugins.
-
 ### Added
 
 - `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps
   from loading, with the two ways to load it.
-
 ### Fixed
 
 - Lint signals count `AGENTS.md`, `.claude/CLAUDE.md` and `CLAUDE.local.md` as
@@ -29,7 +27,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   size, staleness and stale-reference checks also scan `AGENTS.md`. They follow
   the Project instructions setting and ignore `~/.claude/CLAUDE.md` at the home
   directory.
-
+- Claude Code paths follow Claude Code's rules. Project slugs turn every
+  non-alphanumeric character into `-`; the lint signals, `state.js`, the
+  statusline and its wrapper honor `CLAUDE_CONFIG_DIR` and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR`; auto memory comes from `autoMemoryDirectory` or
+  the main checkout's dir that every worktree shares. With auto memory off, the
+  memory signals stay quiet and `/mastersoft:promote-patterns` says so.
 ## [3.6.0] — 2026-09-24
 
 ### Added

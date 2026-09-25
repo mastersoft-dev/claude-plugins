@@ -32,10 +32,24 @@ function mkHome(files = {}) {
   return home;
 }
 
-function runWrapper(home) {
+function mkDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-wrapper-'));
+  tmpHomes.push(dir);
+  return dir;
+}
+
+function fakeStatusline(pluginsRoot, version, marker) {
+  const hooks = path.join(pluginsRoot, 'cache', 'mastersoft', 'mastersoft', version, 'hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  fs.writeFileSync(path.join(hooks, 'statusline.js'), `console.log(${JSON.stringify(marker)});\n`);
+}
+
+function runWrapper(home, extraEnv = {}) {
+  const env = { ...process.env, HOME: home, ...extraEnv };
+  for (const k of ['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_PLUGIN_CACHE_DIR']) if (!(k in extraEnv)) delete env[k];
   const result = cp.spawnSync(process.execPath, [WRAPPER], {
     input: '',
-    env: { ...process.env, HOME: home },
+    env,
     encoding: 'utf8',
     timeout: 5000,
   });
@@ -128,6 +142,31 @@ test('whitespace-only command is rejected', () => {
     'settings.json': JSON.stringify({ statusLine: { command: echo('SETTINGS') } }),
   });
   assertEq(runWrapper(home), 'SETTINGS');
+});
+
+console.log('\n4. config dir + plugin cache');
+
+test('CLAUDE_CONFIG_DIR settings.json is read instead of ~/.claude', () => {
+  const home = mkHome({ 'settings.json': JSON.stringify({ statusLine: { command: echo('HOME') } }) });
+  const config = mkDir();
+  fs.writeFileSync(path.join(config, 'settings.json'), JSON.stringify({ statusLine: { command: echo('CONFIG') } }));
+  assertEq(runWrapper(home, { CLAUDE_CONFIG_DIR: config }), 'CONFIG');
+});
+
+test('fallback statusline is found under CLAUDE_CONFIG_DIR/plugins', () => {
+  const home = mkHome();
+  const config = mkDir();
+  fakeStatusline(path.join(config, 'plugins'), '3.6.0', 'CONFIG_CACHE');
+  assertEq(runWrapper(home, { CLAUDE_CONFIG_DIR: config }), 'CONFIG_CACHE');
+});
+
+test('CLAUDE_CODE_PLUGIN_CACHE_DIR wins, and the highest version is picked', () => {
+  const home = mkHome();
+  fakeStatusline(path.join(home, '.claude', 'plugins'), '9.0.0', 'DEFAULT_CACHE');
+  const cache = mkDir();
+  fakeStatusline(cache, '3.9.0', 'OLD');
+  fakeStatusline(cache, '3.10.0', 'NEW');
+  assertEq(runWrapper(home, { CLAUDE_CODE_PLUGIN_CACHE_DIR: cache }), 'NEW');
 });
 
 // ─── summary ──────────────────────────────────────────────────────────────────

@@ -2,9 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { execFileSync } = require('child_process');
-const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot, projectRuleFiles } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot, projectRuleFiles, claudeConfigDir, autoMemoryDir } = require('./lib');
 const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
@@ -164,15 +163,6 @@ function findLockfile(repoRoot) {
 // under `metadata:`). We therefore exclude a `reference` by EITHER cue and
 // count everything else — keying off the filename prefix alone would miss the
 // slug-style entries the current convention writes.
-//
-// claudeProjectSlug is intentionally duplicated from scripts/state.js (same
-// 1-line function). Hooks run synchronously per-prompt; importing from scripts/
-// would add a require path resolution that's not worth the few bytes saved.
-// Keep both copies in sync — if one changes, change the other.
-function claudeProjectSlug(repoRoot) {
-  return repoRoot.replace(/[/._\\]/g, '-');
-}
-
 function isReferenceMemory(memDir, entry) {
   if (entry.startsWith('reference_')) return true;
   try {
@@ -180,9 +170,8 @@ function isReferenceMemory(memDir, entry) {
   } catch { return false; }
 }
 
-function countAutoMemoryPatterns(repoRoot) {
-  const slug = claudeProjectSlug(repoRoot);
-  const memDir = path.join(os.homedir(), '.claude', 'projects', slug, 'memory');
+function countAutoMemoryPatterns(memDir) {
+  if (!memDir) return { count: 0, dir: null };
   let entries;
   try { entries = fs.readdirSync(memDir); } catch { return { count: 0, dir: memDir }; }
   const candidates = entries.filter(e =>
@@ -315,7 +304,7 @@ function main() {
 
   // Skip the user's home ~/.claude/ dir — global rules live there with different
   // loading semantics (always loaded across projects) and our skills target repos.
-  const claudeHome = path.resolve(path.join(os.homedir(), '.claude'));
+  const claudeHome = path.resolve(claudeConfigDir());
   const resolvedRoot = path.resolve(repoRoot);
   if (resolvedRoot === claudeHome || resolvedRoot.startsWith(claudeHome + path.sep)) {
     process.exit(0);
@@ -330,6 +319,7 @@ function main() {
   // We only detect its presence to nudge migration (notice below).
   const briefPresent = fileExists(briefPath);
   const hasProjectRules = projectRules.present;
+  const memDir = autoMemoryDir(repoRoot);
 
   const state = loadState(STATE_FILE);
   const sessionState = state[sessionId] || {};
@@ -498,14 +488,13 @@ function main() {
     // forces a fresh scan; otherwise the cached findings are replayed.
     const headSha = isGitRepo ? (git(['rev-parse', 'HEAD'], repoRoot) || '') : 'nogit';
     const lockProbe = findLockfile(repoRoot);
-    const memDir = path.join(os.homedir(), '.claude', 'projects', claudeProjectSlug(repoRoot), 'memory');
     const sig = [
       headSha,
       ...projectRules.candidates.map(mtimeOf),
       ...importedRuleFiles.map(rf => mtimeOf(rf.path)),
       mtimeOf(rulesDir),
       lockProbe ? Math.floor(lockProbe.mtime) : 0,
-      mtimeOf(memDir),
+      memDir ? mtimeOf(memDir) : 0,
     ].join(':');
 
     let scanFindings;
@@ -536,7 +525,7 @@ function main() {
 
     // Timestamp-reactive signals — cheap (readdir/stat/math), computed fresh so
     // they clear the moment the relevant skill records a new timestamp.
-    const patterns = countAutoMemoryPatterns(repoRoot);
+    const patterns = countAutoMemoryPatterns(memDir);
     let memDirMtime = 0;
     try { memDirMtime = fs.statSync(patterns.dir).mtimeMs; } catch {}
     let promoteSignaled = false;
