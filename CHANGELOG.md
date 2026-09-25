@@ -211,6 +211,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   cut-down event with `--summary`: the `curl` call with the token read by `$(…)`
   from `~/.sentryclirc` asked for approval every time, and a headless run never
   reached the stack trace.
+- `/mastersoft:audit-deps` bounds each audit with the Bash tool's timeout instead
+  of a `timeout 120` prefix, which macOS lacks and which took the command outside
+  the skill's pre-approved rules.
 
 ## [3.7.0] — 2026-09-25
 
