@@ -97,6 +97,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The protected-branch push check also covers the PowerShell tool, the only shell
   tool on Windows without Git Bash, including `Set-Location` before a push and a
   push inside `pwsh -Command`.
+- Sessions forked with `--fork-session`, `/fork` or `/branch` get the org rules at
+  start: Claude Code reports them as `fork` rather than `resume` since 2.1.214.
 
 ## [3.7.0] — 2026-09-25
 

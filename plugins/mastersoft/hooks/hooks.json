@@ -1,5 +1,5 @@
 {
-  "description": "Mastersoft shared hooks: statusline install on SessionStart(startup|resume); inject-session (org-rule tiers 1/2) on SessionStart(startup|resume|clear|compact); reset-session-state on SessionStart(clear) and PostCompact; lint-engine + inject-turn (org-rule tier 3) on UserPromptSubmit; suggest-push on PreToolUse(Bash|PowerShell); inject-org-rules on SubagentStart (org policy into plugin agents).",
+  "description": "Mastersoft shared hooks: statusline install on SessionStart(startup|resume); inject-session (org-rule tiers 1/2) on SessionStart(startup|resume|clear|compact|fork); reset-session-state on SessionStart(clear) and PostCompact; lint-engine + inject-turn (org-rule tier 3) on UserPromptSubmit; suggest-push on PreToolUse(Bash|PowerShell); inject-org-rules on SubagentStart (org policy into plugin agents).",
   "hooks": {
     "SubagentStart": [
       {
@@ -16,7 +16,7 @@
         ]
       },
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/inject-session.js\"" }
         ]
