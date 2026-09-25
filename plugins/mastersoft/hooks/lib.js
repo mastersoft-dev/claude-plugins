@@ -10,6 +10,7 @@ const CLAUDE_RULE_FILES = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md'), 'CLAU
 const AGENTS_RULE_FILES = ['AGENTS.md', path.join('.claude', 'AGENTS.md')];
 const PROJECT_SLUG_MAX = 200;
 const PROJECT_DIR_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const WINDOWS_DEVICE_NAME_RE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 const GIT_TIMEOUT_MS = 3000;
 
 // Single source of truth for the plugin's state dir. Resolved identically in
@@ -88,21 +89,23 @@ function projectSlug(dir) {
  * <config>/projects/<project> for a directory, where Claude Code keeps its
  * transcripts and auto memory. CLAUDE_CODE_PROJECT_DIR_NAME replaces the
  * derived name when CLAUDE_CONFIG_DIR is also set. A derived name over 200
- * characters is truncated with an undocumented hash, so it resolves to the
- * existing directory that shares its first 200 characters, or null.
+ * characters is truncated with an undocumented hash, so it resolves to the one
+ * existing directory that shares its first 200 characters; null when none or
+ * several do, because the hash can't tell them apart.
  */
 function projectDataDir(dir) {
   const root = path.join(claudeConfigDir(), 'projects');
   const pinned = (process.env.CLAUDE_CODE_PROJECT_DIR_NAME || '').trim();
-  if (pinned && (process.env.CLAUDE_CONFIG_DIR || '').trim() && PROJECT_DIR_NAME_RE.test(pinned)) {
+  if (pinned && (process.env.CLAUDE_CONFIG_DIR || '').trim()
+    && PROJECT_DIR_NAME_RE.test(pinned) && !WINDOWS_DEVICE_NAME_RE.test(pinned)) {
     return path.join(root, pinned);
   }
   const slug = projectSlug(dir);
   if (slug.length <= PROJECT_SLUG_MAX) return path.join(root, slug);
   const prefix = slug.slice(0, PROJECT_SLUG_MAX);
   try {
-    const hit = fs.readdirSync(root).find(name => name.startsWith(prefix));
-    return hit ? path.join(root, hit) : null;
+    const hits = fs.readdirSync(root).filter(name => name.startsWith(prefix));
+    return hits.length === 1 ? path.join(root, hits[0]) : null;
   } catch { return null; }
 }
 

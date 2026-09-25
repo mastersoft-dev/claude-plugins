@@ -54,6 +54,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   paths with spaces or other punctuation.
 - `/mastersoft:recall` no longer lists set-aside `.orphaned-…` transcripts as extra
   sessions.
+- A project path whose name is past 200 characters resolves to its hashed dir
+  only when exactly one matches, instead of the first one found;
+  `state.js claude-project-slug` prints that hashed name.
 
 ## [3.6.0] — 2026-09-24
 

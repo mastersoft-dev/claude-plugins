@@ -19,11 +19,11 @@
 //   memory-path                   — print Claude Code auto-memory dir for current repo (nothing when it's off)
 //   repo-root                     — print canonicalized repo root for current cwd
 //   slug                          — print plugin-internal repo slug (underscore-encoded)
-//   claude-project-slug           — print Claude Code's per-project slug (dash-encoded)
+//   claude-project-slug           — print Claude Code's per-project dir name (dash-encoded, hashed past 200 chars)
 
 const fs = require('fs');
 const path = require('path');
-const { loadState, saveState, resolveStateDir, resolveRepoRoot, projectSlug, autoMemoryDir } = require('../hooks/lib');
+const { loadState, saveState, resolveStateDir, resolveRepoRoot, projectDataDir, autoMemoryDir } = require('../hooks/lib');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -154,7 +154,7 @@ switch (cmd) {
   case 'memory-path': {
     const memDir = autoMemoryDir(process.cwd());
     if (memDir) process.stdout.write(memDir + '\n');
-    else process.stderr.write('Auto memory is off for this repo (autoMemoryEnabled or CLAUDE_CODE_DISABLE_AUTO_MEMORY).\n');
+    else process.stderr.write('No auto-memory dir for this repo: auto memory is off (autoMemoryEnabled or CLAUDE_CODE_DISABLE_AUTO_MEMORY), or its project dir name is past 200 characters and not unique on disk.\n');
     break;
   }
   case 'record-promotion-check':
@@ -166,9 +166,15 @@ switch (cmd) {
   case 'slug':
     process.stdout.write(repoSlug(resolveRepoRoot(process.cwd())) + '\n');
     break;
-  case 'claude-project-slug':
-    process.stdout.write(projectSlug(resolveRepoRoot(process.cwd())) + '\n');
+  case 'claude-project-slug': {
+    const dataDir = projectDataDir(resolveRepoRoot(process.cwd()));
+    if (!dataDir) {
+      process.stderr.write('The project dir name is past 200 characters and no unique match exists under projects/.\n');
+      process.exit(1);
+    }
+    process.stdout.write(path.basename(dataDir) + '\n');
     break;
+  }
   default:
     process.stderr.write(
       'Usage: state.js {record-refresh|record-verify|record-audit|record-promotion-check|ack-lints {defer|suppress|clear} [categories...]|write-findings|state-path|findings-path [slug]|memory-path|repo-root|slug|claude-project-slug}\n',

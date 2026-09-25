@@ -143,6 +143,8 @@ test('slug over 200 chars resolves to the hashed dir on disk, or null', () => {
     const hashed = slug.slice(0, 200) + '-1a2b3c';
     fs.mkdirSync(path.join(config, 'projects', hashed), { recursive: true });
     assertEq(lib.projectDataDir(long), path.join(config, 'projects', hashed));
+    fs.mkdirSync(path.join(config, 'projects', slug.slice(0, 200) + '-4d5e6f'), { recursive: true });
+    assertEq(lib.projectDataDir(long), null, 'two dirs share the prefix');
   });
 });
 
@@ -157,6 +159,9 @@ test('CLAUDE_CODE_PROJECT_DIR_NAME applies only with CLAUDE_CONFIG_DIR and a val
   });
   withEnv({ HOME: home, CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_PROJECT_DIR_NAME: '../escape' }, () => {
     assertEq(lib.projectDataDir('/x/y'), path.join(config, 'projects', '-x-y'), 'invalid name ignored');
+  });
+  withEnv({ HOME: home, CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_PROJECT_DIR_NAME: 'CON' }, () => {
+    assertEq(lib.projectDataDir('/x/y'), path.join(config, 'projects', '-x-y'), 'Windows device name ignored');
   });
 });
 
@@ -225,7 +230,20 @@ test('state.js memory-path prints the dir, or nothing when auto memory is off', 
   const off = run(STATE, ['memory-path'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } });
   assertEq(off.code, 0);
   assertEq(off.stdout.trim(), '');
-  assertIncludes(off.stderr, 'Auto memory is off');
+  assertIncludes(off.stderr, 'auto memory is off');
+});
+
+test('state.js claude-project-slug resolves long paths to the hashed dir', () => {
+  const long = path.join(mkTmp(), 'd'.repeat(90), 'e'.repeat(90), 'repo');
+  const repo = mkRepo(long);
+  const config = mkTmp();
+  const slug = lib.projectSlug(repo);
+  const hashed = slug.slice(0, 200) + '-9f8e7d';
+  fs.mkdirSync(path.join(config, 'projects', hashed), { recursive: true });
+  const ok = run(STATE, ['claude-project-slug'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } });
+  assertEq(ok.stdout.trim(), hashed);
+  fs.mkdirSync(path.join(config, 'projects', slug.slice(0, 200) + '-000000'), { recursive: true });
+  assertEq(run(STATE, ['claude-project-slug'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } }).code, 1, 'ambiguous prefix fails');
 });
 
 console.log('\n3. recall — which transcripts count as the current project');
