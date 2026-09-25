@@ -348,12 +348,21 @@ function getTerminalWidth() {
     const cols = parseInt(process.env.CLAUDE_STATUSLINE_COLS, 10);
     if (cols > 0) return cols;
   }
-  // Inside tmux, /dev/tty + `stty size` report the whole window, not this
-  // pane — in a split layout that over-packs the line and the pane hard-wraps
-  // mid-segment. Ask tmux for the actual pane width first, pinned to this
-  // process's pane ($TMUX_PANE) so a focus change can't report another pane.
-  // Gated on $TMUX: outside tmux, `display-message` would read an unrelated
-  // session's active pane from the running server.
+  // Claude Code sets COLUMNS to the current terminal width before running the
+  // statusline script — the documented way to read terminal size here, since
+  // stdout is captured and tput/tty width detection can't see the real
+  // terminal. Authoritative and refreshed on every render, so prefer it over
+  // the heuristics below.
+  if (process.env.COLUMNS) {
+    const cols = parseInt(process.env.COLUMNS, 10);
+    if (cols > 0) return cols;
+  }
+  // Without COLUMNS, inside tmux /dev/tty + `stty size` report the whole
+  // window, not this pane — in a split layout that over-packs the line and the
+  // pane hard-wraps mid-segment. Ask tmux for the actual pane width, pinned to
+  // this process's pane ($TMUX_PANE) so a focus change can't report another
+  // pane. Gated on $TMUX: outside tmux, `display-message` would read an
+  // unrelated session's active pane from the running server.
   if (process.env.TMUX) {
     try {
       const args = ['display-message', '-p'];
@@ -366,6 +375,8 @@ function getTerminalWidth() {
       if (cols > 0) return cols;
     } catch { /* tmux unavailable or no server */ }
   }
+  // Residual heuristics for setups where neither of the above applies (e.g.
+  // COLUMNS unset on an older Claude Code version).
   try {
     const ttyFd = fs.openSync('/dev/tty', 'r');
     try {
@@ -385,10 +396,6 @@ function getTerminalWidth() {
   // so these reflect the terminal when Claude leaves them attached.
   if (process.stdout && process.stdout.columns) return process.stdout.columns;
   if (process.stderr && process.stderr.columns) return process.stderr.columns;
-  if (process.env.COLUMNS) {
-    const cols = parseInt(process.env.COLUMNS, 10);
-    if (cols > 0) return cols;
-  }
   // Width genuinely unknown. Return null so the caller does NOT self-wrap at an
   // arbitrary guess — it emits a single line and lets the host terminal wrap at
   // its true width. Set CLAUDE_STATUSLINE_COLS to force a fixed wrap width.
@@ -564,7 +571,8 @@ function buildContext(data) {
       if (gitComputed) return gitCached;
       gitComputed = true;
       if (isGitRepo(cwd)) {
-        gitCached = { repo: getRepoName(cwd), status: parseGitStatus(cwd) };
+        const repoName = (data.workspace && data.workspace.repo && data.workspace.repo.name) || getRepoName(cwd);
+        gitCached = { repo: repoName, status: parseGitStatus(cwd) };
       } else {
         gitCached = null;
       }
@@ -577,20 +585,6 @@ function buildContext(data) {
       return contextCached;
     },
   };
-}
-
-// Claude Code passes the usable render width in the statusline input on recent
-// versions (the subagentStatusLine input documents `columns`). Prefer it: it is
-// authoritative AND refreshes on every render, including terminal resize — so
-// the layout tracks width changes immediately, with no tty needed.
-function readJsonWidth(data) {
-  if (!data) return null;
-  const raw = data.columns
-    ?? (data.terminal && data.terminal.width)
-    ?? data.terminal_width
-    ?? (data.workspace && data.workspace.columns);
-  const n = parseInt(raw, 10);
-  return n > 0 ? n : null;
 }
 
 async function main() {
@@ -629,7 +623,7 @@ async function main() {
   }
 
   const SEP = '  ';
-  const termWidth = readJsonWidth(data) ?? getTerminalWidth();
+  const termWidth = getTerminalWidth();
   const sepLen = SEP.length;
   const lines = [];
   let currentLine = '';

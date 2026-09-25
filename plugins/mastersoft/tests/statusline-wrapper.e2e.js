@@ -307,6 +307,67 @@ test('old sessions are trimmed once more than the cap accumulate', () => {
   assertEq(out, JSON.stringify({ first: null, last: 59 }));
 });
 
+console.log('\n8. statusline.js — getTerminalWidth ordering (F30)');
+
+test('readJsonWidth (undocumented for the main statusline) is removed', () => {
+  if (statuslineSrc.includes('readJsonWidth')) throw new Error('statusline.js still references readJsonWidth');
+});
+
+// getTerminalWidth() has no injectable clock/env seam and its tmux/tty
+// subprocess heuristics aren't reliably mockable in a sandboxed test runner
+// (a fake `tmux` on PATH doesn't always execute), so the ordering itself is
+// asserted on the source: COLUMNS — the value Claude Code documents setting
+// for the statusline script — must be read before the tmux pane-width
+// correction, which in turn must come before the remaining tty heuristics.
+test('COLUMNS is checked before the tmux and tty heuristics', () => {
+  const idxCols = statuslineSrc.indexOf('CLAUDE_STATUSLINE_COLS');
+  const idxColumns = statuslineSrc.indexOf('process.env.COLUMNS');
+  const idxTmux = statuslineSrc.indexOf('process.env.TMUX');
+  const idxStty = statuslineSrc.indexOf("execFileSync('stty', ['size']");
+  if ([idxCols, idxColumns, idxTmux, idxStty].some((i) => i === -1)) {
+    throw new Error('expected CLAUDE_STATUSLINE_COLS, COLUMNS, TMUX and stty checks in getTerminalWidth');
+  }
+  if (!(idxCols < idxColumns && idxColumns < idxTmux && idxTmux < idxStty)) {
+    throw new Error(`expected order CLAUDE_STATUSLINE_COLS < COLUMNS < TMUX < stty, got indices ${idxCols}, ${idxColumns}, ${idxTmux}, ${idxStty}`);
+  }
+});
+
+console.log('\n9. statusline.js — workspace.repo.name preferred over git remote (F30)');
+
+function initGitRepo(remoteUrl) {
+  const dir = mkDir();
+  cp.execFileSync('git', ['init', '-q'], { cwd: dir });
+  cp.execFileSync('git', ['remote', 'add', 'origin', remoteUrl], { cwd: dir });
+  return dir;
+}
+
+function runStatuslineRepo(cwd, workspaceExtra) {
+  const stateDir = mkDir();
+  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_STATUSLINE_SEGMENTS: 'repo' };
+  const input = { session_id: 'repo-test', workspace: { current_dir: cwd, ...workspaceExtra } };
+  const result = cp.spawnSync(process.execPath, [STATUSLINE], {
+    input: JSON.stringify(input),
+    env,
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  if (result.error) throw result.error;
+  return (result.stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+}
+
+test('workspace.repo.name from the input wins over the git remote name', () => {
+  const dir = initGitRepo('https://example.com/foo/real-repo.git');
+  const out = runStatuslineRepo(dir, { repo: { name: 'override-name' } });
+  if (!out.includes('override-name')) throw new Error(`expected override-name in [${out}]`);
+  if (out.includes('real-repo')) throw new Error(`unexpectedly used the git remote name in [${out}]`);
+});
+
+test('falls back to the git remote name when workspace.repo is absent', () => {
+  const dir = initGitRepo('https://example.com/foo/real-repo.git');
+  const out = runStatuslineRepo(dir, undefined);
+  if (!out.includes('real-repo')) throw new Error(`expected real-repo in [${out}]`);
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpHomes.forEach(h => { try { fs.rmSync(h, { recursive: true, force: true }); } catch {} });

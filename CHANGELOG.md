@@ -89,6 +89,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `ORG_RULES.md` says why the org rules ride on hooks rather than the managed
   `claudeMd` key: Explore, Plan and agents with `omitClaudeMd` skip CLAUDE.md
   content.
+- The statusline takes its width from `COLUMNS`, which Claude Code sets to the
+  pane or terminal width, before the tmux and tty heuristics; takes the repo name
+  from `workspace.repo.name` instead of running git; and `install-statusline.sh`
+  sets a 30-second `refreshInterval` so the line updates while the session is
+  idle.
 
 ### Removed
 
