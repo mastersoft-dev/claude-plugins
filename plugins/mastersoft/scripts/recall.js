@@ -28,6 +28,8 @@ const { gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, projectDataD
 
 const SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
 const CWD_PROBE_BYTES = 65536;
+const CLI_TIMEOUT_MS = 3000;
+const DRIFT_SAMPLE = 3;
 
 function projectsRoot() {
   return path.join(claudeConfigDir(), 'projects');
@@ -223,14 +225,41 @@ function sessionFiles(dir) {
     .map((f) => ({ id: f.slice(0, -6), file: path.join(dir, f) }));
 }
 
+// The transcript format is internal to Claude Code and changes between
+// releases. A session closed before its first prompt also has no user or
+// assistant record, so only the newest transcripts all lacking them point to a
+// parser that no longer matches the format.
+const scanned = [];
+
+function noteDrift(file, conversational) {
+  try {
+    const st = fs.statSync(file);
+    if (st.size > 0) scanned.push({ mtime: st.mtimeMs, conversational });
+  } catch {}
+}
+
+function reportDrift() {
+  const newest = scanned.sort((a, b) => b.mtime - a.mtime).slice(0, DRIFT_SAMPLE);
+  if (newest.length < DRIFT_SAMPLE || newest.some((s) => s.conversational)) return;
+  let version = 'unknown version';
+  try {
+    version = execFileSync('claude', ['--version'], { encoding: 'utf8', timeout: CLI_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {}
+  process.stderr.write(`recall.js: the ${DRIFT_SAMPLE} most recent transcripts have no user or assistant records; ` +
+    `the transcript format may have changed (${version}), so results may be incomplete. ` +
+    `Update the mastersoft plugin, or report it if you're on the latest.\n`);
+}
+
 async function readMeta(sf) {
   const m = {
     id: sf.id, file: sf.file, title: null, lastPrompt: null,
     firstUser: null, summary: null, branch: null,
     firstTs: null, lastTs: null, turns: 0,
   };
+  let conversational = false;
   await eachLine(sf.file, (o) => {
     const t = o.type;
+    if (t === 'user' || t === 'assistant') conversational = true;
     if (t === 'ai-title' && o.aiTitle) m.title = o.aiTitle;
     else if (t === 'agent-name' && o.agentName && !m.title) m.title = o.agentName;
     else if (t === 'last-prompt' && o.lastPrompt) m.lastPrompt = o.lastPrompt;
@@ -242,6 +271,7 @@ async function readMeta(sf) {
       if (txt) { m.turns++; if (!m.firstUser && !isCommandNoise(txt)) m.firstUser = txt; }
     }
   });
+  noteDrift(sf.file, conversational);
   if (!m.lastTs) {
     try { m.lastTs = fs.statSync(sf.file).mtime.toISOString(); } catch {}
   }
@@ -324,8 +354,10 @@ async function cmdSearch(query, projectArg, allProjects, limit, perSession) {
     for (const sf of sessionFiles(d.dir)) {
       let title = null, lastTs = null, branch = null, total = 0;
       const excerpts = [];
+      let conversational = false;
       await eachLine(sf.file, (o) => {
         const t = o.type;
+        if (t === 'user' || t === 'assistant') conversational = true;
         if (t === 'ai-title' && o.aiTitle) title = o.aiTitle;
         else if (t === 'agent-name' && o.agentName && !title) title = o.agentName;
         if (o.timestamp) lastTs = o.timestamp;
@@ -341,6 +373,7 @@ async function cmdSearch(query, projectArg, allProjects, limit, perSession) {
           }
         }
       });
+      noteDrift(sf.file, conversational);
       if (excerpts.length) results.push({ label: d.label, id: sf.id, title, lastTs, branch, total, excerpts });
     }
   }
@@ -501,4 +534,5 @@ const USAGE =
   } catch (e) {
     fail(`recall.js ${cmd} failed: ${e && e.message ? e.message : e}`);
   }
+  reportDrift();
 })();

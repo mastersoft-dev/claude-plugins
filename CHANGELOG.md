@@ -20,6 +20,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 - `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps
   from loading, with the two ways to load it.
+- `/mastersoft:recall` warns when the newest transcripts have no records it can
+  read, since the transcript format is internal to Claude Code and can change.
+
 ### Fixed
 
 - `/mastersoft:help` prints the reference card directly instead of failing
