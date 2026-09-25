@@ -1,7 +1,8 @@
 # Credential-free checks on every merge request and branch push: the plugin
 # and marketplace manifests (`claude plugin validate` is static and needs no
 # login) and the test suites, which run without a device or network. The
-# Android daemon tests mock every adb call but still look the binary up.
+# Android daemon tests mock every adb call but still look the binary up, and
+# the install-statusline.sh tests patch settings.json with jq.
 
 workflow:
   rules:
@@ -18,7 +19,7 @@ plugin:
   image: node:24-bookworm
   interruptible: true
   script:
-    - apt-get update -qq && apt-get install -y -qq --no-install-recommends adb > /dev/null
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends adb jq > /dev/null
     - npm install --global --no-fund --no-audit @anthropic-ai/claude-code
     - claude --version
     - claude plugin validate --strict .
