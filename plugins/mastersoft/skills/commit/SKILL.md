@@ -12,9 +12,9 @@ Task: Create commits for $ARGUMENTS
 ## Context
 
 - Current git status: !`git status`
-- Current git diff (staged and unstaged changes): !`git diff HEAD`
+- Current git diff (staged and unstaged changes): !`git diff HEAD 2>/dev/null || git diff --cached`
 - Current branch: !`git branch --show-current`
-- Recent commits: !`git log --oneline -10`
+- Recent commits: !`git log --oneline -10 2>/dev/null || echo "none yet"`
 
 ## Guidelines
 

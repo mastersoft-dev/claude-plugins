@@ -69,6 +69,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   rules, such as `PowerShell(git *)`: a bare `PowerShell` approved every command
   on Windows. `/mastersoft:adversary` no longer pre-approves PowerShell, which it
   doesn't use.
+- `/mastersoft:commit` works in a repository with no commits yet: `git diff HEAD`
+  and `git log` failed there and aborted the skill before it loaded.
 
 ## [3.7.0] — 2026-09-25
 
