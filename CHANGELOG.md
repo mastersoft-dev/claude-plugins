@@ -29,8 +29,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Fixed
 
-- `/mastersoft:help` prints the reference card directly instead of failing
-  and searching the plugin cache for it.
+- `/mastersoft:help` prints the reference card in every permission mode instead
+  of failing and searching the plugin cache for it.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds
