@@ -199,6 +199,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The context usage that the statusline shares with the mid-session tier-2
   re-injection is kept per session, so two sessions on one machine no longer read
   each other's percentage.
+- The protected-branch push confirmation names every place the branch list can
+  come from, the `MASTERSOFT_PUSH_PROTECTED_BRANCHES` env var, the
+  `push_protected_branches` plugin option or `ORG_RULES.md`, instead of citing
+  only `ORG_RULES.md`.
 
 ## [3.7.0] — 2026-09-25
 

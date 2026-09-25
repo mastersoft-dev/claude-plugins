@@ -294,7 +294,7 @@ function main() {
 
   const reason = [
     `Confirm push to protected branch \`${decision.branch}\`?`,
-    'Mastersoft org rule: pushes to protected branches (push_protected_branches in ORG_RULES.md) need confirmation; MASTERSOFT_SKIP_PUSH_CHECK=1 skips it.',
+    'Mastersoft org rule: pushes to protected branches need confirmation. The list comes from MASTERSOFT_PUSH_PROTECTED_BRANCHES, the plugin option push_protected_branches or ORG_RULES.md; MASTERSOFT_SKIP_PUSH_CHECK=1 skips the check.',
   ].join(' ');
 
   process.stdout.write(JSON.stringify({
