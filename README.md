@@ -17,11 +17,20 @@ over the default. Delete the file to revert.
 
 ### External users
 
-```bash
-/plugin marketplace add https://github.com/mastersoft-dev/claude-plugins.git
-/plugin install mastersoft@mastersoft
-/reload-plugins
+In a Claude Code session (v2.1.275 or later), add the marketplace and install in one command:
+
+```text
+/plugin install mastersoft --marketplace mastersoft-dev/claude-plugins
 ```
+
+Or from your shell:
+
+```bash
+claude plugin marketplace add mastersoft-dev/claude-plugins
+claude plugin install mastersoft@mastersoft
+```
+
+The in-session install activates the plugin when it finishes (before Claude Code v2.1.268, run `/reload-plugins` as well). A shell install takes effect in the next session, or after `/reload-plugins` in one that is already running.
 
 Or declarative, in `~/.claude/settings.json`:
 

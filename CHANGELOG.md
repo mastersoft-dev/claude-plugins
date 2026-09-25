@@ -45,6 +45,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The marketplace entry no longer repeats the plugin version: `plugin.json` is the
   one place to bump it. Claude Code reads `plugin.json` first and `claude plugin
   validate` flags a second, different value.
+- The README installs the plugin in one command, `/plugin install mastersoft
+  --marketplace mastersoft-dev/claude-plugins` (Claude Code 2.1.275+), or with the
+  two `claude plugin` shell commands, and says when `/reload-plugins` is still
+  needed.
 
 ### Removed
 
