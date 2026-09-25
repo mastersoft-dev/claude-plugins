@@ -31,7 +31,8 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 ## Procedure
 
 1. **Inventory rule files** (skip silently if none):
-   - `<root>/CLAUDE.md` and `<root>/.claude/CLAUDE.md`, or `<root>/AGENTS.md` and `<root>/.claude/AGENTS.md` when neither CLAUDE.md exists; all `<root>/.claude/rules/**/*.md` (recursive).
+   - The files `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js rule-files` prints from `<root>`: the project rule files Claude Code loads at launch under the current Project instructions mode (both CLAUDE.md and AGENTS.md with `claude-md-and-agents-md`). Add all `<root>/.claude/rules/**/*.md` (recursive).
+   - It prints nothing under `managed-only`, where Claude Code loads no project rules (`state.js agents-md-mode` confirms): report that and stop.
    - Follow `@path.md` import chains recursively — lint-engine follows them, so must you.
 
 2. **Inventory codebase signal**:
@@ -117,7 +118,7 @@ If zero findings: print `No issues detected.` then a `json` block of `{ "finding
 
 ## Hard rules
 
-- **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`). Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
+- **Read-only.** Never `Edit`/`Write`. Via `Bash`, use ONLY inspection commands (`git status`/`log`/`show`/`ls-files`/`rev-parse`, `grep`/`rg`, `node ...state.js memory-path`/`rule-files`/`agents-md-mode`). Never run a mutating command — no `git add`/`commit`/`checkout`/`stash`, no redirects/`tee`/`sed -i`, no file creation. Never run the apply path — that is the skill's job.
 - **Evidence or silence.** A finding without a file/line or a reproducible command is not a finding.
 - **Confidence tiers.** File/line contradiction = high. Re-derived count mismatch = medium. Auto-memory pattern or placement nit = low/advisory.
 - **Cost ceiling.** You are Sonnet and rare-fire. Do not chain other agents or skills.

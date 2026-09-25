@@ -35,7 +35,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 
    - The agent is read-only — it returns findings, it does not edit. Capture its findings table.
 
-3. **Read live rule files** named in the findings (always, since the user may have edited since the audit ran): `<root>/CLAUDE.md` (or `<root>/AGENTS.md` when there is no `CLAUDE.md`), the relevant `<root>/.claude/rules/**/*.md`, and any `@path.md` imports.
+3. **Read live rule files** named in the findings (always, since the user may have edited since the audit ran): the files `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js rule-files` prints (the ones Claude Code loads under the current Project instructions mode), the relevant `<root>/.claude/rules/**/*.md`, and any `@path.md` imports.
 
 4. **Group proposed changes** into the categories below. For each non-empty group with **high or medium-severity** findings, propose changes via `AskUserQuestion` with three options — **Apply** / **Skip** / **Edit manually** (print the diff for the user). Auto-act on the answer immediately. **Batch all low-severity / advisory findings across groups into a single multi-select `AskUserQuestion`** ("Apply these N low-severity nits?" with one checkbox per finding, each labeled `<group>: <one-line summary>`). This cuts round-trips on long runs without losing per-finding gating. Never bulk-batch high/medium findings — those still get per-section questions ("apply all 12?" is the failure mode to avoid here).
 
