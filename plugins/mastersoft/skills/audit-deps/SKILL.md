@@ -36,7 +36,7 @@ Runs the right native dependency audit tool for the detected stack. Read-only by
 
 3. **Tool availability** — POSIX shells: `command -v <tool>`; Windows PowerShell: `Get-Command <tool> -ErrorAction SilentlyContinue` or `where.exe <tool>`. If missing, print a one-line install hint (`brew install …`, `npm i -g …`, `cargo install cargo-audit`, `choco install …`, `winget install …`) and skip that stack with status `skipped (tool missing)`. Cross-platform: pick whichever check the active shell supports. Poetry ≥ 2 ships without `export`: if `poetry export --help` exits non-zero, treat it as a missing tool with the hint `poetry self add poetry-plugin-export`. When `yarn --version` disagrees with the `.yarnrc.yml` marker (major 1 vs ≥ 2), trust `yarn --version`.
 
-4. **Run the audit** — for each detected stack, invoke its command. Capture exit code and JSON output. Set a reasonable timeout per call (`timeout 120` if available; otherwise rely on Bash tool timeout).
+4. **Run the audit** — for each detected stack, invoke its command. Capture exit code and JSON output. Give each call a Bash tool `timeout` of 120000 ms and start the command itself (`npm audit --json`), so it matches the pre-approved rules; a `timeout 120` prefix is missing on macOS and falls outside them.
 
 5. **Parse + summarize**:
    - Count vulnerabilities by severity (low / moderate / high / critical).

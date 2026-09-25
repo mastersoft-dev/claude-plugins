@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-09-25
+
 ### Added
 
 - `/mastersoft:glab`'s MR review flow names `claude --worktree <MR URL>` and
@@ -144,8 +146,6 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   doesn't use.
 - `/mastersoft:commit` works in a repository with no commits yet: `git diff HEAD`
   and `git log` failed there and aborted the skill before it loaded.
-- `/mastersoft:sentry` reads the `.sentryclirc` token in the same Bash call as the
-  API request, since an `export` doesn't reach the next call.
 - `/mastersoft:ask`, `audit`, `adversary` and `help` no longer switch the session
   to their own model and effort for the rest of the turn: the model they meant is
   already set on the agent they start.
@@ -197,6 +197,23 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The context usage that the statusline shares with the mid-session tier-2
   re-injection is kept per session, so two sessions on one machine no longer read
   each other's percentage.
+- The protected-branch push confirmation names every place the branch list can
+  come from, the `MASTERSOFT_PUSH_PROTECTED_BRANCHES` env var, the
+  `push_protected_branches` plugin option or `ORG_RULES.md`, instead of citing
+  only `ORG_RULES.md`.
+- `security-auditor`, `tech-writer`, `qa-specialist` and `system-architect` carry
+  their reference material in their own definition instead of reading
+  `agent-refs/` files, which sit outside the working directory: each read asked
+  for approval in default mode, and in a headless run the agents worked without
+  them.
+- `/mastersoft:sentry` fetches the latest event through `scripts/sentry-api.js`,
+  which reads the host and token like `sentry-cli`, is pre-approved and prints a
+  cut-down event with `--summary`: the `curl` call with the token read by `$(…)`
+  from `~/.sentryclirc` asked for approval every time, and a headless run never
+  reached the stack trace.
+- `/mastersoft:audit-deps` bounds each audit with the Bash tool's timeout instead
+  of a `timeout 120` prefix, which macOS lacks and which took the command outside
+  the skill's pre-approved rules.
 
 ## [3.7.0] — 2026-09-25
 
