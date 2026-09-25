@@ -91,6 +91,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   approval on `cd <dir> && git` and `git -C <dir>`, and the findings describe JSON
   content in words, as the permission check refuses a heredoc with a `{` followed
   by a quote.
+- The protected-branch push check stops waiting for git after 3 seconds and asks
+  for confirmation: a git call that hung ran the hook into its timeout, and Claude
+  Code runs the command when a PreToolUse hook times out.
 
 ## [3.7.0] — 2026-09-25
 

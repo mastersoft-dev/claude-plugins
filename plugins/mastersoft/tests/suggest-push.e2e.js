@@ -47,7 +47,7 @@ function checkout(work, branch, upstream) {
   }
 }
 
-function runHook(cwd, command, env = {}) {
+function runHook(cwd, command, env = {}, { timeout = HOOK_TIMEOUT_MS } = {}) {
   const base = { ...process.env };
   delete base.MASTERSOFT_SKIP_PUSH_CHECK;
   delete base.MASTERSOFT_PUSH_PROTECTED_BRANCHES;
@@ -56,7 +56,7 @@ function runHook(cwd, command, env = {}) {
     input: JSON.stringify({ tool_name: 'Bash', cwd, tool_input: { command } }),
     env: { ...base, ...env },
     encoding: 'utf8',
-    timeout: HOOK_TIMEOUT_MS,
+    timeout,
   });
   if (result.error) throw result.error;
   const out = (result.stdout || '').trim();
@@ -275,6 +275,15 @@ test('"*" restores confirmation on every branch', () => {
 
 test('MASTERSOFT_SKIP_PUSH_CHECK=1 disables the check', () => {
   assertEq(runHook(onMain, 'git push', { MASTERSOFT_SKIP_PUSH_CHECK: '1' }), 'pass');
+});
+
+test('git that never answers asks instead of stalling the gate', () => {
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-push-bin-'));
+  tmpDirs.push(bin);
+  fs.writeFileSync(path.join(bin, 'git'), '#!/bin/sh\nexec sleep 30\n', { mode: 0o755 });
+  const started = Date.now();
+  assertEq(runHook(onFeature, 'git push', { PATH: `${bin}:${process.env.PATH}` }, { timeout: 15000 }), 'ask');
+  if (Date.now() - started > 10000) throw new Error('hook took longer than 10s');
 });
 
 // ─── summary ──────────────────────────────────────────────────────────────────

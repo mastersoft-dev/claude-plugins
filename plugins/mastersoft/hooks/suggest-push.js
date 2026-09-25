@@ -5,14 +5,14 @@
 // Covers `git push` (any refspec form, chained commands, `git -C <dir>`) and
 // the push `glab mr create --fill` / `--push` performs on its source branch.
 // When the destination can't be read reliably (cd / checkout / switch earlier
-// in the same command, shell expansions, wildcards, nested shells) it asks.
+// in the same command, shell expansions, wildcards, nested shells, git not
+// answering) it asks.
 // Protected set: `push_protected_branches` in ORG_RULES.md (env
 // MASTERSOFT_PUSH_PROTECTED_BRANCHES), comma-separated; `name/*` matches a
 // prefix, `*` matches every branch.
 
 const path = require('path');
-const { execFileSync } = require('child_process');
-const { readStdinJson } = require('./lib');
+const { readStdinJson, runGit: git } = require('./lib');
 const { cfg } = require('./lib-org-rules');
 
 const DEFAULT_PROTECTED_BRANCHES = 'main,master,develop,dev,staging,production,release/*';
@@ -36,14 +36,6 @@ const GLAB_OPTS_WITH_VALUE = new Set([
 ]);
 const ALL_BRANCHES = Symbol('all-branches');
 const UNKNOWN = Symbol('unknown');
-
-function git(args, cwd) {
-  try {
-    return execFileSync('git', args, {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { return null; }
-}
 
 function parsePatterns(raw) {
   return String(raw).split(',').map((s) => s.trim()).filter(Boolean);
