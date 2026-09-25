@@ -9,7 +9,7 @@ Maps each scenario to a Hard Rule in SKILL.md. Recipes assume the canonical suff
 
 ## Rule 2 — xhigh foreground refused
 
-`codex --xhigh "<prompt>"` → background+Monitor, OR `codex cloud exec`, OR terminal handoff. Never single foreground Bash call.
+`codex --xhigh "<prompt>"` → background + wait loop, OR `codex cloud exec`, OR terminal handoff. Never single foreground Bash call.
 
 ## Rule 3 — Effort promotion gated
 
@@ -38,13 +38,13 @@ Foreground recipes redirect with `< /dev/null > "$log" 2>&1`. `| tee "$log"` lea
 
 ## Regression — stdin-blocked hang
 
-Non-TTY parent (Bash, heredoc, pipe) without `< /dev/null` → codex blocks on stdin read, no `thread.started`, silent hang until kill timer fires. Field-confirmed via heredoc-built prompt.
+Non-TTY parent (Bash, heredoc, pipe) without `< /dev/null` → codex blocks on stdin read, no `thread.started`, silent hang until the Bash timeout moves the call to the background, where codex stays alive. Field-confirmed via heredoc-built prompt.
 
 ## Regression — silent stall between items
 
 Codex 0.130.0 can stall indefinitely between `item.completed` events with no `turn.failed` / `error` event surfacing (Responses API stall / rate-limit not propagated). Field-confirmed: process idle 10+ min, 0.71s CPU, no event flow.
 
-Monitor must use three exit conditions (terminal event OR PID dead OR log stale 5+ min). Single sentinel grep stays armed until wall-clock timeout. Skill response: SIGTERM the codex PID, run Rule 5 recovery.
+The wait loop must use three exit conditions (terminal event OR PID dead OR log stale 5+ min). A single sentinel grep never exits on a stall. Skill response: SIGTERM the codex PID, run Rule 5 recovery.
 
 ## Baseline
 
@@ -52,8 +52,8 @@ Same `xhigh` PR review against ~10 changed files:
 
 | | No skill | With skill |
 |---|---|---|
-| Foreground kills | ~50% | 0 (Rule 2) |
-| Findings lost on kill | yes | no (Rule 5) |
+| Foreground timeouts | ~50% | 0 (Rule 2) |
+| Findings lost on timeout | yes | no (Rule 5) |
 | `git diff` drift | common | banned (Rule 4) |
 | Silent effort promotion | yes | no (Rule 3) |
 | Mean turns to completion | 8–12 | 3–5 |

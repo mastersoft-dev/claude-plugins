@@ -1,56 +1,24 @@
 ---
 name: recall
 description: Look back over your own past Claude Code sessions. Read-only. Use proactively when the user asks "what was I working on", "did we discuss X before", "when did we decide Y", "find that past chat about Z", or wants a recap of recent sessions. Default (no query) recaps the current repo's recent sessions; a query searches past sessions for it. Scope another repo with --project <name>. For codebase questions use ask; for current-work root-cause use investigate.
+context: fork
+agent: mastersoft:hindsight
+background: false
 model: sonnet
-allowed-tools: Agent, Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/recall.js" *)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/recall.js" *)
 argument-hint: "[query] [--project <name>] [--all-projects]"
 ---
 
-Look back over the user's past Claude Code sessions. Delegate to the `hindsight` agent — it
-reads the transcripts in an isolated subcontext (they can be large) and returns a synthesized
-answer, keeping the raw history out of this conversation.
+Request: $ARGUMENTS
 
-## Delegate
+Answer this request about the user's past Claude Code sessions. The skill runs as a forked `hindsight` agent that waits in the turn that invoked it, so this skill's `allowed-tools` cover your `recall.js` calls. The request may be empty, a search query, and/or flags like `--project <name>` / `--all-projects`; pass the flags to `recall.js` unchanged.
 
-Forward the request verbatim. `$ARGUMENTS` may be empty (recap mode), a search query, and/or
-flags like `--project <name>` / `--all-projects` — pass them through unchanged.
-
-```
-Agent(subagent_type: "hindsight", model: "sonnet", prompt: "$ARGUMENTS")
-```
-
-The `hindsight` agent derives the mode from the (verbatim) request itself and picks the right `recall.js` subcommand — no need to inject it. For reference, how it maps:
-- **Empty `$ARGUMENTS`** → recap the most recent sessions for the current repo (`list`).
+- **Empty request** → recap the most recent sessions for the current repo (`list`).
 - **A topic or question** → find the past sessions about it (`search`).
 - **A session id, or "show me that one"** → dump that session (`show`).
 
-## Retry on empty response
-
-If the agent returns nothing substantive (empty, metadata only, or clearly no answer), retry once
-with the query narrowed to the part that went unanswered (the turn budget is fixed by the
-agent's `maxTurns`). If it still fails:
+If a search returns nothing substantive, narrow the query once to the part that went unanswered and search again. If that also fails, reply:
 
 > "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check whether Claude Code pruned the sessions (`cleanupPeriodDays`, default 30) or never saved them (`CLAUDE_CODE_SKIP_PROMPT_HISTORY`, `--no-session-persistence`)."
 
-## After a successful response
-
-**STOP.** Return the agent's answer. Do NOT do additional research, spawn other agents, read
-transcripts yourself, or re-process the answer.
-
-## Help
-
-### Synopsis
-Retrospective search and recap over your own past Claude Code sessions (read-only).
-
-### Examples
-- `recall` — recap the most recent sessions in the current repo
-- `recall "the gitlab migration decision"` — find past sessions that discussed it, with resume ids
-- `recall "auth flow" --project legion` — search another repo's sessions
-- `recall "why did we drop gitea" --all-projects` — search across every repo
-
-### Checklist
-- Default (no query) = recent-sessions recap for the current repo
-- A query = search past sessions, ranked by relevance, with resume ids
-- `--project <name>` targets another repo; `--all-projects` searches all
-- Answers are grounded in transcript excerpts — never reconstructed from memory
-- Read-only: never modifies code or transcripts
+Reply with the answer only, grounded in transcript excerpts and with resume ids.

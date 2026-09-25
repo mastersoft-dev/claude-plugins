@@ -1,7 +1,7 @@
 ---
 name: init-rules
 description: Scaffold Mastersoft project rule files (AGENTS.md, drafted by the native /init when the repo has no rules; .claude/rules/, docs/adr/, docs/prd/) following org conventions. Use proactively when the user asks to set up, scaffold, or initialize project rules, or starts a fresh repo, or acts on a no-rules-file signal — asks before creating each file, so it never scaffolds unprompted. Bootstrap only; to refresh existing rules use refresh-rules.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(mv CLAUDE.md AGENTS.md), Bash(mv .claude/CLAUDE.md .claude/AGENTS.md), Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js agents-md-mode), PowerShell, AskUserQuestion, Skill
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(mv CLAUDE.md AGENTS.md), Bash(mv .claude/CLAUDE.md .claude/AGENTS.md), Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js agents-md-mode), PowerShell(git *), PowerShell(Move-Item CLAUDE.md AGENTS.md), PowerShell(Move-Item .claude/CLAUDE.md .claude/AGENTS.md), PowerShell(node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js agents-md-mode), AskUserQuestion, Skill
 ---
 
 # Init-Rules

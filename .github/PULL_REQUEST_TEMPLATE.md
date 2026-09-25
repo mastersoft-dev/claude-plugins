@@ -17,7 +17,7 @@
 ## Checklist
 
 - [ ] Conventional Commits subject on every commit
-- [ ] Version bumped in `plugins/mastersoft/.claude-plugin/plugin.json` **and** `.claude-plugin/marketplace.json` (if plugin content changed)
+- [ ] Version bumped in `plugins/mastersoft/.claude-plugin/plugin.json` (if plugin content changed)
 - [ ] README / skill docs updated where behavior changed
 - [ ] No secrets, tokens, or internal hostnames in the diff
 - [ ] Manually verified in a real Claude Code session

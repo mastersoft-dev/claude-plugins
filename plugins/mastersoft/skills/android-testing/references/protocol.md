@@ -4,7 +4,7 @@ Multi-screen flows fail when you skip a step. Each step is cheap; skipping any s
 
 ## 1. PLAN — file the screen path in the task tool
 
-Before ANY device call, derive the path the user's intent traverses and commit it to `TodoWrite` (or `TaskCreate`). Cheapest sources, cheapest first:
+Before ANY device call, derive the path the user's intent traverses and commit it to the task list (`TaskCreate`), or to a numbered plan in your reply when no task tool is loaded. Cheapest sources, cheapest first:
 - **Grep the source.** NavHost / route table / Screen factories / string resources name the screen graph in code. Adjust regex to the framework in use.
 - **`adb shell dumpsys activity activities`** for the back-stack when source isn't accessible.
 - **Existing flows** under `references/maestro.md` or repo runbooks.

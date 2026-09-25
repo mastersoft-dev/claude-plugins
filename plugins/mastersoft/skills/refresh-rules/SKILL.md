@@ -2,7 +2,7 @@
 name: refresh-rules
 disable-model-invocation: true
 description: Audit and refresh project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) when lint-engine signals staleness, broken references, an oversized rule file, or recurring corrections in auto-memory. Spawns the read-only rule-auditor agent (seeded with the live lint signals) to produce an evidence-backed findings table, proposes section-by-section diffs gated via AskUserQuestion, auto-applies on confirm, then runs a final re-audit pass over the edited entries. User-invocable; not auto-fired.
-allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell, AskUserQuestion
+allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(rm:*), Bash(node:*), PowerShell(git *), PowerShell(Remove-Item *), PowerShell(node *), AskUserQuestion
 argument-hint: "[focus-area]"
 ---
 
@@ -26,7 +26,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
    - **Spawn the `rule-auditor` agent via `Agent`**, seeding it with the live lint signals visible in this session (the `## Mastersoft signals` block from lint-engine that prompted this call) and the optional `[focus-area]`. Example prompt:
 
      ```
-     Agent (subagent_type: rule-auditor):
+     Agent (subagent_type: mastersoft:rule-auditor):
      Audit the rule files in <repoRoot> against the codebase.
      Input signals (prioritise the areas these point at): <signal ids, e.g. stale-path-refs, rule-file-stale, rule-file-oversize>.
      Focus: <focus-area or "all">.
@@ -37,7 +37,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
 
 3. **Read live rule files** named in the findings (always, since the user may have edited since the audit ran): the files `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js rule-files` prints (the ones Claude Code loads under the current Project instructions mode), the relevant `<root>/.claude/rules/**/*.md`, and any `@path.md` imports.
 
-4. **Group proposed changes** into the categories below. For each non-empty group with **high or medium-severity** findings, propose changes via `AskUserQuestion` with three options — **Apply** / **Skip** / **Edit manually** (print the diff for the user). Auto-act on the answer immediately. **Batch all low-severity / advisory findings across groups into a single multi-select `AskUserQuestion`** ("Apply these N low-severity nits?" with one checkbox per finding, each labeled `<group>: <one-line summary>`). This cuts round-trips on long runs without losing per-finding gating. Never bulk-batch high/medium findings — those still get per-section questions ("apply all 12?" is the failure mode to avoid here).
+4. **Group proposed changes** into the categories below. For each non-empty group with **high or medium-severity** findings, propose changes via `AskUserQuestion` with three options — **Apply** / **Skip** / **Edit manually** (print the diff for the user). Act on the answer immediately. When the answer says the user may be away from the keyboard (the question timed out), apply nothing for that group and list it as pending in the final summary. **Batch all low-severity / advisory findings across groups into a single multi-select `AskUserQuestion`** ("Apply these N low-severity nits?" with one checkbox per finding, each labeled `<group>: <one-line summary>`). This cuts round-trips on long runs without losing per-finding gating. Never bulk-batch high/medium findings — those still get per-section questions ("apply all 12?" is the failure mode to avoid here).
 
    Groups, in order:
 

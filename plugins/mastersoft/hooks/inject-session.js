@@ -1,6 +1,6 @@
 'use strict';
 
-// SessionStart hook (startup/clear/resume/compact). Injects the operating
+// SessionStart hook (startup/clear/resume/compact/fork). Injects the operating
 // posture (tier 1) + Mastersoft org rules (tier 2) into the main-thread context
 // at every session boundary. Lands in the cached conversation prefix, so it
 // costs input tokens once per boundary, not per prompt. After compaction the

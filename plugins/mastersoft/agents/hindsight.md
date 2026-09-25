@@ -1,13 +1,9 @@
 ---
 name: hindsight
 description: >-
-  Retrospective over your own past Claude Code sessions. Read-only; never edits files
-  and never touches the transcripts. Invoked by the recall skill (/mastersoft:recall),
-  which forwards the user's request here — prefer that skill over calling this agent
-  directly. Default with no query: a recap of the most recent sessions for the current
-  repo. With a query: finds the past sessions that discussed it, with excerpts and
-  resume ids. Scope to another repo with --project <name>. For codebase questions use
-  the ask skill; for current-work root-cause use the investigate skill.
+  Read-only retrospective over your past Claude Code sessions: a recap of recent ones, or the
+  sessions that discussed a topic, with excerpts and resume ids. Started by /mastersoft:recall;
+  use that skill instead of calling it directly.
 tools: Read, Glob, Grep, Bash
 model: sonnet
 maxTurns: 20

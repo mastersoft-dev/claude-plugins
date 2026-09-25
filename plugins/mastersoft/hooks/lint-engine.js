@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, realpathOr, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
-const { ORG, cfg } = require('./lib-org-rules');
+const { ORG, cfg, setting } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -300,7 +300,7 @@ function main() {
   // tier hooks honor it separately). Intended for CI agents and one-off shells where
   // any nudge is noise. Per-repo .mastersoft-lints-suppress is the persistent
   // equivalent.
-  const QUIET = process.env.MASTERSOFT_QUIET;
+  const QUIET = setting('MASTERSOFT_QUIET');
   if (QUIET === '1' || QUIET === 'all' || QUIET === 'true') process.exit(0);
   const quietLintsOnly = QUIET === 'lints';
 
@@ -446,8 +446,7 @@ function main() {
       const lines = rf.content.split('\n').length;
       const rfStale = fileStaleness(repoRoot, rf.path, RULE_STALE_COMMITS, RULE_STALE_DAYS);
       if (rfStale.stale) staleRuleFiles.push(`${rel} (${rfStale.reason})`);
-      if (lines > CLAUDE_MAX_LINES) findings.push({ id: 'rule-file-oversize', severity: 'warn', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is ${lines} lines (>${CLAUDE_MAX_LINES}). Split per-topic into .claude/rules/<topic>.md with \`paths:\` frontmatter.` });
-      else if ((rel === 'CLAUDE.md' || rel === 'AGENTS.md') && lines > 100 && !dirExists(rulesDir)) findings.push({ id: 'claude-md-large', severity: 'info', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is sizable; consider .claude/rules/ split.` });
+      if (lines > CLAUDE_MAX_LINES) findings.push({ id: 'rule-file-oversize', severity: 'warn', fix: '/mastersoft:refresh-rules', category: 'rules', body: `${rel} is ${lines} lines (>${CLAUDE_MAX_LINES}). /mastersoft:refresh-rules splits it per topic into .claude/rules/<topic>.md with \`paths:\` frontmatter; /doctor trims what Claude can derive from the codebase.` });
     }
     if (staleRuleFiles.length) findings.push({ id: 'rule-file-stale', severity: 'info', fix: '/mastersoft:verify', category: 'rules', body: `Rule file(s) untouched while repo moved: ${staleRuleFiles.join('; ')}. Re-verify rules still match the codebase.` });
 
@@ -580,8 +579,8 @@ function main() {
     // Verify-due gate (chain to the rule-auditor agent) — must run after the
     // others so it can see whether any lint fired this prompt.
     const verifyAgeDays = lastVerifyAt ? (nowMs - lastVerifyAt) / 86400000 : Infinity;
-    const inCI = process.env.CLAUDE_CODE_REMOTE === 'true';
-    if (anyLintSignal && verifyAgeDays > VERIFY_MIN_AGE_DAYS && VERIFY_MODE !== 'off' && !inCI) {
+    const unattended = process.env.CLAUDE_CODE_REMOTE === 'true' || process.env.CI === 'true';
+    if (anyLintSignal && verifyAgeDays > VERIFY_MIN_AGE_DAYS && VERIFY_MODE !== 'off' && !unattended) {
       addSignal({ id: 'verify-due', severity: 'info', fix: '/mastersoft:verify', category: 'verify', body: 'Lints flagged issues and semantic verify is due.' });
     }
   }

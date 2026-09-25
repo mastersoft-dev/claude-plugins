@@ -1,7 +1,6 @@
 ---
 name: ask
-description: Fast Q&A about codebase, libraries, or concepts. Read-only. Use proactively whenever a targeted question comes up mid-task. Prefer this over the native Explore agent for targeted questions — single-fact lookups, "where is X", "what does Y do", small counts — and reserve Explore for broad multi-location fan-out. For deep root-cause analysis use investigate; for code review feedback use vet.
-model: haiku
+description: Fast, cheap Q&A about codebase, libraries, or concepts, answered on Haiku with the repo's CLAUDE.md. Read-only. Use proactively whenever a targeted question comes up mid-task — single-fact lookups, "where is X", "what does Y do", small counts — in place of the Explore agent, which runs on the session's model. For deep root-cause analysis use investigate; for code review feedback use vet.
 allowed-tools: Agent
 argument-hint: "question"
 ---
@@ -15,7 +14,7 @@ Classify the question, then either answer inline (Direct) or delegate to the ask
 **Repo lookup** — single-fact lookups, definitions, "where is X", "what does Y do", small counts, or a multi-file question scoped to this repo:
 
 ```
-Agent(subagent_type: "ask-explore", model: "haiku", prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
+Agent(subagent_type: "mastersoft:ask-explore", model: "haiku", prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
 ```
 
 The turn budget is fixed by the agent's `maxTurns` frontmatter; the `Agent` tool takes no turn parameter.

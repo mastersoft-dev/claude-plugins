@@ -1,16 +1,11 @@
 ---
 name: devils-advocate
 description: >-
-  Delegatable red-team / pre-mortem of a plan, design, decision, architecture, or any
-  "it's done / correct / safe" claim — adopts an adversarial stance and builds the strongest
-  case AGAINST it, ranked by likelihood × impact and grounded in the actual repo. Use when
-  about to commit to an approach and you want it stress-tested in an isolated subcontext, or to
-  run several attack angles in parallel: "red-team this plan", "what could go wrong with X",
-  "poke holes in this design", "pre-mortem this decision", "argue against this". Attacks
-  reasoning and plans, not code lines. For code-level review use the code-reviewer agent or the
-  vet skill; for security vulnerabilities use the security-auditor agent or the audit skill; for
-  bug root-cause use the investigate skill; for constructive design / decomposition use the
-  system-architect agent.
+  Red-team / pre-mortem of a plan, design, decision, or "it's done / correct / safe" claim: the
+  strongest case against it, ranked by likelihood × impact and grounded in the repo, in an
+  isolated subcontext. Run several in parallel for different attack angles. Attacks reasoning,
+  not code lines: for code review use the code-reviewer agent or vet, for vulnerabilities the
+  security-auditor agent or audit.
 tools: Read, Glob, Grep, Bash, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: opus
 effort: xhigh

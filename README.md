@@ -17,11 +17,20 @@ over the default. Delete the file to revert.
 
 ### External users
 
-```bash
-/plugin marketplace add https://github.com/mastersoft-dev/claude-plugins.git
-/plugin install mastersoft@mastersoft
-/reload-plugins
+In a Claude Code session (v2.1.275 or later), add the marketplace and install in one command:
+
+```text
+/plugin install mastersoft --marketplace mastersoft-dev/claude-plugins
 ```
+
+Or from your shell:
+
+```bash
+claude plugin marketplace add mastersoft-dev/claude-plugins
+claude plugin install mastersoft@mastersoft
+```
+
+The in-session install activates the plugin when it finishes (before Claude Code v2.1.268, run `/reload-plugins` as well). A shell install takes effect in the next session, or after `/reload-plugins` in one that is already running.
 
 Or declarative, in `~/.claude/settings.json`:
 
@@ -42,7 +51,7 @@ once. `--apply` patches the `settings.json` in `$CLAUDE_CONFIG_DIR` (default
 block is printed to paste manually:
 
 ```bash
-bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply
+bash "$(jq -r '.plugins["mastersoft@mastersoft"][0].installPath' ~/.claude/plugins/installed_plugins.json)/scripts/install-statusline.sh" --apply
 ```
 
 Idempotent: re-running with `--apply` is a no-op once wired. If a different
@@ -56,7 +65,8 @@ via the wrapper instead.
 |------|-------|
 | **Skills** | `ack-lints`, `adversary`, `android-testing`, `ask`, `audit`, `audit-deps`, `codex`, `commit`, `doc`, `glab`, `handoff`, `help`, `init-rules`, `investigate`, `promote-patterns`, `recall`, `refresh-rules`, `release`, `sentry`, `verify`, `vet` |
 | **Agents** | `ask-explore`, `code-reviewer`, `devils-advocate`, `hindsight`, `qa-specialist`, `rule-auditor`, `security-auditor`, `system-architect`, `tech-writer` |
-| **Hooks** | `install-statusline-wrapper` (SessionStart), `reset-session-state` (SessionStart clear + PostCompact), `lint-engine` + `inject-turn` (UserPromptSubmit), `suggest-push` (PreToolUse:Bash), `inject-org-rules` (SubagentStart) |
+| **Hooks** | `install-statusline-wrapper` (SessionStart), `inject-session` (SessionStart), `reset-session-state` (SessionStart clear + PostCompact), `lint-engine` + `inject-turn` (UserPromptSubmit), `suggest-push` (PreToolUse:Bash\|PowerShell), `inject-org-rules` (SubagentStart) |
+| **Output styles** | `Brief`: the shortest correct answer, stricter than the built-in Concise style. Pick it with `/output-style` or `/config` |
 | **Statusline** | Modular, configurable via env vars |
 
 > Run `/mastersoft:help` from inside a Claude session for the live signal catalog, env-var reference, and suppression mechanisms.
@@ -78,10 +88,11 @@ Configured via `CLAUDE_STATUSLINE_SEGMENTS` env var (comma-separated). Default: 
 | `host` | short hostname | no |
 | `repo` | Repo name from `origin` | no |
 | `context_remaining` | Context remaining | no |
-| `rate_limit` | Claude.ai 5h block countdown | no |
+| `rate_limit` | Claude.ai rate limit usage: 5h window (with reset countdown), plus 7d and spend-limit windows when present | no |
 | `tokens_in` | Total input tokens | no |
 | `tokens_out` | Total output tokens | no |
 | `lines` | `+added -removed` lines | no |
+| `cache` | Prompt cache hit ratio and warm/cold state, plus the last miss's cause when known | no |
 
 Personal override:
 
@@ -119,6 +130,8 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 | `MASTERSOFT_QUIET=lints` | Shell process | Keep ORG preamble; suppress lint signals only. |
 | `.claude/.mastersoft-lints-ack` | Per repo, ~4h TTL | Defer lint signals for the session window. Touched by `/mastersoft:ack-lints defer`. |
 | `.claude/.mastersoft-lints-suppress` | Per repo, indefinite | Disable lint signals in this repo until the file is deleted. |
+
+`quiet`, `org_rules` and `push_protected_branches` are also plugin options, set with `/plugin configure mastersoft@mastersoft` or `/config`. An env var wins over the option.
 
 ## Contributing
 

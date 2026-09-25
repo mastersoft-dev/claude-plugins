@@ -67,7 +67,7 @@ mkdir -p "$HOME/.claude" "$CONFIG_DIR"
 cp "$SRC" "$DST"
 printf '\033[32m✓\033[0m wrapper installed at %s\n' "$DST"
 
-STATUSLINE_BLOCK='{"type":"command","command":"node ~/.claude/mastersoft-statusline-wrapper.js","padding":0}'
+STATUSLINE_BLOCK='{"type":"command","command":"node ~/.claude/mastersoft-statusline-wrapper.js","padding":0,"refreshInterval":30}'
 
 case "$MODE" in
   apply)
@@ -121,7 +121,8 @@ case "$MODE" in
   "statusLine": {
     "type": "command",
     "command": "node ~/.claude/mastersoft-statusline-wrapper.js",
-    "padding": 0
+    "padding": 0,
+    "refreshInterval": 30
   }
 JSON_EOF
     echo

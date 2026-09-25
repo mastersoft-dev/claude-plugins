@@ -18,5 +18,22 @@
     "org-rules",
     "security-audit",
     "code-review"
-  ]
+  ],
+  "userConfig": {
+    "push_protected_branches": {
+      "type": "string",
+      "title": "Protected branches",
+      "description": "Comma-separated branches whose pushes ask for confirmation: name/* matches a prefix, * matches every branch. Leave empty for the org list in ORG_RULES.md."
+    },
+    "quiet": {
+      "type": "string",
+      "title": "Quiet mode",
+      "description": "1 mutes the plugin's injected rules and lint signals, lints mutes the lint signals only, tier3 mutes the per-prompt reminder only. Leave empty to keep everything on."
+    },
+    "org_rules": {
+      "type": "string",
+      "title": "Org rules",
+      "description": "all injects every tier of the org rules, session skips the per-prompt tier, off injects none. Leave empty for all."
+    }
+  }
 }

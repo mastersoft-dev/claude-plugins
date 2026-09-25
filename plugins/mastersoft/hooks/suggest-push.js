@@ -3,16 +3,20 @@
 // Org rule: pushes to protected branches require explicit user confirmation;
 // feature-branch pushes go straight through so unattended runs never stall.
 // Covers `git push` (any refspec form, chained commands, `git -C <dir>`) and
-// the push `glab mr create --fill` / `--push` performs on its source branch.
-// When the destination can't be read reliably (cd / checkout / switch earlier
-// in the same command, shell expansions, wildcards, nested shells) it asks.
+// the push `glab mr create --fill` / `--push` performs on its source branch,
+// from the Bash and the PowerShell tool alike: on Windows without Git Bash,
+// PowerShell is the only shell tool. When the destination can't be read
+// reliably (cd / checkout / switch earlier in the same command, shell
+// expansions, wildcards, nested shells, git not answering) it asks.
 // Protected set: `push_protected_branches` in ORG_RULES.md (env
-// MASTERSOFT_PUSH_PROTECTED_BRANCHES), comma-separated; `name/*` matches a
-// prefix, `*` matches every branch.
+// MASTERSOFT_PUSH_PROTECTED_BRANCHES, or the plugin option of the same name),
+// comma-separated; `name/*` matches a prefix, `*` matches every branch.
+// The docs promise only a hook's `deny` and static `ask` rules in
+// bypassPermissions mode; this hook's `ask` still stopped the push there on
+// Claude Code 2.1.282, as a denial in a headless run.
 
 const path = require('path');
-const { execFileSync } = require('child_process');
-const { readStdinJson } = require('./lib');
+const { readStdinJson, runGit: git } = require('./lib');
 const { cfg } = require('./lib-org-rules');
 
 const DEFAULT_PROTECTED_BRANCHES = 'main,master,develop,dev,staging,production,release/*';
@@ -23,10 +27,14 @@ const PROTECTED_PATTERNS = parsePatterns(
 const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '\n', '(', ')']);
 const COMMAND_PREFIXES = new Set(['command', 'exec', 'env', 'sudo', 'nohup', 'time', 'xargs']);
 const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', '!', '{', '}', 'fi', 'done']);
-const CONTEXT_CHANGERS = new Set(['cd', 'pushd', 'popd']);
+const CONTEXT_CHANGERS = new Set(['cd', 'pushd', 'popd', 'chdir', 'sl', 'set-location', 'push-location', 'pop-location']);
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const GIT_REPO_SELECTORS = ['--git-dir', '--work-tree', '--namespace'];
 const UNRESOLVED_SHELL = /[$`*?]/;
-const SHELL_EVALUATORS = new Set(['sh', 'bash', 'zsh', 'dash', 'eval', 'timeout', 'watch', 'ssh']);
+const SHELL_EVALUATORS = new Set([
+  'sh', 'bash', 'zsh', 'dash', 'eval', 'timeout', 'watch', 'ssh',
+  'pwsh', 'powershell', 'cmd', 'iex', 'invoke-expression',
+]);
 const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--receive-pack', '--exec']);
 const PUSH_ALL_FLAGS = new Set(['--all', '--mirror', '--branches']);
 const GLAB_PUSH_FLAGS = new Set(['--fill', '-f', '--push', '--push=true']);
@@ -36,14 +44,6 @@ const GLAB_OPTS_WITH_VALUE = new Set([
 ]);
 const ALL_BRANCHES = Symbol('all-branches');
 const UNKNOWN = Symbol('unknown');
-
-function git(args, cwd) {
-  try {
-    return execFileSync('git', args, {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { return null; }
-}
 
 function parsePatterns(raw) {
   return String(raw).split(',').map((s) => s.trim()).filter(Boolean);
@@ -57,7 +57,7 @@ function isProtected(branch, patterns) {
   });
 }
 
-function shellWords(cmd) {
+function shellWords(cmd, { powershell = false } = {}) {
   const words = [];
   let cur = null;
   let quote = null;
@@ -70,12 +70,12 @@ function shellWords(cmd) {
     const c = cmd[i];
     if (quote) {
       if (c === quote) quote = null;
-      else if (c === '\\' && quote === '"' && i + 1 < cmd.length) cur += cmd[++i];
+      else if (c === '\\' && !powershell && quote === '"' && i + 1 < cmd.length) cur += cmd[++i];
       else cur += c;
       continue;
     }
     if (c === '"' || c === "'") { quote = c; cur = cur === null ? '' : cur; continue; }
-    if (c === '\\' && i + 1 < cmd.length) { cur = (cur === null ? '' : cur) + cmd[++i]; continue; }
+    if (c === '\\' && !powershell && i + 1 < cmd.length) { cur = (cur === null ? '' : cur) + cmd[++i]; continue; }
     if (c === '>' || c === '<' || (c === '&' && cmd[i + 1] === '>')) {
       if (cur !== null && /^\d+$/.test(cur)) cur = null;
       flush();
@@ -112,10 +112,10 @@ function commandStart(seg) {
   return rest;
 }
 
-function segments(cmd) {
+function segments(cmd, opts) {
   const out = [];
   let seg = [];
-  for (const w of shellWords(cmd || '')) {
+  for (const w of shellWords(cmd || '', opts)) {
     if (SEPARATORS.has(w)) { if (seg.length) out.push(commandStart(seg)); seg = []; continue; }
     seg.push(w);
   }
@@ -123,8 +123,12 @@ function segments(cmd) {
   return out;
 }
 
+function commandName(seg) {
+  return path.basename(seg[0] || '').toLowerCase().replace(/\.exe$/, '');
+}
+
 function looksLikeNestedGitPush(seg) {
-  return SHELL_EVALUATORS.has(path.basename(seg[0] || ''))
+  return SHELL_EVALUATORS.has(commandName(seg))
     && seg.some((w) => /(^|[\s/({])git(\s|$)/.test(w)) && seg.some((w) => /(^|\s)push(\s|$)/.test(w));
 }
 
@@ -207,7 +211,7 @@ function parseGlabPush(seg) {
 }
 
 function changesContext(seg) {
-  if (CONTEXT_CHANGERS.has(seg[0])) return true;
+  if (CONTEXT_CHANGERS.has(commandName(seg))) return true;
   const inv = gitInvocation(seg);
   return Boolean(inv && (inv.sub === 'checkout' || inv.sub === 'switch'));
 }
@@ -258,9 +262,9 @@ function resolveTargets(push, cwd) {
   return out;
 }
 
-function pushDecision(cmd, cwd, patterns) {
+function pushDecision(cmd, cwd, patterns, opts) {
   let contextChanged = false;
-  for (const seg of segments(cmd)) {
+  for (const seg of segments(cmd, opts)) {
     if (changesContext(seg)) { contextChanged = true; continue; }
     const push = parseGitPush(seg) || parseGlabPush(seg);
     if (!push) {
@@ -281,11 +285,11 @@ function main() {
   if (process.env.MASTERSOFT_SKIP_PUSH_CHECK === '1') process.exit(0);
 
   const input = readStdinJson();
-  if (!input || input.tool_name !== 'Bash') process.exit(0);
+  if (!input || !SHELL_TOOLS.has(input.tool_name)) process.exit(0);
 
   const cmd = input.tool_input && input.tool_input.command;
   const cwd = input.cwd || process.env.CLAUDE_PROJECT_DIR || '.';
-  const decision = pushDecision(cmd, cwd, PROTECTED_PATTERNS);
+  const decision = pushDecision(cmd, cwd, PROTECTED_PATTERNS, { powershell: input.tool_name === 'PowerShell' });
   if (!decision.ask) process.exit(0);
 
   const reason = [

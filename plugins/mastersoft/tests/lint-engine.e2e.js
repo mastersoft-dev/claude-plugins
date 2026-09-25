@@ -27,9 +27,13 @@ function repo(name) { return path.join(REPOS_BASE, name); }
 
 function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2), stateDir, env = {} } = {}) {
   const input = JSON.stringify({ session_id: sessionId, cwd });
+  const base = { ...process.env };
+  delete base.CI;
+  delete base.CLAUDE_CODE_REMOTE;
+  delete base.CLAUDE_PLUGIN_OPTION_QUIET;
   const result = cp.spawnSync(process.execPath, [HOOK], {
     input,
-    env: { ...process.env, MASTERSOFT_STATE_DIR: stateDir, ...env },
+    env: { ...base, MASTERSOFT_STATE_DIR: stateDir, ...env },
     encoding: 'utf8',
     timeout: 10000,
   });
@@ -308,6 +312,25 @@ test('oversize AGENTS.md is linted when there is no CLAUDE.md', () => {
   assertHasSignal(p2.signals, 'rule-file-oversize', 'the size lint must scan AGENTS.md as the entry point');
 });
 
+test('rule-file-oversize points at /doctor for trimming', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(260) } });
+  assertHasSignal(p2.signals, 'rule-file-oversize');
+  assert(p2.ctx.includes('/doctor'), 'the oversize body should name /doctor');
+});
+
+test('a mid-size CLAUDE.md under the line cap raises no size signal', () => {
+  const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(150) } });
+  assertNoSignal(p2.signals, 'rule-file-oversize');
+  assertNoSignal(p2.signals, 'claude-md-large');
+});
+
+test('verify-due chains after a lint, but not in CI or cloud sessions', () => {
+  const repoFiles = { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(260) };
+  assertHasSignal(tmpSession({ repoFiles }).p2.signals, 'verify-due');
+  assertNoSignal(tmpSession({ repoFiles, env: { CI: 'true' } }).p2.signals, 'verify-due');
+  assertNoSignal(tmpSession({ repoFiles, env: { CLAUDE_CODE_REMOTE: 'true' } }).p2.signals, 'verify-due');
+});
+
 test('CLAUDE.local.md next to AGENTS.md flags agents-md-shadowed', () => {
   const { p1 } = tmpSession({ repoFiles: { 'AGENTS.md': '# rules\n', 'CLAUDE.local.md': '# mine\n' } });
   assertHasSignal(p1.signals, 'agents-md-shadowed');
@@ -445,6 +468,15 @@ test('MASTERSOFT_QUIET=1 suppresses everything', () => {
   });
   assert(p2.signals.length === 0 && !p2.systemMessage,
     `QUIET=1 should suppress all output, got ${p2.signals.length} signals`);
+});
+
+test('the quiet plugin option suppresses everything, and MASTERSOFT_QUIET overrides it', () => {
+  const repoFiles = { 'CLAUDE.md': '# rules\n', 'BRIEF.md': '# brief\n' };
+  const muted = tmpSession({ repoFiles, env: { CLAUDE_PLUGIN_OPTION_QUIET: '1' } }).p2;
+  assert(muted.signals.length === 0 && !muted.systemMessage,
+    `quiet option should suppress all output, got ${muted.signals.length} signals`);
+  const loud = tmpSession({ repoFiles, env: { CLAUDE_PLUGIN_OPTION_QUIET: '1', MASTERSOFT_QUIET: '0' } }).p2;
+  assertHasSignal(loud.signals, 'brief-deprecated', 'MASTERSOFT_QUIET should win over the plugin option');
 });
 
 // ── 7. Auto-memory matcher + promotion signals (self-contained) ───────────────

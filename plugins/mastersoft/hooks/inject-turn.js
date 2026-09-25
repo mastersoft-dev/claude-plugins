@@ -34,7 +34,7 @@ function main() {
   const pct = distancePct();
   const sessionId = input.session_id || '';
   if (pct > 0 && sessionId && tiers.tier2) {
-    const used = readContextUsagePercent();
+    const used = readContextUsagePercent(sessionId);
     if (used !== null) {
       const state = loadState(STATE_FILE);
       const ss = state[sessionId] || {};

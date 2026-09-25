@@ -54,6 +54,11 @@ glab mr merge 42 --squash --remove-source-branch --yes
 git fetch --prune origin
 ```
 
+Two Claude Code alternatives to steps 2–4:
+
+- `claude --worktree "https://gitlab.sermix.com/<group>/<repo>/-/merge_requests/42"` starts a session in a worktree branched from the MR head, leaving your checkout alone (Claude Code 2.1.233+).
+- `/code-review !42 --comment` reviews the MR and posts the findings as one note through `glab` (Claude Code 2.1.257+). On a self-managed instance such as gitlab.sermix.com, pass the MR URL or the `!42` form: a bare number counts as an MR only when `origin` is on gitlab.com.
+
 > `glab mr merge` defaults to `--auto-merge=true` while a pipeline is running. The merge happens automatically once checks pass. Pass `--auto-merge=false` to merge immediately (rare — usually wait).
 
 ## Approval Rules & Code Owners

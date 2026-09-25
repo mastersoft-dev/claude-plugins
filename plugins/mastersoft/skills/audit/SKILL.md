@@ -1,8 +1,6 @@
 ---
 name: audit
-description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
-model: opus
-effort: xhigh
+description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For the current branch's changes only, the built-in /security-review. For non-security code review use vet.
 allowed-tools: Agent
 argument-hint: "path"
 ---
@@ -21,7 +19,7 @@ this conversation.
 Spawn the security-auditor agent, appending any flags (below) to the prompt:
 
 ```
-Agent(subagent_type: "security-auditor", model: "opus",
+Agent(subagent_type: "mastersoft:security-auditor", model: "opus",
      prompt: "Security audit. Target: $ARGUMENTS. \
 Report each finding with severity (Blocker/Critical/High/Medium/Low), \
 `file:line`, OWASP/CWE category, impact, and a specific mitigation. \

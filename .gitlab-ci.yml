@@ -1,0 +1,27 @@
+# Credential-free checks on every merge request and branch push: the plugin
+# and marketplace manifests (`claude plugin validate` is static and needs no
+# login) and the test suites, which run without a device or network. The
+# Android daemon tests mock every adb call but still look the binary up.
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+stages:
+  - test
+
+plugin:
+  stage: test
+  image: node:24-bookworm
+  interruptible: true
+  script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends adb > /dev/null
+    - npm install --global --no-fund --no-audit @anthropic-ai/claude-code
+    - claude --version
+    - claude plugin validate --strict .
+    - claude plugin validate --strict plugins/mastersoft
+    - for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done
+    - cd plugins/mastersoft/skills/android-testing/scripts && python3 test-daemon.py && python3 test-wedge.py

@@ -34,7 +34,7 @@ Always pass `-c model_reasoning_effort=<level>` explicitly — codex `~/.codex/c
 | `minimal` / `low` | < 30 s | 120 000 ms | foreground |
 | `medium` | 30 – 120 s | 240 000 ms | foreground |
 | `high` | 1 – 4 min | 600 000 ms (max) | foreground |
-| `xhigh` / `max` | 3 – 10+ min, often exceeds Bash cap | n/a | background + Monitor, OR `codex cloud exec`, OR terminal |
+| `xhigh` / `max` | 3 – 10+ min, often exceeds Bash cap | n/a | background + wait loop, OR `codex cloud exec`, OR terminal |
 
 `xhigh` and `max` foreground are refused by the skill (Hard Rule 2).
 

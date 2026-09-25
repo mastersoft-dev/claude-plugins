@@ -1,6 +1,6 @@
 # Stage 3: Self-Review Pass
 
-Re-read the document with fresh eyes to catch what an outside reader would stumble on. Do NOT spawn subagents — subagent-from-subagent is not supported in Claude Code.
+Re-read the document with fresh eyes to catch what an outside reader would stumble on. Do the self-review in this context: this agent has no `Agent` tool to spawn a reviewer.
 
 ## Protocol
 

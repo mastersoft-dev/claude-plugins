@@ -88,8 +88,12 @@ host: `SENTRY_URL=https://sentry.example.com/` or `[defaults] url=` in
    therefore needs `$SENTRY_URL` and `$SENTRY_AUTH_TOKEN` in the environment. When
    the Context block shows creds live only in `.sentryclirc` (env absent), derive
    the host from `sentry-cli info` and read the token from `.sentryclirc` (`[auth]
-   token=`) into the env before the call — otherwise the header is empty and the
-   request silently 401s. `$SENTRY_URL` is the on-prem host on self-hosted,
+   token=`) in the same Bash call as the `curl`, for example
+   `SENTRY_AUTH_TOKEN=$(sed -n 's/^token=//p' <path to .sentryclirc>) curl …`.
+   Each Bash call starts a new shell, so a token exported in an earlier call is
+   gone by the time `curl` runs: the header is empty and the request silently
+   401s. Reading it with `$(…)` also keeps the token out of the transcript.
+   `$SENTRY_URL` is the on-prem host on self-hosted,
    `https://sentry.io` on SaaS.
    If an instance does not expose it, fall back to the org-scoped events list
    `/api/0/organizations/<org>/issues/<numeric-issue-id>/events/` and take the first. Read the

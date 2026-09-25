@@ -2,10 +2,14 @@
 'use strict';
 
 // SubagentStart hook. Injects the ORG_RULES.md prose body into every subagent's
-// context before its first prompt. Subagents load the CLAUDE.md memory hierarchy
-// but NOT this plugin preamble (it isn't a CLAUDE.md), and there is no
-// frontmatter field that injects arbitrary doc content — so the org rules reach
-// agents only via this hook. Single source: the agents never restate org policy.
+// context before its first prompt. Most subagents load the CLAUDE.md memory
+// hierarchy, but Explore and Plan skip it, as does any agent with
+// `omitClaudeMd`, and none of them loads this plugin preamble (it isn't a
+// CLAUDE.md). No frontmatter field injects arbitrary doc content, so the org
+// rules reach agents only via this hook, and a managed `claudeMd` copy of them
+// would miss Explore and Plan. Single source: the agents never restate org
+// policy. The header is phrased as project facts: text framed as system
+// commands can trip Claude's prompt-injection defenses.
 //
 // Applies to ALL subagents, not a curated allow-list: org hygiene + brevity are
 // org-wide, so they should hold for built-in agents (Explore, Plan, general-
@@ -52,8 +56,8 @@ function main() {
   }
 
   const additionalContext =
-    '# Mastersoft org-wide rules (authoritative)\n' +
-    'These apply to your work in this repo. Honor them; flag rule files that contradict or duplicate them.\n\n' +
+    '# Mastersoft org conventions for this repository\n' +
+    'These conventions apply to work in this repo. A rule file that contradicts or duplicates them is worth flagging.\n\n' +
     body + bootstrapNote;
 
   process.stdout.write(JSON.stringify({

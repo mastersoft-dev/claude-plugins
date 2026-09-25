@@ -3,9 +3,9 @@ name: verify
 description: Run a semantic verification of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against actual codebase state via the rule-auditor agent. Detects contradictions like rules say pnpm but lockfile says npm, stale build commands, architecture drift, zero-match path globs, dangling doc cross-refs, oversized rule files that should be split into path-scoped rules, entry-level claim staleness (counts/symbols/paths that no longer match code), and misplaced content (settled decisions that belong in docs/). Read-only on the repo — outputs evidence-backed findings only. Not auto-invoked (user- or /schedule-triggered); run it when lint-engine signals "verify due" or on schedule via /schedule.
 disable-model-invocation: true
 context: fork
-agent: rule-auditor
+agent: mastersoft:rule-auditor
 background: false
-allowed-tools: Read, Bash(git rev-parse:*), Bash(node:*), PowerShell
+allowed-tools: Read, Bash(git rev-parse:*), Bash(node:*), PowerShell(git rev-parse *), PowerShell(node *)
 argument-hint: "[--report-only]"
 ---
 
@@ -33,7 +33,7 @@ Standalone full audit of this repo's rule files. The skill runs as a forked `rul
    FINDINGS_EOF
    ```
 
-   The labels stay in English as shown, whatever language you reply in. Write the heredoc straight from this template: the helper prints `Wrote findings to <path>` on success, and otherwise names the block and the missing Severity or Evidence line, so its reply is all the check you need. Keep the json block out of the heredoc: Claude Code's permission check refuses a `{` followed by a quote, and the helper builds the JSON from the blocks. It adds `generatedAt` + `repoRoot` and atomically writes `verify-findings/<slug>.json` in the shared state dir (`~/.claude/mastersoft/state/`, overridable via `MASTERSOFT_STATE_DIR`). `/mastersoft:refresh-rules` reads it to skip re-analysis when a recent verify exists.
+   The labels stay in English as shown, whatever language you reply in. Write the heredoc straight from this template: the helper prints `Wrote findings to <path>` on success, and otherwise names the block and the missing Severity or Evidence line, so its reply is all the check you need. Keep the json block out of the heredoc, and describe JSON content in Evidence in words (`package.json` has only a `test` script) instead of quoting it: Claude Code's permission check refuses a `{` followed by a quote, and the helper builds the JSON from the blocks. It adds `generatedAt` + `repoRoot` and atomically writes `verify-findings/<slug>.json` in the shared state dir (`~/.claude/mastersoft/state/`, overridable via `MASTERSOFT_STATE_DIR`). `/mastersoft:refresh-rules` reads it to skip re-analysis when a recent verify exists.
 
 4. **Record `last-verify-at`**:
 

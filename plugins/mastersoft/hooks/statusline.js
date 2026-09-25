@@ -4,7 +4,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readStdinJsonAsync, claudeConfigDir } = require('./lib');
+const { readStdinJsonAsync } = require('./lib');
 const { writeContextUsagePercent } = require('./lib-org-rules');
 
 const GIT_TIMEOUT_MS = 800;
@@ -26,6 +26,7 @@ const ICON_SETS = {
     model: '\u{f09d1}',
     cost: '\u{f0114}',
     block: '\u{f0954}',
+    cache: '\u{f1c0}',
     tok_in: '\u{f0045}',
     tok_out: '\u{f005d}',
     lines_add: '\u{f0416}',
@@ -42,6 +43,7 @@ const ICON_SETS = {
     model: '🤖',
     cost: '💵',
     block: '⏳',
+    cache: '💾',
     tok_in: '⬇️ ',
     tok_out: '⬆️ ',
     lines_add: '➕',
@@ -58,6 +60,7 @@ const ICON_SETS = {
     model: '⚡',
     cost: '$',
     block: '⧗',
+    cache: '⧉',
     tok_in: '↓',
     tok_out: '↑',
     lines_add: '+',
@@ -67,7 +70,7 @@ const ICON_SETS = {
   },
   none: {
     user: '', host: '', folder: '', repo: '', branch: '', model: '',
-    cost: '', block: '', tok_in: '', tok_out: '', lines_add: '', lines_remove: '',
+    cost: '', block: '', cache: '', tok_in: '', tok_out: '', lines_add: '', lines_remove: '',
     used: ['', '', '', '', '', '', '', '', ''],
     battery: ['', '', '', '', '', '', '', '', '', '', ''],
   },
@@ -94,7 +97,6 @@ const COL_MODEL = c(13);       // bright magenta
 const COL_ICON_COST = c(11);   // bright yellow
 const COL_TIN = c(14);         // bright cyan
 const COL_TOUT = c(10);        // bright green
-const COL_ICON_BLOCK = c(12);  // bright blue
 const COL_CONTEXT_GREEN = c(2);
 const COL_CONTEXT_YELLOW = c(3);
 const COL_CONTEXT_RED = c(1);
@@ -304,119 +306,6 @@ function computeContextInfo(data) {
   return { usedPercent, usedTokens, remainingPercent, remainingTokens, contextMaxTokens };
 }
 
-const BLOCK_DURATION_MS = 5 * 60 * 60 * 1000;
-const PROJECTS_DIRS = [
-  path.join(claudeConfigDir(), 'projects'),
-  path.join(os.homedir(), '.config', 'claude', 'projects'),
-];
-const BLOCK_CACHE_PATH = path.join(claudeConfigDir(), '.block-cache.json');
-const BLOCK_CACHE_TTL_MS = 30000;
-
-function floorToHour(ms) {
-  return ms - (ms % (60 * 60 * 1000));
-}
-
-function scanProjectEntries(cutoff) {
-  const timestamps = [];
-  let latestResetTime = null;
-
-  for (const projectsDir of PROJECTS_DIRS) {
-    try { if (!fs.existsSync(projectsDir)) continue; } catch { continue; }
-
-    for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory()) continue;
-      const dirPath = path.join(projectsDir, dir.name);
-      for (const file of fs.readdirSync(dirPath, { withFileTypes: true })) {
-        if (!file.isFile() || !file.name.endsWith('.jsonl')) continue;
-        const filePath = path.join(dirPath, file.name);
-        try {
-          if (fs.statSync(filePath).mtimeMs < cutoff) continue;
-          const lines = fs.readFileSync(filePath, 'utf8').split('\n');
-          for (const line of lines) {
-            if (!line) continue;
-            let entry;
-            try { entry = JSON.parse(line); } catch { continue; }
-            const ts = entry.timestamp || (entry.snapshot && entry.snapshot.timestamp);
-            if (ts) timestamps.push(new Date(ts).getTime());
-            if (entry.isApiErrorMessage === true) {
-              const content = ((entry.message || {}).content) || [];
-              for (const chunk of content) {
-                if (chunk.text && chunk.text.includes('Claude AI usage limit reached')) {
-                  const m = chunk.text.match(/\|(\d+)/);
-                  if (m) {
-                    const rt = parseInt(m[1], 10) * 1000;
-                    if (!latestResetTime || rt > latestResetTime) latestResetTime = rt;
-                  }
-                }
-              }
-            }
-          }
-        } catch { /* skip */ }
-      }
-    }
-  }
-
-  return { timestamps, latestResetTime };
-}
-
-function computeBlockTimeLeft() {
-  const now = Date.now();
-  const cutoff = now - (BLOCK_DURATION_MS + 60 * 60 * 1000);
-  const { timestamps, latestResetTime } = scanProjectEntries(cutoff);
-
-  if (!timestamps.length) return null;
-  timestamps.sort((a, b) => a - b);
-
-  let blockStart = floorToHour(timestamps[0]);
-  let lastEntryTime = timestamps[0];
-
-  for (let i = 1; i < timestamps.length; i++) {
-    const ts = timestamps[i];
-    const timeSinceBlockStart = ts - blockStart;
-    const timeSinceLastEntry = ts - lastEntryTime;
-
-    if (timeSinceBlockStart > BLOCK_DURATION_MS || timeSinceLastEntry > BLOCK_DURATION_MS) {
-      blockStart = floorToHour(ts);
-    }
-    lastEntryTime = ts;
-  }
-
-  const endTime = blockStart + BLOCK_DURATION_MS;
-  if (endTime <= now) return null;
-
-  const effectiveEnd = (latestResetTime && latestResetTime > blockStart && latestResetTime <= endTime + 60 * 60 * 1000)
-    ? latestResetTime
-    : endTime;
-  if (effectiveEnd <= now) return null;
-
-  const remainingSec = Math.max(0, Math.floor((effectiveEnd - now) / 1000));
-  const remH = Math.floor(remainingSec / 3600);
-  const remM = Math.floor((remainingSec % 3600) / 60);
-  return remH ? `${remH}h ${remM}m left` : `${remM}m left`;
-}
-
-function getBlockTimeLeft() {
-  try {
-    try {
-      const raw = fs.readFileSync(BLOCK_CACHE_PATH, 'utf8');
-      const cache = JSON.parse(raw);
-      if (Date.now() - cache.ts < BLOCK_CACHE_TTL_MS) return cache.result;
-    } catch { /* no cache or stale */ }
-
-    const result = computeBlockTimeLeft();
-
-    try {
-      const tmp = `${BLOCK_CACHE_PATH}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ ts: Date.now(), result }), 'utf8');
-      fs.renameSync(tmp, BLOCK_CACHE_PATH);
-    } catch { /* skip */ }
-
-    return result;
-  } catch {
-    return null;
-  }
-}
-
 function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
@@ -462,12 +351,21 @@ function getTerminalWidth() {
     const cols = parseInt(process.env.CLAUDE_STATUSLINE_COLS, 10);
     if (cols > 0) return cols;
   }
-  // Inside tmux, /dev/tty + `stty size` report the whole window, not this
-  // pane — in a split layout that over-packs the line and the pane hard-wraps
-  // mid-segment. Ask tmux for the actual pane width first, pinned to this
-  // process's pane ($TMUX_PANE) so a focus change can't report another pane.
-  // Gated on $TMUX: outside tmux, `display-message` would read an unrelated
-  // session's active pane from the running server.
+  // Claude Code sets COLUMNS to the current terminal width before running the
+  // statusline script — the documented way to read terminal size here, since
+  // stdout is captured and tput/tty width detection can't see the real
+  // terminal. Authoritative and refreshed on every render, so prefer it over
+  // the heuristics below.
+  if (process.env.COLUMNS) {
+    const cols = parseInt(process.env.COLUMNS, 10);
+    if (cols > 0) return cols;
+  }
+  // Without COLUMNS, inside tmux /dev/tty + `stty size` report the whole
+  // window, not this pane — in a split layout that over-packs the line and the
+  // pane hard-wraps mid-segment. Ask tmux for the actual pane width, pinned to
+  // this process's pane ($TMUX_PANE) so a focus change can't report another
+  // pane. Gated on $TMUX: outside tmux, `display-message` would read an
+  // unrelated session's active pane from the running server.
   if (process.env.TMUX) {
     try {
       const args = ['display-message', '-p'];
@@ -480,6 +378,8 @@ function getTerminalWidth() {
       if (cols > 0) return cols;
     } catch { /* tmux unavailable or no server */ }
   }
+  // Residual heuristics for setups where neither of the above applies (e.g.
+  // COLUMNS unset on an older Claude Code version).
   try {
     const ttyFd = fs.openSync('/dev/tty', 'r');
     try {
@@ -499,10 +399,6 @@ function getTerminalWidth() {
   // so these reflect the terminal when Claude leaves them attached.
   if (process.stdout && process.stdout.columns) return process.stdout.columns;
   if (process.stderr && process.stderr.columns) return process.stderr.columns;
-  if (process.env.COLUMNS) {
-    const cols = parseInt(process.env.COLUMNS, 10);
-    if (cols > 0) return cols;
-  }
   // Width genuinely unknown. Return null so the caller does NOT self-wrap at an
   // arbitrary guess — it emits a single line and lets the host terminal wrap at
   // its true width. Set CLAUDE_STATUSLINE_COLS to force a fixed wrap width.
@@ -575,27 +471,35 @@ function renderContextRemaining(_data, ctx) {
   return `${iconPrefix(icon, col)}${formatCompact(remainingTokens)} (${remainingPercent}%)`;
 }
 
+function formatRateWindow(pct, resetAt) {
+  let label = `${pct}%`;
+  if (resetAt) {
+    const remainingSec = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+    if (remainingSec > 0) {
+      const remH = Math.floor(remainingSec / 3600);
+      const remM = Math.floor((remainingSec % 3600) / 60);
+      label += ` (${remH ? `${remH}h ${remM}m` : `${remM}m`})`;
+    }
+  }
+  return label;
+}
+
 function renderRateLimit(data) {
   const rl = data.rate_limits;
-  if (rl && rl.five_hour) {
-    const pct = Math.round(rl.five_hour.used_percentage || 0);
-    const resetAt = rl.five_hour.resets_at;
-    const col = pct <= 50 ? COL_CONTEXT_GREEN : pct <= 80 ? COL_CONTEXT_YELLOW : COL_CONTEXT_RED;
-    let label = `${pct}%`;
-    if (resetAt) {
-      const remainingSec = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-      if (remainingSec > 0) {
-        const remH = Math.floor(remainingSec / 3600);
-        const remM = Math.floor((remainingSec % 3600) / 60);
-        label += ` (${remH ? `${remH}h ${remM}m` : `${remM}m`})`;
-      }
-    }
-    return `${iconPrefix(ICONS.block, col)}${label}`;
+  if (!rl || !rl.five_hour) return '';
+
+  const pct = Math.round(rl.five_hour.used_percentage || 0);
+  const col = pct <= 50 ? COL_CONTEXT_GREEN : pct <= 80 ? COL_CONTEXT_YELLOW : COL_CONTEXT_RED;
+  const parts = [formatRateWindow(pct, rl.five_hour.resets_at)];
+
+  if (rl.seven_day) {
+    parts.push(`7d ${formatRateWindow(Math.round(rl.seven_day.used_percentage || 0), rl.seven_day.resets_at)}`);
+  }
+  if (rl.spend_limit) {
+    parts.push(`$ ${formatRateWindow(Math.round(rl.spend_limit.used_percentage || 0), rl.spend_limit.resets_at)}`);
   }
 
-  const timeLeft = getBlockTimeLeft();
-  if (!timeLeft) return '';
-  return `${iconPrefix(ICONS.block, COL_ICON_BLOCK)}${timeLeft}`;
+  return `${iconPrefix(ICONS.block, col)}${parts.join(' ')}`;
 }
 
 function renderCost(data) {
@@ -624,6 +528,19 @@ function renderLines(data) {
   return `${iconPrefix(ICONS.lines_add, COL_CONTEXT_GREEN)}${added} ${iconPrefix(ICONS.lines_remove, COL_CONTEXT_RED)}${removed}`;
 }
 
+function renderCache(data) {
+  const pc = data.prompt_cache;
+  if (!pc) return '';
+
+  const col = pc.warm ? COL_CONTEXT_GREEN : COL_CONTEXT_YELLOW;
+  let label = pc.warm ? 'warm' : 'cold';
+  if (typeof pc.hit_ratio === 'number') label = `${Math.round(pc.hit_ratio * 100)}% (${label})`;
+  if (pc.last_miss_cause && Array.isArray(pc.last_miss_cause.causes) && pc.last_miss_cause.causes.length) {
+    label += ` ${pc.last_miss_cause.causes.join(',')}`;
+  }
+  return `${iconPrefix(ICONS.cache, col)}${label}`;
+}
+
 const SEGMENT_REGISTRY = {
   user: renderUser,
   host: renderHost,
@@ -638,6 +555,7 @@ const SEGMENT_REGISTRY = {
   tokens_in: renderTokensIn,
   tokens_out: renderTokensOut,
   lines: renderLines,
+  cache: renderCache,
 };
 
 function parseSegmentList(envValue) {
@@ -670,7 +588,8 @@ function buildContext(data) {
       if (gitComputed) return gitCached;
       gitComputed = true;
       if (isGitRepo(cwd)) {
-        gitCached = { repo: getRepoName(cwd), status: parseGitStatus(cwd) };
+        const repoName = (data.workspace && data.workspace.repo && data.workspace.repo.name) || getRepoName(cwd);
+        gitCached = { repo: repoName, status: parseGitStatus(cwd) };
       } else {
         gitCached = null;
       }
@@ -683,20 +602,6 @@ function buildContext(data) {
       return contextCached;
     },
   };
-}
-
-// Claude Code passes the usable render width in the statusline input on recent
-// versions (the subagentStatusLine input documents `columns`). Prefer it: it is
-// authoritative AND refreshes on every render, including terminal resize — so
-// the layout tracks width changes immediately, with no tty needed.
-function readJsonWidth(data) {
-  if (!data) return null;
-  const raw = data.columns
-    ?? (data.terminal && data.terminal.width)
-    ?? data.terminal_width
-    ?? (data.workspace && data.workspace.columns);
-  const n = parseInt(raw, 10);
-  return n > 0 ? n : null;
 }
 
 async function main() {
@@ -717,10 +622,11 @@ async function main() {
   const ctx = buildContext(data);
 
   // Persist live context-window usage for the org-rule tier-2 distance gate
-  // (inject-turn.js reads it). Always runs, regardless of which segments render.
+  // (inject-turn.js reads it), keyed by session_id so concurrent sessions don't
+  // clobber each other. Always runs, regardless of which segments render.
   try {
     const ci = ctx.context;
-    if (ci && typeof ci.usedPercent === 'number') writeContextUsagePercent(ci.usedPercent);
+    if (ci && typeof ci.usedPercent === 'number') writeContextUsagePercent(data.session_id, ci.usedPercent);
   } catch { /* never break the statusline */ }
 
   const segmentNames = parseSegmentList(process.env.CLAUDE_STATUSLINE_SEGMENTS);
@@ -734,7 +640,7 @@ async function main() {
   }
 
   const SEP = '  ';
-  const termWidth = readJsonWidth(data) ?? getTerminalWidth();
+  const termWidth = getTerminalWidth();
   const sepLen = SEP.length;
   const lines = [];
   let currentLine = '';

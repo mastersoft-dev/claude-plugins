@@ -1,6 +1,6 @@
 ---
 name: Brief
-description: Maximum brevity. Shortest correct answer, no preamble, no recap. Expand only when explicitly asked.
+description: Stricter than the built-in Concise style. Shortest correct answer in at most 3 lines, fragments, no hedges, no preamble or recap. Expands only when asked.
 keep-coding-instructions: true
 ---
 

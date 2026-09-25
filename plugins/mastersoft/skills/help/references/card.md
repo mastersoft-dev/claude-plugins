@@ -28,6 +28,14 @@
 | `/mastersoft:verify` | Semantic verify of rule files against actual repo state via the read-only `rule-auditor` agent (Sonnet). |
 | `/mastersoft:vet` | Read-only static code review with severity ratings. |
 
+## Output styles
+
+| Style | Purpose |
+|---|---|
+| `Brief` | The shortest correct answer: no preamble, no recap, stricter than the built-in Concise style. Pick it with `/output-style` or `/config`. |
+
+The built-in `Concise` style (Claude Code 2.1.237+) is the standard pick; `Brief` also caps answers at 3 lines and trades completeness for length. Output styles shape only the main conversation and forks, so the org rules still carry the brevity rule to subagents.
+
 ## Lint signal catalog
 
 Each per-prompt signal is emitted as a two-line bullet:
@@ -44,18 +52,21 @@ Stable `id` values:
 | `no-rules-file` | info | No `AGENTS.md`, `.claude/AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at repo root. Fires on prompt #1, exempt from the first-prompt diet. | `/mastersoft:init-rules` |
 | `agents-md-shadowed` | info | `AGENTS.md` present but not loaded: a `CLAUDE.md` file takes precedence without importing it, or AGENTS.md support is off in Project instructions. Fires on prompt #1. | `@AGENTS.md` in `CLAUDE.md`, or Project instructions `claude-md-and-agents-md` |
 | `rule-file-oversize` | warn | Root rules file (`CLAUDE.md` or `AGENTS.md`) or imported rule file > `claude_max_lines` (default 200) | `/mastersoft:refresh-rules` |
-| `claude-md-large` | info | Root `CLAUDE.md` or `AGENTS.md` > 100 lines and no `.claude/rules/` yet | `/mastersoft:refresh-rules` |
 | `rule-edited-midsession` | info | Rule file mtime > session start (cached rules outdated) | `/clear`, `/compact`, or restart |
 | `stale-path-refs` | warn | Path references in rule files point at missing files/dirs | `/mastersoft:refresh-rules` |
 | `refresh-overdue` | info | No `last-refresh-at` recorded within `refresh_interval_days` | `/mastersoft:refresh-rules` |
 | `security-audit-due` | high | Lockfile changed since last audit OR cadence elapsed | `/mastersoft:audit-deps` |
-| `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed | `/mastersoft:verify` |
+| `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed; skipped in cloud sessions (`CLAUDE_CODE_REMOTE=true`) and CI (`CI=true`) | `/mastersoft:verify` |
 | `patterns-to-promote` | info | Auto-memory has `patterns_promote_threshold`+ uncodified entries (any topic file except the `MEMORY.md` index and `reference`-type pointers) and the dir was touched since last triage | `/mastersoft:promote-patterns` |
 | `memory-review-due` | info | Auto-memory has uncodified entries left untriaged longer than `memory_review_days` (clock: last triage, or dir mtime if never triaged); silent while `patterns-to-promote` is firing | `/mastersoft:promote-patterns` |
 | `rule-file-stale` | info | `CLAUDE.md`/`AGENTS.md`/@-import untouched > `rule_stale_commits`/`rule_stale_days` while repo moved | `/mastersoft:verify` |
 | `brief-deprecated` | info | `BRIEF.md` present in repo (deprecated pattern — no longer injected or linted by the plugin) | `/mastersoft:refresh-rules` |
 
 Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `audit` (security-audit-due), `patterns` (patterns-to-promote, memory-review-due), `verify` (verify-due), `migration` (brief-deprecated). `/mastersoft:ack-lints defer` with no extra args acks **all** categories; `defer rules` acks only the `rules` category and leaves `migration`, `audit`, `patterns`, and `verify` firing. This is why `/mastersoft:refresh-rules` uses `defer rules` — it must not silence orthogonal concerns.
+
+## Context cost
+
+`claude plugin details mastersoft` shows the always-on cost of the skill and agent listing, about 4.4k tokens per session. It leaves out what the hooks inject, which `/context` in a session includes: about 1k tokens of org rules (tiers 1 and 2) at each session start, `/clear` and compaction, about 30 tokens (tier 3) on every prompt, and about 600 tokens (tiers 2 and 3) into every subagent. `MASTERSOFT_ORG_RULES` and `MASTERSOFT_QUIET` trim them.
 
 ## Suppression mechanisms
 
@@ -85,7 +96,19 @@ Signal **categories**: `rules` (CLAUDE/AGENTS staleness, size, refs, refresh), `
 | `MASTERSOFT_RULE_STALE_DAYS` | `rule_stale_days` | `120` | CLAUDE.md/AGENTS.md untouched days → `rule-file-stale`. |
 | `MASTERSOFT_PUSH_PROTECTED_BRANCHES` | `push_protected_branches` | `main,master,develop,dev,staging,production,release/*` | Pushes to these branches ask for confirmation (`git push`, `glab mr create --fill`); `name/*` = prefix, `*` = all. |
 
-Precedence per key: env var > `ORG_RULES.md` frontmatter > built-in default. Unknown frontmatter keys are reported once per session via `systemMessage`.
+Precedence per key: env var > plugin option > `ORG_RULES.md` frontmatter > built-in default. Unknown frontmatter keys are reported once per session via `systemMessage`.
+
+## Plugin options
+
+Three settings are also plugin options. `/plugin configure mastersoft@mastersoft` and `/config` show and change them, and they are saved under `pluginConfigs` in user settings; an admin can set them in managed settings.
+
+| Option | Env var |
+|---|---|
+| `push_protected_branches` | `MASTERSOFT_PUSH_PROTECTED_BRANCHES` |
+| `quiet` | `MASTERSOFT_QUIET` |
+| `org_rules` | `MASTERSOFT_ORG_RULES` |
+
+The env var wins over the option whichever settings file sets it: an `env` value in managed settings fixes the value for everyone, and one in a repo's `.claude/settings.json` overrides the user's option in that repo.
 
 ## Where rules live
 
@@ -98,7 +121,7 @@ Precedence per key: env var > `ORG_RULES.md` frontmatter > built-in default. Unk
 ## Updating org rules
 
 1. Edit `plugins/mastersoft/ORG_RULES.md` (frontmatter for thresholds, body for prose).
-2. Bump `plugins/mastersoft/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the same new version.
+2. Bump `version` in `plugins/mastersoft/.claude-plugin/plugin.json`.
 3. Open a PR. Users pick up changes on `/plugin marketplace update mastersoft` + `/reload-plugins`.
 
 ## Reporting bugs

@@ -37,14 +37,18 @@ function readUserOverrideCommand() {
   return null;
 }
 
+// Newest cached version with a statusline.js. Claude Code marks a replaced
+// version dir `.orphaned_at` and deletes it only 14 days later, so those are
+// skipped even when their version string sorts highest.
 function findMastersoftStatusline() {
   const dir = path.join(PLUGINS_ROOT, 'cache', 'mastersoft', 'mastersoft');
   try {
     const entries = fs.readdirSync(dir)
-      .map(v => ({ v, p: path.join(dir, v, 'hooks/statusline.js') }))
+      .map(v => ({ v, p: path.join(dir, v, 'hooks/statusline.js'), orphaned: path.join(dir, v, '.orphaned_at') }))
       .filter(x => {
         try { return fs.statSync(x.p).isFile(); } catch { return false; }
       })
+      .filter(x => !fs.existsSync(x.orphaned))
       .sort((a, b) => a.v.localeCompare(b.v, undefined, { numeric: true }));
     return entries.at(-1)?.p ?? null;
   } catch {
