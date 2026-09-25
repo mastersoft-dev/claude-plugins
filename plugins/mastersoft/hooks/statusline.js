@@ -26,6 +26,7 @@ const ICON_SETS = {
     model: '\u{f09d1}',
     cost: '\u{f0114}',
     block: '\u{f0954}',
+    cache: '\u{f1c0}',
     tok_in: '\u{f0045}',
     tok_out: '\u{f005d}',
     lines_add: '\u{f0416}',
@@ -42,6 +43,7 @@ const ICON_SETS = {
     model: '🤖',
     cost: '💵',
     block: '⏳',
+    cache: '💾',
     tok_in: '⬇️ ',
     tok_out: '⬆️ ',
     lines_add: '➕',
@@ -58,6 +60,7 @@ const ICON_SETS = {
     model: '⚡',
     cost: '$',
     block: '⧗',
+    cache: '⧉',
     tok_in: '↓',
     tok_out: '↑',
     lines_add: '+',
@@ -67,7 +70,7 @@ const ICON_SETS = {
   },
   none: {
     user: '', host: '', folder: '', repo: '', branch: '', model: '',
-    cost: '', block: '', tok_in: '', tok_out: '', lines_add: '', lines_remove: '',
+    cost: '', block: '', cache: '', tok_in: '', tok_out: '', lines_add: '', lines_remove: '',
     used: ['', '', '', '', '', '', '', '', ''],
     battery: ['', '', '', '', '', '', '', '', '', '', ''],
   },
@@ -525,6 +528,19 @@ function renderLines(data) {
   return `${iconPrefix(ICONS.lines_add, COL_CONTEXT_GREEN)}${added} ${iconPrefix(ICONS.lines_remove, COL_CONTEXT_RED)}${removed}`;
 }
 
+function renderCache(data) {
+  const pc = data.prompt_cache;
+  if (!pc) return '';
+
+  const col = pc.warm ? COL_CONTEXT_GREEN : COL_CONTEXT_YELLOW;
+  let label = pc.warm ? 'warm' : 'cold';
+  if (typeof pc.hit_ratio === 'number') label = `${Math.round(pc.hit_ratio * 100)}% (${label})`;
+  if (pc.last_miss_cause && Array.isArray(pc.last_miss_cause.causes) && pc.last_miss_cause.causes.length) {
+    label += ` ${pc.last_miss_cause.causes.join(',')}`;
+  }
+  return `${iconPrefix(ICONS.cache, col)}${label}`;
+}
+
 const SEGMENT_REGISTRY = {
   user: renderUser,
   host: renderHost,
@@ -539,6 +555,7 @@ const SEGMENT_REGISTRY = {
   tokens_in: renderTokensIn,
   tokens_out: renderTokensOut,
   lines: renderLines,
+  cache: renderCache,
 };
 
 function parseSegmentList(envValue) {

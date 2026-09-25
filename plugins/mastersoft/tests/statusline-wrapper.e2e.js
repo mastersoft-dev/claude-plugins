@@ -368,6 +368,43 @@ test('falls back to the git remote name when workspace.repo is absent', () => {
   if (!out.includes('real-repo')) throw new Error(`expected real-repo in [${out}]`);
 });
 
+console.log('\n10. statusline.js — cache segment (F56)');
+
+function runStatuslineCache(promptCache) {
+  const stateDir = mkDir();
+  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_STATUSLINE_SEGMENTS: 'cache' };
+  const input = { session_id: 'cache-test' };
+  if (promptCache !== undefined) input.prompt_cache = promptCache;
+  const result = cp.spawnSync(process.execPath, [STATUSLINE], {
+    input: JSON.stringify(input),
+    env,
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  if (result.error) throw result.error;
+  return (result.stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+}
+
+test('renders nothing when prompt_cache is absent', () => {
+  assertEq(runStatuslineCache(undefined), '');
+});
+
+test('renders hit ratio and warm state when prompt_cache is present', () => {
+  const out = runStatuslineCache({ warm: true, hit_ratio: 0.91, last_miss_cause: null });
+  if (!/91%/.test(out)) throw new Error(`expected 91% in [${out}]`);
+  if (!/warm/.test(out)) throw new Error(`expected warm in [${out}]`);
+});
+
+test('appends the last miss cause when non-null', () => {
+  const out = runStatuslineCache({
+    warm: false,
+    hit_ratio: 0.5,
+    last_miss_cause: { causes: ['tools_changed'] },
+  });
+  if (!/cold/.test(out)) throw new Error(`expected cold in [${out}]`);
+  if (!/tools_changed/.test(out)) throw new Error(`expected tools_changed in [${out}]`);
+});
+
 // ─── summary ──────────────────────────────────────────────────────────────────
 
 tmpHomes.forEach(h => { try { fs.rmSync(h, { recursive: true, force: true }); } catch {} });

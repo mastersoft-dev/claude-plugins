@@ -33,6 +33,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `ORG_RULES.md` explains how to drop Claude's commit and PR attribution for the
   whole org through the managed `attribution` setting, with the form older clients
   accept.
+- An opt-in `cache` statusline segment (`CLAUDE_STATUSLINE_SEGMENTS`) with the
+  prompt cache hit ratio, its warm or cold state, and the last miss's cause.
 
 ### Changed
 
