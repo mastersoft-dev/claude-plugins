@@ -25,7 +25,7 @@ JSONL yourself.
 ## Tool
 
 ```
-node "$CLAUDE_PLUGIN_ROOT/scripts/recall.js" <subcommand> [options]
+node "${CLAUDE_PLUGIN_ROOT}/scripts/recall.js" <subcommand> [options]
 ```
 
 | Subcommand | Use |
