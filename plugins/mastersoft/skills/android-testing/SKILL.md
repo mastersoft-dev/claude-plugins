@@ -59,6 +59,8 @@ ${CLAUDE_SKILL_DIR}/scripts/check_deps.sh --serial $SERIAL  # adb / u2 / maestro
 
 **Always rebuild + install before testing the app under development.** When the target is the local codebase, `./gradlew :app:installDebug` first (substitute the flavour task for non-`:app` modules). `installDebug` is incremental; no-op when sources unchanged. Skip only on explicit "skip build".
 
+Once this skill loads, its two guard hooks stay registered for the rest of the session: raw `adb shell input tap|swipe|text` and raw screencaps stay denied on every later Bash call, Android task or not.
+
 ## Intent router
 
 | User intent | Lane | Read |

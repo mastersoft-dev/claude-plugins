@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # no-raw-input.sh — PreToolUse hook for the android-testing skill.
 #
-# Scoped to the skill's lifecycle (only fires while the skill is active),
-# this hook intercepts Bash calls and DENIES the precise anti-pattern of
+# Claude Code registers it when the skill loads and keeps running it on
+# every Bash call for the rest of the session, so it returns at once when
+# the command doesn't mention adb. It DENIES the precise anti-pattern of
 # raw `adb shell input tap|swipe|text` invocations. The skill ships a
 # faster, more reliable batch path (`ui_run_flow.py`) that the LLM should
 # reach for instead. The hook's denial message points at the right op so
@@ -22,7 +23,7 @@ set -euo pipefail
 # Read stdin without crashing if the harness sends nothing for some reason.
 INPUT="$(cat 2>/dev/null || true)"
 
-if [[ -z "$INPUT" ]]; then
+if [[ -z "$INPUT" ]] || [[ "$INPUT" != *adb* ]]; then
     exit 0
 fi
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # no-raw-screencap.sh — PreToolUse hook for the android-testing skill.
 #
-# Scoped to the skill's lifecycle (only fires while the skill is active),
-# this hook DENIES the launder pattern the LLM falls into when it's
+# Claude Code registers it when the skill loads and keeps running it on
+# every Bash call for the rest of the session, so it returns at once when
+# the command doesn't mention adb. It DENIES the launder pattern the LLM
+# falls into when it's
 # uncertain about screen state:
 #
 #   1. `adb shell screencap -p /sdcard/cur.png`
@@ -32,7 +34,7 @@ if [[ "${ANDROID_SKILL_ALLOW_RAW_SCREENCAP:-0}" == "1" ]]; then
 fi
 
 INPUT="$(cat 2>/dev/null || true)"
-if [[ -z "$INPUT" ]]; then
+if [[ -z "$INPUT" ]] || [[ "$INPUT" != *adb* ]]; then
     exit 0
 fi
 

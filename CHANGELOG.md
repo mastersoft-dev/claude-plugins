@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- `android-testing` says that its two guard hooks stay registered for the rest of
+  the session once the skill loads, as Claude Code now keeps skill hooks, and the
+  hooks return at once on commands without `adb`.
+
 ## [3.7.0] — 2026-09-25
 
 ### Changed
