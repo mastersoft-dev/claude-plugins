@@ -10,7 +10,8 @@
 //
 // Subcommands:
 //   list    [--project <name>] [--limit N]
-//       Recent-sessions digest for a project (default: current repo).
+//       Recent-sessions digest for a project (default: current repo, with its
+//       subdirectories and worktrees).
 //   search  <query…> [--project <name>] [--all-projects] [--limit N] [--per-session N]
 //       Sessions whose user/assistant text matches <query>, with excerpts.
 //   show    <session-id> [--project <name>] [--max N]
@@ -20,26 +21,15 @@
 //       resolve a name to pass to --project.
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const readline = require('readline');
-const { resolveRepoRoot } = require('../hooks/lib');
+const { execFileSync } = require('child_process');
+const { gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, projectDataDir } = require('../hooks/lib');
 
-// Encode matching Claude Code's per-project dir convention under
-// <config>/projects/<slug>/: every `/`, `\`, `.` and `_` becomes `-`.
-// Intentionally duplicated from scripts/state.js and hooks/lint-engine.js
-// (same 1-line function) — keep the copies in sync.
-function claudeProjectSlug(repoRoot) {
-  return repoRoot.replace(/[/._\\]/g, '-');
-}
+const CWD_PROBE_BYTES = 65536;
 
-// Honor CLAUDE_CONFIG_DIR (transcripts move with it, per Claude Code docs),
-// falling back to ~/.claude. Unlike the plugin's own state dir, this reads
-// Claude Code's data, so the documented override must apply.
 function projectsRoot() {
-  const cfg = (process.env.CLAUDE_CONFIG_DIR || '').trim();
-  const base = cfg || path.join(os.homedir(), '.claude');
-  return path.join(base, 'projects');
+  return path.join(claudeConfigDir(), 'projects');
 }
 
 function fail(msg) {
@@ -125,20 +115,81 @@ function listProjectDirs() {
   return { root, entries };
 }
 
+function realpathSafe(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+
+function worktreePaths(repoRoot) {
+  try {
+    return execFileSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).split('\n').filter((l) => l.startsWith('worktree ')).map((l) => realpathSafe(l.slice(9)));
+  } catch { return []; }
+}
+
+function insideRepo(dir, repoRoot) {
+  if (dir !== repoRoot && !dir.startsWith(repoRoot + path.sep)) return false;
+  for (let d = dir; d !== repoRoot; d = path.dirname(d)) {
+    if (fs.existsSync(path.join(d, '.git'))) return false;
+  }
+  return true;
+}
+
+function recordedCwd(dir) {
+  const sf = sessionFiles(dir)[0];
+  if (!sf) return null;
+  let head = '';
+  try {
+    const fd = fs.openSync(sf.file, 'r');
+    try {
+      const buf = Buffer.alloc(CWD_PROBE_BYTES);
+      head = buf.toString('utf8', 0, fs.readSync(fd, buf, 0, CWD_PROBE_BYTES, 0));
+    } finally { fs.closeSync(fd); }
+  } catch { return null; }
+  for (const line of head.split('\n')) {
+    let o;
+    try { o = JSON.parse(line); } catch { continue; }
+    if (o && typeof o.cwd === 'string') return o.cwd;
+  }
+  return null;
+}
+
+// A project dir whose slug merely starts with the repo's slug may belong to a
+// sibling checkout (`app` vs `app-old`) or a nested repo, so it counts only when
+// one of its transcripts recorded a working directory inside this repo.
+function sessionsInside(dir, repoRoot) {
+  const cwd = recordedCwd(dir);
+  return cwd !== null && insideRepo(cwd, repoRoot);
+}
+
+// Claude Code files a session under the slug of its working directory, so one
+// repo spreads over several dirs: the start dir, the git toplevel, every
+// subdirectory a session started in, and each worktree.
+function relatedProjectDirs(start, first) {
+  const cwd = realpathSafe(start);
+  const top = fs.existsSync(cwd) && gitToplevel(cwd) ? resolveRepoRoot(cwd) : null;
+  const { root, entries } = listProjectDirs();
+  const dirs = [];
+  const add = (d) => { if (d && !dirs.some((x) => x.dir === d) && fs.existsSync(d)) dirs.push({ dir: d, label: path.basename(d) }); };
+  add(first);
+  add(projectDataDir(top || cwd));
+  add(projectDataDir(cwd));
+  if (top) {
+    for (const checkout of [top, ...worktreePaths(top)]) {
+      add(projectDataDir(checkout));
+      const prefix = projectSlug(checkout) + '-';
+      for (const name of entries) {
+        if (name.startsWith(prefix) && sessionsInside(path.join(root, name), checkout)) add(path.join(root, name));
+      }
+    }
+  }
+  return dirs;
+}
+
 function resolveProjectDir(projectArg) {
   const { root, entries } = listProjectDirs();
-  if (!projectArg) {
-    const slug = claudeProjectSlug(resolveRepoRoot(process.cwd()));
-    const dir = path.join(root, slug);
-    if (!fs.existsSync(dir)) {
-      fail(`No transcripts for the current project.\nLooked in: ${dir}\n` +
-        `Sessions appear here after you've worked in this repo. ` +
-        `Use --project <name> to target another, or 'projects' to list them.`);
-    }
-    return { dir, label: slug };
-  }
   const q = projectArg.toLowerCase();
-  const qslug = claudeProjectSlug(projectArg).toLowerCase();
+  const qslug = projectSlug(projectArg).toLowerCase();
   const lowered = entries.map((n) => ({ name: n, l: n.toLowerCase() }));
   // Tiered match, most specific first. A bare name like "officegenius" is a
   // substring of a sibling "officegenius-backend", so an exact dir name wins,
@@ -208,18 +259,45 @@ function makeSnippet(txt, q, width = 200) {
 
 function out(s) { process.stdout.write(s); }
 
-async function cmdList(projectArg, limit) {
+function currentProjectDirs() {
+  return relatedProjectDirs(process.cwd(), null);
+}
+
+function namedProjectDirs(projectArg) {
   const proj = resolveProjectDir(projectArg);
-  const files = sessionFiles(proj.dir);
-  if (!files.length) { out(`Project: ${proj.label}\n(no sessions found)\n`); return; }
+  const cwd = recordedCwd(proj.dir);
+  return cwd ? relatedProjectDirs(cwd, proj.dir) : [proj];
+}
+
+function scopeDirs(projectArg) {
+  if (projectArg) return namedProjectDirs(projectArg);
+  const dirs = currentProjectDirs();
+  if (!dirs.length) {
+    fail(`No transcripts for the current project.\nLooked for: ${projectDataDir(resolveRepoRoot(process.cwd()))}\n` +
+      `Sessions appear here after you've worked in this repo. ` +
+      `Use --project <name> to target another, or 'projects' to list them.`);
+  }
+  return dirs;
+}
+
+function scopeLabel(dirs) {
+  return dirs.length > 1 ? `${dirs[0].label} (+${dirs.length - 1} related dir(s))` : dirs[0].label;
+}
+
+async function cmdList(projectArg, limit) {
+  const dirs = scopeDirs(projectArg);
   const metas = [];
-  for (const sf of files) metas.push(await readMeta(sf));
+  for (const d of dirs) {
+    for (const sf of sessionFiles(d.dir)) metas.push({ ...(await readMeta(sf)), label: d.label });
+  }
+  if (!metas.length) { out(`Project: ${scopeLabel(dirs)}\n(no sessions found)\n`); return; }
   metas.sort((a, b) => String(b.lastTs || '').localeCompare(String(a.lastTs || '')));
   const shown = metas.slice(0, limit);
-  out(`Project: ${proj.label}\n${metas.length} session(s), showing ${shown.length} most recent.\n\n`);
+  out(`Project: ${scopeLabel(dirs)}\n${metas.length} session(s), showing ${shown.length} most recent.\n\n`);
   shown.forEach((m, idx) => {
     out(`${idx + 1}. ${m.title || '(untitled)'}\n`);
     const bits = [`${rel(m.lastTs)} (${dateStr(m.lastTs)})`];
+    if (dirs.length > 1) bits.push(m.label);
     if (m.branch) bits.push(`branch ${m.branch}`);
     bits.push(`${m.turns} turn(s)`);
     bits.push(`id ${m.id}`);
@@ -237,8 +315,7 @@ async function cmdSearch(query, projectArg, allProjects, limit, perSession) {
     const { root, entries } = listProjectDirs();
     dirs = entries.map((n) => ({ dir: path.join(root, n), label: n }));
   } else {
-    const p = resolveProjectDir(projectArg);
-    dirs = [{ dir: p.dir, label: p.label }];
+    dirs = scopeDirs(projectArg);
   }
   const q = query.toLowerCase();
   const results = [];
@@ -268,13 +345,13 @@ async function cmdSearch(query, projectArg, allProjects, limit, perSession) {
   }
   results.sort((a, b) => String(b.lastTs || '').localeCompare(String(a.lastTs || '')));
   const shown = results.slice(0, limit);
-  const scope = allProjects ? 'all projects' : dirs[0].label;
+  const scope = allProjects ? 'all projects' : scopeLabel(dirs);
   out(`Search "${query}" in ${scope}: ${results.length} matching session(s)` +
     (results.length > shown.length ? `, showing ${shown.length}` : '') + `.\n\n`);
   shown.forEach((r, idx) => {
     out(`${idx + 1}. ${r.title || '(untitled)'}\n`);
     const bits = [`${rel(r.lastTs)} (${dateStr(r.lastTs)})`];
-    if (allProjects) bits.push(r.label);
+    if (allProjects || dirs.length > 1) bits.push(r.label);
     if (r.branch) bits.push(`branch ${r.branch}`);
     bits.push(`${r.total} hit(s)`);
     bits.push(`id ${r.id}`);
@@ -289,13 +366,9 @@ function findSession(sessionId, projectArg) {
   const root = projectsRoot();
   let dirs = [];
   if (projectArg) {
-    dirs = [resolveProjectDir(projectArg).dir];
+    dirs = namedProjectDirs(projectArg).map((d) => d.dir);
   } else {
-    try {
-      const slug = claudeProjectSlug(resolveRepoRoot(process.cwd()));
-      const d = path.join(root, slug);
-      if (fs.existsSync(d)) dirs.push(d);
-    } catch {}
+    dirs = currentProjectDirs().map((d) => d.dir);
     try {
       for (const e of fs.readdirSync(root, { withFileTypes: true })) {
         if (!e.isDirectory()) continue;

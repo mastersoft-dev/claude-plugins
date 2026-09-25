@@ -30,13 +30,13 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/recall.js" <subcommand> [options]
 
 | Subcommand | Use |
 |------------|-----|
-| `list [--project <name>] [--limit N]` | Recent-sessions recap. Default N=10, current repo. |
+| `list [--project <name>] [--limit N]` | Recent-sessions recap. Default N=10, current repo (with sessions started in its subdirectories and worktrees). |
 | `search <query…> [--project <name>] [--all-projects] [--limit N] [--per-session N]` | Sessions whose user/assistant text matches the query, with excerpts. |
 | `show <session-id> [--project <name>] [--max N]` | Linear digest of one session (last N turns, default 50). Accepts a full id or a unique prefix. |
 | `projects [--limit N]` | Available repos (dir + session count + last activity) — use to resolve a `--project` name. |
 
 Notes:
-- `--project <name>` takes a substring of the repo path (e.g. `legion`, `officegenius`). If it's ambiguous the script lists the candidates — relay them and ask which.
+- For the current repo, leave `--project` out. `--project <name>` targets another repo and takes a substring of its path (e.g. `legion`, `officegenius`). If it's ambiguous the script lists the candidates — relay them and ask which.
 - Sessions older than ~30 days may be gone (Claude Code prunes transcripts by default). If a recap looks short, say so rather than implying nothing happened.
 
 ## Protocol

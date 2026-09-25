@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * E2E tests for Claude Code path resolution — project slugs, config and cache
- * dirs, auto-memory location.
+ * dirs, auto-memory location — and for recall.js, which reads transcripts
+ * through them.
  *
  * Every test builds its own temp HOME / CLAUDE_CONFIG_DIR and throwaway git
- * repos, so nothing under the real ~/.claude is read. state.js runs as a
- * subprocess; the lib helpers run in-process with a scoped env.
+ * repos, so nothing under the real ~/.claude is read. recall.js and state.js
+ * run as subprocesses; the lib helpers run in-process with a scoped env.
  *
  * Usage: node plugins/mastersoft/tests/claude-paths.e2e.js
  */
@@ -17,6 +18,7 @@ const path = require('path');
 const cp   = require('child_process');
 
 const LIB    = path.resolve(__dirname, '../hooks/lib.js');
+const RECALL = path.resolve(__dirname, '../scripts/recall.js');
 const STATE  = path.resolve(__dirname, '../scripts/state.js');
 const lib = require(LIB);
 
@@ -80,6 +82,22 @@ function run(script, args, { cwd, env }) {
   return { code: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
+let seq = 0;
+function sessionId() {
+  seq++;
+  return `${String(seq).padStart(8, '0')}-0000-4000-8000-000000000000`;
+}
+
+function transcript(projectsRoot, dirName, { cwd, title, prompt, ts, id = sessionId() }) {
+  const lines = [
+    { type: 'user', cwd, timestamp: ts, sessionId: id, message: { role: 'user', content: prompt } },
+    { type: 'assistant', cwd, timestamp: ts, sessionId: id, message: { role: 'assistant', content: [{ type: 'text', text: `ok: ${prompt}` }] } },
+    { type: 'ai-title', aiTitle: title, sessionId: id },
+  ];
+  write(path.join(projectsRoot, dirName, `${id}.jsonl`), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return id;
+}
+
 let passed = 0, failed = 0;
 const failures = [];
 
@@ -108,7 +126,7 @@ function assertExcludes(haystack, needle, msg) {
 
 // ─── tests ──────────────────────────────────────────────────────────────────
 
-console.log('\nclaude-paths e2e — slugs, config dirs, auto memory\n');
+console.log('\nclaude-paths e2e — slugs, config dirs, auto memory, recall\n');
 
 console.log('1. project slug + data dir');
 
@@ -208,6 +226,96 @@ test('state.js memory-path prints the dir, or nothing when auto memory is off', 
   assertEq(off.code, 0);
   assertEq(off.stdout.trim(), '');
   assertIncludes(off.stderr, 'Auto memory is off');
+});
+
+console.log('\n3. recall — which transcripts count as the current project');
+
+function recallFixture() {
+  const base = mkTmp();
+  const repo = mkRepo(path.join(base, 'app'));
+  fs.mkdirSync(path.join(repo, 'web', 'src'), { recursive: true });
+  const wt = path.join(base, 'app-wt');
+  git(repo, 'worktree', 'add', '-q', wt);
+  fs.mkdirSync(path.join(wt, 'web'), { recursive: true });
+  const nested = mkRepo(path.join(repo, 'vendor', 'lib'));
+  const sibling = path.join(base, 'app-old');
+  fs.mkdirSync(sibling);
+  const config = mkTmp();
+  const projects = path.join(config, 'projects');
+  const ids = {
+    root: transcript(projects, lib.projectSlug(repo), { cwd: repo, title: 'ROOT_SESSION', prompt: 'root work', ts: '2026-09-20T10:00:00Z' }),
+    sub: transcript(projects, lib.projectSlug(path.join(repo, 'web')), { cwd: path.join(repo, 'web'), title: 'SUBDIR_SESSION', prompt: 'web work', ts: '2026-09-21T10:00:00Z' }),
+    wt: transcript(projects, lib.projectSlug(wt), { cwd: wt, title: 'WORKTREE_SESSION', prompt: 'wt work', ts: '2026-09-22T10:00:00Z' }),
+    wtSub: transcript(projects, lib.projectSlug(path.join(wt, 'web')), { cwd: path.join(wt, 'web'), title: 'WORKTREE_SUBDIR_SESSION', prompt: 'wt web work', ts: '2026-09-22T12:00:00Z' }),
+    nested: transcript(projects, lib.projectSlug(nested), { cwd: nested, title: 'NESTED_REPO_SESSION', prompt: 'nested work', ts: '2026-09-23T10:00:00Z' }),
+    sibling: transcript(projects, lib.projectSlug(sibling), { cwd: sibling, title: 'SIBLING_SESSION', prompt: 'old work', ts: '2026-09-24T10:00:00Z' }),
+  };
+  return { base, repo, wt, config, projects, ids };
+}
+
+test('list from a subdir merges toplevel, subdirs and worktrees, newest first', () => {
+  const f = recallFixture();
+  const r = run(RECALL, ['list'], { cwd: path.join(f.repo, 'web', 'src'), env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, '4 session(s)');
+  const order = ['WORKTREE_SUBDIR_SESSION', 'WORKTREE_SESSION', 'SUBDIR_SESSION', 'ROOT_SESSION'].map((t) => r.stdout.indexOf(`. ${t}\n`));
+  if (order.some((i) => i < 0) || order.some((i, k) => k && order[k - 1] > i)) throw new Error(`order ${order}:\n${r.stdout}`);
+  assertExcludes(r.stdout, 'SIBLING_SESSION', 'sibling checkout with a shared slug prefix');
+  assertExcludes(r.stdout, 'NESTED_REPO_SESSION', 'nested git repo');
+});
+
+test('search covers the same dirs', () => {
+  const f = recallFixture();
+  const r = run(RECALL, ['search', 'work'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  for (const t of ['ROOT_SESSION', 'SUBDIR_SESSION', 'WORKTREE_SESSION', 'WORKTREE_SUBDIR_SESSION']) assertIncludes(r.stdout, t);
+  assertExcludes(r.stdout, 'SIBLING_SESSION');
+});
+
+test('show finds a session filed under a worktree dir', () => {
+  const f = recallFixture();
+  const r = run(RECALL, ['show', f.ids.wt.slice(0, 8)], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, 'wt work');
+});
+
+test('show falls back to other projects when the current one has no transcripts', () => {
+  const f = recallFixture();
+  const empty = mkRepo(path.join(f.base, 'fresh'));
+  const r = run(RECALL, ['show', f.ids.sibling], { cwd: empty, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, 'old work');
+});
+
+test('outside git only the cwd dir is read', () => {
+  const f = recallFixture();
+  const plain = path.join(f.base, 'notes');
+  fs.mkdirSync(path.join(plain, 'sub'), { recursive: true });
+  transcript(f.projects, lib.projectSlug(plain), { cwd: plain, title: 'PLAIN_SESSION', prompt: 'notes', ts: '2026-09-20T10:00:00Z' });
+  transcript(f.projects, lib.projectSlug(path.join(plain, 'sub')), { cwd: path.join(plain, 'sub'), title: 'PLAIN_SUB_SESSION', prompt: 'sub notes', ts: '2026-09-21T10:00:00Z' });
+  const r = run(RECALL, ['list'], { cwd: plain, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, 'PLAIN_SESSION');
+  assertExcludes(r.stdout, 'PLAIN_SUB_SESSION');
+});
+
+test('--project matches a repo path with spaces through the slug', () => {
+  const f = recallFixture();
+  const spaced = path.join(f.base, 'my repo');
+  fs.mkdirSync(spaced);
+  transcript(f.projects, lib.projectSlug(spaced), { cwd: spaced, title: 'SPACED_SESSION', prompt: 'spaced', ts: '2026-09-20T10:00:00Z' });
+  const r = run(RECALL, ['list', '--project', 'my repo'], { cwd: f.repo, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, 'SPACED_SESSION');
+});
+
+test('--project expands to the named repo subdirs and worktrees', () => {
+  const f = recallFixture();
+  const elsewhere = mkRepo(path.join(f.base, 'elsewhere'));
+  const r = run(RECALL, ['list', '--project', lib.projectSlug(f.repo)], { cwd: elsewhere, env: { CLAUDE_CONFIG_DIR: f.config } });
+  assertEq(r.code, 0, `exit (stderr: ${r.stderr})`);
+  assertIncludes(r.stdout, '4 session(s)');
+  assertExcludes(r.stdout, 'SIBLING_SESSION');
 });
 
 // ─── summary ──────────────────────────────────────────────────────────────────
