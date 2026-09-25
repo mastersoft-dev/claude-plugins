@@ -69,6 +69,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - Tier 1 of the org rules keeps only the Mastersoft examples of what belongs in
   auto memory: Claude Code already skips what the code, git history and CLAUDE.md
   files say.
+- The org rules that reach subagents open as project conventions instead of
+  "authoritative" orders to honor, as Claude Code advises for hook context: text
+  framed as system commands can trip the prompt-injection defenses.
 
 ### Removed
 
