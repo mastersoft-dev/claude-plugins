@@ -18,7 +18,19 @@ The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it 
 
 1. Fork and clone the repo.
 2. Edit content under `plugins/mastersoft/`.
-3. Reload inside a Claude session with `/reload-plugins` (the marketplace install pulls from your fork once you point it at the local clone, or you can edit the cached copy under `~/.claude/plugins/cache/mastersoft/mastersoft/<version>/` for quick iteration).
+3. Start a session on your working copy with `scripts/dev.sh`. Arguments pass through to `claude`, for example `scripts/dev.sh -p "/mastersoft-dev:help"`. Restart it to pick up new edits.
+
+### Why a renamed copy
+
+Managed settings enable `mastersoft@mastersoft` for the organization, and Claude Code ignores a `--plugin-dir` plugin whose name is locked that way (`claude --debug` logs `--plugin-dir copy of "mastersoft" ignored: plugin is locked by managed settings`). A local directory marketplace doesn't help either: the managed marketplace entry named `mastersoft` replaces it. `scripts/dev.sh` syncs `plugins/mastersoft` into `$MASTERSOFT_DEV_DIR` (default `$TMPDIR/mastersoft-dev`), renames the manifest to `mastersoft-dev` and starts `claude --plugin-dir` on that copy. Symlinks can't replace the copy, because Claude Code rejects component paths that resolve outside the plugin directory.
+
+The copy runs next to the installed plugin, so:
+
+- skills show up as `/mastersoft-dev:<name>`;
+- the hooks of both copies run, so injected context appears twice;
+- a skill that delegates with `subagent_type: mastersoft:<agent>` still reaches the installed agent: invoke `mastersoft-dev:<agent>` directly to test an edited agent.
+
+In a `-p --output-format stream-json --verbose` run, the `init` message lists the loaded plugins with their paths, which confirms the session is on the copy.
 
 ### Statusline development
 
