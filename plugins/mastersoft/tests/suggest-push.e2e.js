@@ -47,13 +47,13 @@ function checkout(work, branch, upstream) {
   }
 }
 
-function runHook(cwd, command, env = {}, { timeout = HOOK_TIMEOUT_MS } = {}) {
+function runHook(cwd, command, env = {}, { tool = 'Bash', timeout = HOOK_TIMEOUT_MS } = {}) {
   const base = { ...process.env };
   delete base.MASTERSOFT_SKIP_PUSH_CHECK;
   delete base.MASTERSOFT_PUSH_PROTECTED_BRANCHES;
   delete base.CLAUDE_PROJECT_DIR;
   const result = cp.spawnSync(process.execPath, [HOOK], {
-    input: JSON.stringify({ tool_name: 'Bash', cwd, tool_input: { command } }),
+    input: JSON.stringify({ tool_name: tool, cwd, tool_input: { command } }),
     env: { ...base, ...env },
     encoding: 'utf8',
     timeout,
@@ -275,6 +275,35 @@ test('"*" restores confirmation on every branch', () => {
 
 test('MASTERSOFT_SKIP_PUSH_CHECK=1 disables the check', () => {
   assertEq(runHook(onMain, 'git push', { MASTERSOFT_SKIP_PUSH_CHECK: '1' }), 'pass');
+});
+
+test('PowerShell push on a protected branch asks', () => {
+  assertEq(runHook(onMain, 'git push', {}, { tool: 'PowerShell' }), 'ask');
+});
+
+test('PowerShell push on a feature branch passes', () => {
+  assertEq(runHook(onFeature, 'git push -u origin HEAD', {}, { tool: 'PowerShell' }), 'pass');
+});
+
+test('PowerShell Set-Location before a push asks', () => {
+  assertEq(runHook(onFeature, 'Set-Location ..; git push', {}, { tool: 'PowerShell' }), 'ask');
+});
+
+test('push inside pwsh -Command asks', () => {
+  assertEq(runHook(onFeature, 'pwsh -Command "git push origin main"', {}, { tool: 'PowerShell' }), 'ask');
+});
+
+test('PowerShell keeps the backslashes of a -C path', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-push-bs\\'));
+  tmpDirs.push(root);
+  const work = path.join(root, 'work');
+  sh(['init', '-q', '-b', 'feat/x', work], root);
+  sh(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], work);
+  assertEq(runHook(onMain, `git -C "${work}" push -u origin HEAD`, {}, { tool: 'PowerShell' }), 'pass');
+});
+
+test('other tools are ignored', () => {
+  assertEq(runHook(onMain, 'git push', {}, { tool: 'Read' }), 'pass');
 });
 
 test('git that never answers asks instead of stalling the gate', () => {

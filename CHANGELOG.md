@@ -94,6 +94,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The protected-branch push check stops waiting for git after 3 seconds and asks
   for confirmation: a git call that hung ran the hook into its timeout, and Claude
   Code runs the command when a PreToolUse hook times out.
+- The protected-branch push check also covers the PowerShell tool, the only shell
+  tool on Windows without Git Bash, including `Set-Location` before a push and a
+  push inside `pwsh -Command`.
 
 ## [3.7.0] — 2026-09-25
 
