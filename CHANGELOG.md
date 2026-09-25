@@ -22,6 +22,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   `~/.claude/agent-memory/` no longer load.
 - `/mastersoft:codex` says that `ultrathink` also asks Claude Code for deeper
   reasoning on that turn, and points to `--xhigh` for codex alone.
+- `/mastersoft:glab` waits for a running pipeline with `glab ci status --wait` in
+  the background instead of the blocking `--live` view.
 
 ### Fixed
 

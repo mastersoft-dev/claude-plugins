@@ -42,7 +42,7 @@ For **destructive** commands (cancel, delete) the answer must be an affirmative 
 
 ```
 1. glab ci status                          # overview, which job failed
-2. glab ci status --live                   # if a pipeline is still running and you need to watch
+2. glab ci status --wait                   # if the pipeline is still running: Bash run_in_background: true
 3. glab ci trace <failing-job>             # read the log
 4. <fix locally> or <inspect .gitlab-ci.yml>
 5. glab ci lint                            # if you edited .gitlab-ci.yml
@@ -50,6 +50,8 @@ For **destructive** commands (cancel, delete) the answer must be an affirmative 
    # OR (only when the failure is a known flake):
    glab ci retry <failing-job>             # after user confirms
 ```
+
+To wait for a running pipeline, run `glab ci status --wait` with `run_in_background: true`: it returns once the pipeline ends, so its exit is the one notification you need. `--live` redraws in place until the end and blocks the call. `glab ci trace` on a job that is still running follows its log until the job ends, so read the trace once `--wait` has returned.
 
 Do not "retry until green." If a job fails twice, **stop and read the log** — flake-retry loops mask real bugs.
 
