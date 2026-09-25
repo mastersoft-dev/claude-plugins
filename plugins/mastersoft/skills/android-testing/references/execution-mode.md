@@ -17,8 +17,7 @@ batch runs ~5× faster wall-clock and produces a single ordered trace.
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
     --require-anchor 'desc="Presenza"' \
-    --stdin <<'EOF'
-{"flow_timeout_ms": 60000, "ops":[
+    --ops '{"flow_timeout_ms": 60000, "ops":[
   {"op":"tap","args":{"target":"desc=\"Presenza\"","wait_for":["desc=\"Timbra\""]}},
   {"op":"tap","args":{"target":"desc=\"Timbra\"","wait_for":["desc=\"Inserisci codice\""]}},
   {"op":"tap","args":{"target":"desc=\"Inserisci codice\"","wait_for":["text=\"Inserisci codice badge\""]}},
@@ -40,8 +39,7 @@ ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
   {"op":"resolve_then_tap_sequence","args":{"selectors":["text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\"","text=\"0\""],"assume_stable_coords":true,"delay_ms":120,"wait_for":["text=\"Scuro\""],"timeout_ms":8000}},
   {"op":"tap","args":{"target":"text=\"Scuro\"","wait_for":["desc=\"Salva\""],"timeout_ms":5000}},
   {"op":"tap","args":{"target":"desc=\"Salva\"","wait_for_any":["desc=\"Salvato\"","desc=\"Indietro\""],"timeout_ms":8000}}
-]}
-EOF
+]}'
 ```
 
 ## Picking gear
@@ -80,8 +78,7 @@ its rc in `results[]` without aborting the rest of the flow.
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
     --require-anchor 'desc="<start-screen-anchor>"' \
-    --stdin <<'EOF'
-{"flow_timeout_ms": 90000, "ops":[
+    --ops '{"flow_timeout_ms": 90000, "ops":[
   // --- enter wizard ---
   {"op":"tap","args":{"target":"desc=\"<module>\"","wait_for":["desc=\"<entry>\""],"timeout_ms":6000}},
   {"op":"tap","args":{"target":"desc=\"<entry>\"","wait_for":["text=\"Nome *\""],"timeout_ms":6000}},
@@ -96,7 +93,7 @@ ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
   // --- mid-batch diagnostic (NON-FATAL): proves form state landed
   //     correctly. Failed describe records rc=1 in results but does
   //     not abort. Splitting into a new batch for this check costs
-  //     the whole flow's idle-timer reset budget. ---
+  //     the idle-timer reset budget of the whole flow. ---
   {"op":"describe","args":{"selectors":["text=\"Mario\"","text=\"Rossi\"","text=\"mario@test.it\""]}},
 
   // --- dropdown pick (KioskPicker has clickable wrapper + interactionSource
@@ -112,8 +109,7 @@ ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
   //     forensic, not flow-breaking) ---
   {"op":"sleep","args":{"ms":2000}},
   {"op":"describe","args":{"selectors":["text~\"completata\"","text~\"successo\"","desc=\"Conferma\""]}}
-]}
-EOF
+]}'
 ```
 
 ### Rules embedded in the template

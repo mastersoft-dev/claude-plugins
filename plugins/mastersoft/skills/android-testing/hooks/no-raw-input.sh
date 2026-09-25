@@ -53,7 +53,7 @@ if echo "$CMD" | grep -qE '\badb\b([[:space:]]+-[sePH][[:space:]]+[^[:space:]]+)
   • {\"op\":\"swipe\",\"args\":{\"x1\":..,\"y1\":..,\"x2\":..,\"y2\":..,\"duration_ms\":..}}  instead of  adb shell input swipe ...
   • {\"op\":\"type\",\"args\":{\"target\":\"<sel>\",\"text\":\"...\"}}     instead of  adb shell input text ...
 
-Wrap the next several actions in ONE ui_run_flow.py --stdin batch with wait_for chained between ops. Pre-flight with --require-anchor 'desc=\"<expected anchor>\"'. See SKILL.md → DO THIS by default + references/execution-mode.md."
+Wrap the next several actions in ONE ui_run_flow.py --ops '<json>' batch with wait_for chained between ops. Pre-flight with --require-anchor 'desc=\"<expected anchor>\"'. See SKILL.md → DO THIS by default + references/execution-mode.md."
 
     # PreToolUse deny shape per Claude Code hooks docs.
     if command -v jq >/dev/null 2>&1; then

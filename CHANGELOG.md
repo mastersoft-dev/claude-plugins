@@ -20,6 +20,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   `env` block of `.claude/settings.local.json`, which the running session applies
   on save, or in the environment `claude` starts with. An `export` in a Bash call
   never reached it.
+- `android-testing` runs its scripts and flows without permission prompts in
+  default mode: flows go as `--ops '<json>'` instead of a JSON heredoc, scripts
+  run by their path, and the serial is written out, as each Bash call starts a
+  new shell.
 
 ## [3.7.0] — 2026-09-25
 

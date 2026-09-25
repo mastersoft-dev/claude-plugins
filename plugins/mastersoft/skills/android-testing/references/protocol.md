@@ -21,9 +21,7 @@ If you cannot list the path in 30 seconds, you do not have it. Stop, grep, ask. 
 ## 2. ANCHOR — `describe` the current screen
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" --stdin <<'EOF'
-{"ops":[{"op":"describe","args":{"selectors":["<expected anchor>"]}}]}
-EOF
+${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" --ops '{"ops":[{"op":"describe","args":{"selectors":["<expected anchor>"]}}]}'
 ```
 
 `describe` returns `{matched, total, results, ...}`. On miss it ALSO returns `nearby[]` (up to 12 `text=`/`desc=` selectors actually on screen) and `foreground`. That output is your correction signal — match against the user's intent before re-dumping or escalating. **Never** `Read()` a screencap to "check the screen".
@@ -35,13 +33,11 @@ The moment the path is known, write the full batch. Chain `wait_for` between ops
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" \
     --require-anchor '<anchor selector>' \
-    --stdin <<'EOF'
-{"flow_timeout_ms": 30000, "ops":[
+    --ops '{"flow_timeout_ms": 30000, "ops":[
   {"op":"tap","args":{"target":"<sel A>","wait_for":["<sel B>"]}},
   {"op":"tap","args":{"target":"<sel B>","wait_for":["<sel C>"]}},
   ...
-]}
-EOF
+]}'
 ```
 
 Eight separate small batches for one flow is the worst-observed anti-pattern. Eight 1-tap batches pay 8× subprocess + 8× anchor describe + 8 trace dirs to stitch later. One 20-op batch runs ~5× faster wall-clock. AND if the kiosk has an idle screensaver, multi-batch flows cross the idle threshold and lose state mid-test — single batch keeps the timer reset on every tap.

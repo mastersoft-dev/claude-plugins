@@ -51,13 +51,21 @@ Skipping a step burns 50-200 K tokens recovering. Full detail in `references/pro
 ## Bootstrap
 
 ```bash
-SERIAL=$(${CLAUDE_SKILL_DIR}/scripts/device_pick.sh)        # honours $ANDROID_SERIAL
-${CLAUDE_SKILL_DIR}/scripts/check_deps.sh --serial $SERIAL  # adb / u2 / maestro / imagemagick
+${CLAUDE_SKILL_DIR}/scripts/device_pick.sh                          # prints the serial; honours $ANDROID_SERIAL
+${CLAUDE_SKILL_DIR}/scripts/check_deps.sh --serial <serial>         # adb / u2 / maestro / imagemagick
 ```
 
 `device_pick.sh` prints a stderr table and exits non-zero if multiple devices attached and no `ANDROID_SERIAL` set.
 
 **Always rebuild + install before testing the app under development.** When the target is the local codebase, `./gradlew :app:installDebug` first (substitute the flavour task for non-`:app` modules). `installDebug` is incremental; no-op when sources unchanged. Skip only on explicit "skip build".
+
+## Running commands
+
+The skill pre-approves `adb`, `emulator`, `./gradlew` and the scripts under `${CLAUDE_SKILL_DIR}/scripts/`. The reference files are read as plain text, so their commands carry the unexpanded skill-directory variable where this file shows that path, and name the device `$SERIAL`. Copy their commands in the pre-approved form:
+
+- Write the scripts path above in place of the variable, and the serial `device_pick.sh` printed in place of `$SERIAL`. Each Bash call starts a new shell, so a variable set in one call is empty in the next.
+- Start the command with the script path, as each script is executable. A `python3`, `bash`, `cd` or `VAR=value` in front of it needs the user's approval.
+- Pass a flow to `ui_run_flow.py` as `--ops '<json>'`, or as `--file <path>` when the JSON contains a single quote. A heredoc holding JSON always needs the user's approval.
 
 Once this skill loads, its two guard hooks stay registered for the rest of the session: raw `adb shell input tap|swipe|text` and raw screencaps stay denied on every later Bash call, Android task or not.
 

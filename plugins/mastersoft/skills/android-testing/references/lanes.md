@@ -30,14 +30,11 @@ Quality controls (already wired into the daemon):
 - Per-batch `flow_timeout_ms` caps wall-clock across the whole flow.
 
 ```bash
-SERIAL=$(${CLAUDE_SKILL_DIR}/scripts/device_pick.sh)
-${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" --stdin <<'EOF'
-{"ops":[
+${CLAUDE_SKILL_DIR}/scripts/ui_run_flow.py --serial "$SERIAL" --ops '{"ops":[
   {"op":"tap","args":{"target":"text=\"Sign in\"","wait_for":["class=EditText,id=email"]}},
   {"op":"type","args":{"target":"class=EditText,id=email","text":"alice@example.com"}},
   {"op":"key","args":{"code":"KEYCODE_ENTER","wait_for":["text~\"Welcome\""],"fail_on_timeout":true}}
-]}
-EOF
+]}'
 ```
 
 Misses (false-positive Lane A):

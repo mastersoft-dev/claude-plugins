@@ -43,7 +43,7 @@ unfamiliar screen — wrong as a steady-state habit.
 with a concrete list of selectors, write the WHOLE batch. See
 `execution-mode.md` for the canonical 22-op example. Rule of thumb: if
 you're about to write the third one-tap-`ui_act.py` in a row, stop and
-collapse into a single `ui_run_flow.py --stdin` batch instead.
+collapse into a single `ui_run_flow.py --ops` batch instead.
 
 Sequential 8 small batches: ~17 s wall-clock + 8 trace dirs to stitch.
 One 22-op batch: ~14 s + 1 trace dir.

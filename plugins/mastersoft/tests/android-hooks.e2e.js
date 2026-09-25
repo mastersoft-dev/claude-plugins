@@ -59,8 +59,11 @@ function assertEq(actual, expected, msg) {
 
 console.log('\nandroid-testing hooks — raw input and screencap guards\n');
 
-test('raw input tap is denied', () => {
-  assertEq(runHook(INPUT_HOOK, 'adb -s emulator-5554 shell input tap 100 200').decision, 'deny');
+test('raw input tap is denied and points at the --ops batch', () => {
+  const r = runHook(INPUT_HOOK, 'adb -s emulator-5554 shell input tap 100 200');
+  assertEq(r.decision, 'deny');
+  assertEq(r.reason.includes("--ops '<json>'"), true, 'reason names --ops');
+  assertEq(r.reason.includes('--stdin'), false, 'reason drops --stdin');
 });
 
 test('raw input keyevent passes', () => {
