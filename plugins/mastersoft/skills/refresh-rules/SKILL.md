@@ -26,7 +26,7 @@ Curator skill. Delegates analysis to the `rule-auditor` agent, proposes a diff p
    - **Spawn the `rule-auditor` agent via `Agent`**, seeding it with the live lint signals visible in this session (the `## Mastersoft signals` block from lint-engine that prompted this call) and the optional `[focus-area]`. Example prompt:
 
      ```
-     Agent (subagent_type: rule-auditor):
+     Agent (subagent_type: mastersoft:rule-auditor):
      Audit the rule files in <repoRoot> against the codebase.
      Input signals (prioritise the areas these point at): <signal ids, e.g. stale-path-refs, rule-file-stale, rule-file-oversize>.
      Focus: <focus-area or "all">.

@@ -80,6 +80,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/mastersoft:ask`, `audit`, `adversary` and `help` no longer switch the session
   to their own model and effort for the rest of the turn: the model they meant is
   already set on the agent they start.
+- Skills start their agents by the scoped `mastersoft:<agent>` name that Claude
+  Code documents for plugin agents, so an agent of the same name from another
+  plugin or from the user can't take their place.
 
 ## [3.7.0] — 2026-09-25
 

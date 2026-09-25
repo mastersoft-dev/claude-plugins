@@ -19,7 +19,7 @@ this conversation.
 Spawn the security-auditor agent, appending any flags (below) to the prompt:
 
 ```
-Agent(subagent_type: "security-auditor", model: "opus",
+Agent(subagent_type: "mastersoft:security-auditor", model: "opus",
      prompt: "Security audit. Target: $ARGUMENTS. \
 Report each finding with severity (Blocker/Critical/High/Medium/Low), \
 `file:line`, OWASP/CWE category, impact, and a specific mitigation. \

@@ -25,7 +25,7 @@ the target is:
 ## Delegate
 
 ```
-Agent(subagent_type: "devils-advocate", model: "opus",
+Agent(subagent_type: "mastersoft:devils-advocate", model: "opus",
      prompt: "Red-team this. <TARGET — path, or a concise restatement of the plan/decision \
 and its assumptions>. Build the strongest honest case against it, ranked by likelihood × \
 impact, grounded in the repo with file:line. Concede what holds up. Read-only.")

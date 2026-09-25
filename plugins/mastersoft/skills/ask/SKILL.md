@@ -14,7 +14,7 @@ Classify the question, then either answer inline (Direct) or delegate to the ask
 **Repo lookup** — single-fact lookups, definitions, "where is X", "what does Y do", small counts, or a multi-file question scoped to this repo:
 
 ```
-Agent(subagent_type: "ask-explore", model: "haiku", prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
+Agent(subagent_type: "mastersoft:ask-explore", model: "haiku", prompt: "Read-only Q&A — answer only, never edit or create files. Question: $ARGUMENTS")
 ```
 
 The turn budget is fixed by the agent's `maxTurns` frontmatter; the `Agent` tool takes no turn parameter.
