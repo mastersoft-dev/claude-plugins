@@ -71,6 +71,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   doesn't use.
 - `/mastersoft:commit` works in a repository with no commits yet: `git diff HEAD`
   and `git log` failed there and aborted the skill before it loaded.
+- `/mastersoft:sentry` reads the `.sentryclirc` token in the same Bash call as the
+  API request, since an `export` doesn't reach the next call.
 
 ## [3.7.0] — 2026-09-25
 
