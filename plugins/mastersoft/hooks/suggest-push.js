@@ -9,8 +9,11 @@
 // reliably (cd / checkout / switch earlier in the same command, shell
 // expansions, wildcards, nested shells, git not answering) it asks.
 // Protected set: `push_protected_branches` in ORG_RULES.md (env
-// MASTERSOFT_PUSH_PROTECTED_BRANCHES), comma-separated; `name/*` matches a
-// prefix, `*` matches every branch.
+// MASTERSOFT_PUSH_PROTECTED_BRANCHES, or the plugin option of the same name),
+// comma-separated; `name/*` matches a prefix, `*` matches every branch.
+// The docs promise only a hook's `deny` and static `ask` rules in
+// bypassPermissions mode; this hook's `ask` still stopped the push there on
+// Claude Code 2.1.282, as a denial in a headless run.
 
 const path = require('path');
 const { readStdinJson, runGit: git } = require('./lib');

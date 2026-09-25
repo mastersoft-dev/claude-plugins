@@ -39,6 +39,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   copy it loads, so its skills start the copy's agents.
 - Plugin hooks run in exec form, `node` with the script path in `args`, so the
   path reaches node as one argument with no shell quoting.
+- The push check's notes record that its confirmation also stopped a push in
+  `bypassPermissions` mode on Claude Code 2.1.282, which the docs don't promise
+  for a hook's `ask`.
 
 ### Removed
 
