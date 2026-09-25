@@ -40,8 +40,8 @@ refuse (don't relocate) if you find one misplaced.
    `--draft` appears in `$ARGUMENTS`.
    - Type empty, or not in the registry → print the enabled type list
      (`type — label` from each template's frontmatter) and stop. Do not guess.
-   - Title empty or `--draft` → ask for one with a single `AskUserQuestion`
-     (free text).
+   - Title empty, or exactly `--draft` (the flag lands in the title slot when no
+     title is given) → ask for one with a single `AskUserQuestion` (free text).
 
 4. **Select the template** = `references/<type>.md`. Hold its frontmatter spec
    and skeleton body (everything after the closing `---`).
