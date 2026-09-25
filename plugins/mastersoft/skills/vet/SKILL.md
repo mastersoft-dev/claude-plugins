@@ -1,6 +1,6 @@
 ---
 name: vet
-description: Read-only static code review with severity ratings (Blocker/Critical/High/Medium/Low). Use proactively to vet a diff after changes or before merge, or for quality feedback. Does not run code — to run or write tests, use the qa-specialist agent. For security-only analysis use audit. For delegated/parallel review in an isolated subcontext, use the code-reviewer agent.
+description: Read-only static review of the files, folders or .diff file you pass, with severity ratings (Blocker/Critical/High/Medium/Low). Use proactively for quality feedback on specific code. For the current diff or a MR/PR use the built-in /code-review (--comment posts the findings). Does not run code — to run or write tests, use the qa-specialist agent. For security-only analysis use audit. For delegated/parallel review in an isolated subcontext, use the code-reviewer agent.
 model: opus
 effort: xhigh
 allowed-tools: Read, Glob, Grep

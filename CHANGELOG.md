@@ -72,6 +72,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The org rules that reach subagents open as project conventions instead of
   "authoritative" orders to honor, as Claude Code advises for hook context: text
   framed as system commands can trip the prompt-injection defenses.
+- `/mastersoft:vet` describes itself as a review of the files, folders or `.diff`
+  you pass, and points to the built-in `/code-review` for the current diff or a
+  MR/PR; `/mastersoft:audit` points to `/security-review` for the current branch's
+  changes.
 
 ### Removed
 

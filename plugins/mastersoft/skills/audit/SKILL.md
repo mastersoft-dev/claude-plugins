@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For non-security code review use vet.
+description: Security audit with severity ratings (Blocker/Critical/High/Medium/Low) and mitigations. Read-only. Use proactively when touching auth, authorization, input handling, secrets, or crypto. For the current branch's changes only, the built-in /security-review. For non-security code review use vet.
 allowed-tools: Agent
 argument-hint: "path"
 ---
