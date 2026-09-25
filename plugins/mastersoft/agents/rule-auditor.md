@@ -1,14 +1,10 @@
 ---
 name: rule-auditor
 description: >-
-  Read-only semantic auditor of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against
-  actual codebase state. Single source of rule-hygiene check logic. Invoked by the verify skill
-  (/mastersoft:verify) and the refresh-rules skill (/mastersoft:refresh-rules) — prefer those
-  skills over calling this agent directly. Detects config contradictions, stale build commands,
-  architecture drift, zero-match globs, dangling doc cross-refs, oversized rule files that should
-  be split into path-scoped rules, AND entry-level claim staleness (counts/symbols/paths that no
-  longer match code) plus file-placement violations (settled decisions squatting in CLAUDE.md that
-  belong in docs/). Never edits — outputs evidence-backed findings only.
+  Read-only auditor of project rule files (CLAUDE.md / AGENTS.md, .claude/rules/) against the
+  codebase: contradictions, stale commands and paths, architecture drift, zero-match globs,
+  oversized or misplaced content. Started by /mastersoft:verify and /mastersoft:refresh-rules;
+  use those skills instead of calling it directly. Never edits.
 tools: Read, Glob, Grep, Bash
 model: sonnet
 maxTurns: 60

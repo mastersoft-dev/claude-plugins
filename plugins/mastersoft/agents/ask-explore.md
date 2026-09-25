@@ -1,11 +1,8 @@
 ---
 name: ask-explore
 description: >-
-  Q&A worker for codebase, libraries, or concepts. Read-only; no file edits. Invoked by the
-  ask skill (/mastersoft:ask), which classifies the question and delegates here — prefer that
-  skill over calling this agent directly. Answers "what does X do", "where is Y defined",
-  "how does Z work". For deep root-cause analysis use the investigate skill; for code review
-  feedback use the vet skill.
+  Read-only Q&A worker for codebase, library and concept questions. Started by /mastersoft:ask;
+  use that skill instead of calling it directly.
 tools: Read, Glob, Grep, WebFetch, mcp__context7, mcp__plugin_context7_context7, mcp__deepwiki
 model: haiku
 maxTurns: 15

@@ -76,6 +76,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   you pass, and points to the built-in `/code-review` for the current diff or a
   MR/PR; `/mastersoft:audit` points to `/security-review` for the current branch's
   changes.
+- The `ask-explore`, `hindsight`, `rule-auditor` and `devils-advocate` agent
+  descriptions are shorter, since their skills start them by name: the plugin's
+  always-on cost drops from about 4,800 to 4,400 tokens per session (`claude
+  plugin details`).
 
 ### Removed
 
