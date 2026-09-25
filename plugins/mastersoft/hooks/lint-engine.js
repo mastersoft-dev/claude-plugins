@@ -579,8 +579,8 @@ function main() {
     // Verify-due gate (chain to the rule-auditor agent) — must run after the
     // others so it can see whether any lint fired this prompt.
     const verifyAgeDays = lastVerifyAt ? (nowMs - lastVerifyAt) / 86400000 : Infinity;
-    const inCI = process.env.CLAUDE_CODE_REMOTE === 'true';
-    if (anyLintSignal && verifyAgeDays > VERIFY_MIN_AGE_DAYS && VERIFY_MODE !== 'off' && !inCI) {
+    const unattended = process.env.CLAUDE_CODE_REMOTE === 'true' || process.env.CI === 'true';
+    if (anyLintSignal && verifyAgeDays > VERIFY_MIN_AGE_DAYS && VERIFY_MODE !== 'off' && !unattended) {
       addSignal({ id: 'verify-due', severity: 'info', fix: '/mastersoft:verify', category: 'verify', body: 'Lints flagged issues and semantic verify is due.' });
     }
   }

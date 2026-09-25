@@ -27,9 +27,12 @@ function repo(name) { return path.join(REPOS_BASE, name); }
 
 function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2), stateDir, env = {} } = {}) {
   const input = JSON.stringify({ session_id: sessionId, cwd });
+  const base = { ...process.env };
+  delete base.CI;
+  delete base.CLAUDE_CODE_REMOTE;
   const result = cp.spawnSync(process.execPath, [HOOK], {
     input,
-    env: { ...process.env, MASTERSOFT_STATE_DIR: stateDir, ...env },
+    env: { ...base, MASTERSOFT_STATE_DIR: stateDir, ...env },
     encoding: 'utf8',
     timeout: 10000,
   });
@@ -318,6 +321,13 @@ test('a mid-size CLAUDE.md under the line cap raises no size signal', () => {
   const { p2 } = tmpSession({ repoFiles: { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(150) } });
   assertNoSignal(p2.signals, 'rule-file-oversize');
   assertNoSignal(p2.signals, 'claude-md-large');
+});
+
+test('verify-due chains after a lint, but not in CI or cloud sessions', () => {
+  const repoFiles = { 'CLAUDE.md': '# rules\n' + 'x\n'.repeat(260) };
+  assertHasSignal(tmpSession({ repoFiles }).p2.signals, 'verify-due');
+  assertNoSignal(tmpSession({ repoFiles, env: { CI: 'true' } }).p2.signals, 'verify-due');
+  assertNoSignal(tmpSession({ repoFiles, env: { CLAUDE_CODE_REMOTE: 'true' } }).p2.signals, 'verify-due');
 });
 
 test('CLAUDE.local.md next to AGENTS.md flags agents-md-shadowed', () => {

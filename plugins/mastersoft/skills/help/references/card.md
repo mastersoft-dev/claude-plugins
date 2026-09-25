@@ -48,7 +48,7 @@ Stable `id` values:
 | `stale-path-refs` | warn | Path references in rule files point at missing files/dirs | `/mastersoft:refresh-rules` |
 | `refresh-overdue` | info | No `last-refresh-at` recorded within `refresh_interval_days` | `/mastersoft:refresh-rules` |
 | `security-audit-due` | high | Lockfile changed since last audit OR cadence elapsed | `/mastersoft:audit-deps` |
-| `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed | `/mastersoft:verify` |
+| `verify-due` | info | Other lints fired AND `verify_min_age_days` elapsed; skipped in cloud sessions (`CLAUDE_CODE_REMOTE=true`) and CI (`CI=true`) | `/mastersoft:verify` |
 | `patterns-to-promote` | info | Auto-memory has `patterns_promote_threshold`+ uncodified entries (any topic file except the `MEMORY.md` index and `reference`-type pointers) and the dir was touched since last triage | `/mastersoft:promote-patterns` |
 | `memory-review-due` | info | Auto-memory has uncodified entries left untriaged longer than `memory_review_days` (clock: last triage, or dir mtime if never triaged); silent while `patterns-to-promote` is firing | `/mastersoft:promote-patterns` |
 | `rule-file-stale` | info | `CLAUDE.md`/`AGENTS.md`/@-import untouched > `rule_stale_commits`/`rule_stale_days` while repo moved | `/mastersoft:verify` |

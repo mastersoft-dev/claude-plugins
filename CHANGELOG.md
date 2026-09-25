@@ -107,6 +107,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   push inside `pwsh -Command`.
 - Sessions forked with `--fork-session`, `/fork` or `/branch` get the org rules at
   start: Claude Code reports them as `fork` rather than `resume` since 2.1.214.
+- The `verify-due` signal is also skipped in CI (`CI=true`): `CLAUDE_CODE_REMOTE`,
+  which it checked alone, marks only cloud sessions.
 
 ## [3.7.0] — 2026-09-25
 
