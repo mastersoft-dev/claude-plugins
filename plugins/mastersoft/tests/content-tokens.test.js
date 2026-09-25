@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * Static checks on the Markdown that Claude Code renders with substitution:
- * skill bodies (skills/<name>/SKILL.md) and agent bodies (agents/*.md).
+ * skills (skills/<name>/SKILL.md) and agents (agents/*.md).
  *
  * Claude Code replaces only the literal tokens `${CLAUDE_SKILL_DIR}`,
- * `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}`
- * in that content; none of them is exported to the Bash tool's environment.
- * In skill bodies it also replaces `$N` with the (0-based) N-th argument.
+ * `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}`,
+ * in the body and in the Bash rules of `allowed-tools`; none of them is
+ * exported to the Bash tool's environment. In skill bodies it also replaces
+ * `$N` with the (0-based) N-th argument.
  * Each test fails with the offending file:line list.
  *
  * Usage: node plugins/mastersoft/tests/content-tokens.test.js
@@ -18,25 +19,28 @@ const path = require('path');
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..');
 const TOKEN_NAMES = 'CLAUDE_(?:SKILL_DIR|PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR)';
+const allFiles = () => [...skillFiles(), ...agentFiles()];
 
 const RULES = [
   {
     name: 'plugin path tokens are braced',
     pattern: new RegExp(`\\$${TOKEN_NAMES}\\b`),
     hint: 'write ${VAR}: the unbraced form is never substituted and the variable is empty in Bash',
-    files: () => [...skillFiles(), ...agentFiles()],
+    files: allFiles,
+    frontmatter: true,
   },
   {
     name: 'plugin path tokens use no shell default forms',
     pattern: new RegExp(`\\$\\{${TOKEN_NAMES}[:\\-=+?]`),
     hint: 'write the bare ${VAR}: default/alternate forms are left unsubstituted',
-    files: () => [...skillFiles(), ...agentFiles()],
+    files: allFiles,
+    frontmatter: true,
   },
   {
     name: 'plugin path tokens are not read from process.env',
     pattern: new RegExp(`process\\.env\\.${TOKEN_NAMES}\\b`),
     hint: 'inline ${VAR} in the command instead: the variable is not in the Bash environment',
-    files: () => [...skillFiles(), ...agentFiles()],
+    files: allFiles,
   },
   {
     name: 'skill bodies contain no positional $N placeholders',
@@ -60,16 +64,16 @@ function agentFiles() {
     .map(f => path.join(dir, f));
 }
 
-function bodyLines(file) {
+function checkedLines(file, withFrontmatter) {
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   const close = lines[0] === '---' ? lines.indexOf('---', 1) : -1;
-  const start = close === -1 ? 0 : close + 1;
+  const start = withFrontmatter || close === -1 ? 0 : close + 1;
   return lines.slice(start).map((text, i) => ({ text, line: start + i + 1 }));
 }
 
 function violations(rule) {
   return rule.files().flatMap(file =>
-    bodyLines(file)
+    checkedLines(file, rule.frontmatter)
       .filter(({ text }) => rule.pattern.test(text))
       .map(({ line }) => `${path.relative(PLUGIN_ROOT, file)}:${line}`));
 }
