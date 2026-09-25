@@ -16,12 +16,13 @@ Task: Prepare and publish a release for $ARGUMENTS with proper versioning and a 
 - Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "none"`
 - Semver tag count: !`git tag --list 'v*' | wc -l | tr -d ' '`
 - Existing tags (last 5): !`git tag --sort=-creatordate | head -5`
-- Commits since last tag: !`git log $(git describe --tags --abbrev=0 2>/dev/null)..HEAD --oneline 2>/dev/null || git log --oneline -20`
-- Recorded workflow: !`out=$(grep -rih "release workflow:" CLAUDE.md AGENTS.md .claude/rules/ 2>/dev/null | head -1); echo "${out:-none}"`
-- Changelog file(s): !`out=$(git ls-files 2>/dev/null | grep -iE "(^|/)changelog(\.md)?$" | head -3); echo "${out:-none}"`
-- Changelog uses commit anchors: !`out=$(grep -rIl "\*\*Commit:\*\*" --include="*CHANGELOG*" . 2>/dev/null | head -1); echo "${out:-no}"`
-- Last changelog version + commit: !`out=$( { grep -rIh -m1 "^## \[" --include="*CHANGELOG*" . 2>/dev/null; grep -rIh -m1 "\*\*Commit:\*\*" --include="*CHANGELOG*" . 2>/dev/null; } ); echo "${out:-none}"`
-- Publish hook present: !`out=$(git ls-files 2>/dev/null | grep -iE "publish[_-]changelog" | head -1); echo "${out:-none}"`
+- Commits no tag reaches (newest 100): !`git log --oneline -n 100 HEAD --not --tags`
+- Recorded workflow: !`grep -rih "release workflow:" CLAUDE.md AGENTS.md .claude/rules/ 2>/dev/null | grep -m1 . || echo none`
+- Changelog file(s): !`git ls-files ':(glob,icase)**/changelog' ':(glob,icase)**/changelog.md' 2>/dev/null | grep -m3 . || echo none`
+- Changelog uses commit anchors: !`grep -rIl "\*\*Commit:\*\*" --include="*CHANGELOG*" . 2>/dev/null | grep -m1 . || echo no`
+- Last changelog version: !`grep -rIh -m1 "^## \[" --include="*CHANGELOG*" . 2>/dev/null | grep -m1 . || echo none`
+- Last changelog commit anchor: !`grep -rIh -m1 "\*\*Commit:\*\*" --include="*CHANGELOG*" . 2>/dev/null | grep -m1 . || echo none`
+- Publish hook present: !`git ls-files 2>/dev/null | grep -iE -m1 "publish[_-]changelog" || echo none`
 
 ## Workflow
 
@@ -65,7 +66,7 @@ shapes; **detect which the repo uses before acting**:
 
 ### Untagged workflow
 
-1. **Determine version** — bump from the last changelog version (Context "Last changelog version + commit") unless `--version` is given. The range is **since that entry's `**Commit:**` sha**, not since a tag (see Version Determination).
+1. **Determine version** — bump from the last changelog version (Context "Last changelog version" and "Last changelog commit anchor") unless `--version` is given. The range is **since that entry's `**Commit:**` sha**, not since a tag (see Version Determination).
 2. **Pre-release checks** — tests pass, working tree clean, and `## [<version>]` is not already in the changelog.
 3. **Write the changelog entry** — draft + format per `references/changelog.md`; then read the file and insert the entry at the top of the entry list with the `Edit` tool (never a shell append/prepend), matching the existing style.
 4. **Commit** — via the `commit` skill (e.g. `chore(release): v0.23.0`). **No `git tag`.**

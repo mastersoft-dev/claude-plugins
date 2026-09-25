@@ -31,6 +31,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 - `/mastersoft:help` prints the reference card in every permission mode instead
   of failing and searching the plugin cache for it.
+- `/mastersoft:release`, `/mastersoft:sentry` and `/mastersoft:glab` load in
+  default permission mode again: their context commands used `$(…)` and
+  `{ …; }`, which the permission check refuses, so the skill aborted.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds

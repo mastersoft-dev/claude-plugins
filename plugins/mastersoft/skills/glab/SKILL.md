@@ -16,7 +16,7 @@ Run `glab` commands or explain usage. Route `$ARGUMENTS` to the appropriate oper
 - glab installed: !`command -v glab >/dev/null 2>&1 && echo "yes" || echo "MISSING"`
 - Git remote: !`git remote get-url origin 2>/dev/null || echo "no remote"`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "not a repo"`
-- glab auth status: !`{ glab auth status 2>&1 || echo "glab not configured"; } | head -5`
+- glab auth status: !`glab auth status 2>&1 | head -5`
 
 ## Prerequisite Check
 
