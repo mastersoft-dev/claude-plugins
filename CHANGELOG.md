@@ -152,6 +152,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   list (`TaskCreate`) or plan mode.
 - Tier 1 of the org rules drafts plans in the reply under the Proactive output
   style instead of pushing plan mode, which that style enters only when asked.
+- The org rules and `/mastersoft:ask` route targeted questions to ask for the
+  reasons the docs give: its worker runs on Haiku and loads the repo's CLAUDE.md,
+  while Explore runs on the session's model and skips it. They no longer say that
+  Explore is only for broad searches, since Explore also has a quick level.
 
 ## [3.7.0] — 2026-09-25
 
