@@ -27,10 +27,17 @@ Managed settings enable `mastersoft@mastersoft` for the organization, and Claude
 The copy runs next to the installed plugin, so:
 
 - skills show up as `/mastersoft-dev:<name>`;
-- the hooks of both copies run, so injected context appears twice;
-- a skill that delegates with `subagent_type: mastersoft:<agent>` still reaches the installed agent: invoke `mastersoft-dev:<agent>` directly to test an edited agent.
+- the hooks of both copies run, so injected context appears twice.
 
 In a `-p --output-format stream-json --verbose` run, the `init` message lists the loaded plugins with their paths, which confirms the session is on the copy.
+
+### Test and debug
+
+- Run the suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`.
+- `claude plugin validate --strict plugins/mastersoft` and `claude plugin validate --strict .` check the plugin and marketplace manifests and the frontmatter of every skill, agent and command.
+- In a `scripts/dev.sh` session, the **Errors** tab of `/plugin` lists what failed to load and why.
+- The hooks fail quietly on purpose: `lint-engine` writes `[mastersoft] lint-engine skipped: …` to stderr and exits 0, so the prompt goes on. Start the session with `scripts/dev.sh --debug-file /tmp/ms-debug.log`, or run `/debug` in a running one, trigger the event, and search the log for `[mastersoft]` and the hook's event: it shows which hooks matched, their exit codes and their output.
+- Before cutting or merging skills, `claude --plugin-dir "$MASTERSOFT_DEV_DIR" plugin details mastersoft-dev` shows the always-on tokens each skill and agent adds to every session, and `/skill-doctor` (Claude Code 2.1.252+) shows how often each skill is used. Neither counts the context the hooks inject: `/context` in a session does.
 
 ### Statusline development
 

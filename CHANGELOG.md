@@ -20,6 +20,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   and the help card. The marketplace entry no longer carries its own description,
   so `/plugin` shows the one from `plugin.json`, and the README hook list includes
   `inject-session` and the PowerShell matcher.
+- CONTRIBUTING has a test and debug section: the suites, `claude plugin validate
+  --strict`, the `/plugin` Errors tab, the debug log for the quiet hooks, and
+  `plugin details` with `/skill-doctor` for the cost and use of each skill. It no
+  longer says that the dev copy's skills reach the installed agents.
 
 ### Changed
 
