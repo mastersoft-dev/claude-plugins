@@ -13,6 +13,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `android-testing` says that its two guard hooks stay registered for the rest of
   the session once the skill loads, as Claude Code now keeps skill hooks, and the
   hooks return at once on commands without `adb`.
+- The `rule-auditor` agent starts without the user, project and local CLAUDE.md
+  files (`omitClaudeMd`, Claude Code 2.1.271+), and reads the rule files it audits
+  from disk.
 
 ### Fixed
 
