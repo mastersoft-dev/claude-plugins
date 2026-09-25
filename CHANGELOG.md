@@ -16,6 +16,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   pointer to `@AGENTS.md` is written only on request.
 - `/mastersoft:init-rules` no longer suggests a `/schedule` routine for
   `/mastersoft:verify`: cloud routines don't load plugins.
+- `/mastersoft:recall` lists every reason a session can be missing: pruning after
+  `cleanupPeriodDays`, `CLAUDE_CODE_SKIP_PROMPT_HISTORY`, `--no-session-persistence`
+  and `claude project purge`.
+
 ### Added
 
 - `agents-md-shadowed` lint signal: an `AGENTS.md` that a `CLAUDE.md` file keeps

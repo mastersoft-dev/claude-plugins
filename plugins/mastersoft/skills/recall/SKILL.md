@@ -30,7 +30,7 @@ If the agent returns nothing substantive (empty, metadata only, or clearly no an
 with the query narrowed to the part that went unanswered (the turn budget is fixed by the
 agent's `maxTurns`). If it still fails:
 
-> "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check that the sessions aren't older than the transcript retention window."
+> "Hindsight couldn't pull a useful answer. Try a narrower topic, add `--all-projects`, or check whether Claude Code pruned the sessions (`cleanupPeriodDays`, default 30) or never saved them (`CLAUDE_CODE_SKIP_PROMPT_HISTORY`, `--no-session-persistence`)."
 
 ## After a successful response
 
