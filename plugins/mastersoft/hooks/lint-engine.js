@@ -2,7 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, projectRuleFiles, claudeConfigDir, autoMemoryDir } = require('./lib');
+const os = require('os');
+const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, projectRuleFiles, agentsMdSetting, claudeConfigDir, autoMemoryDir } = require('./lib');
 const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
@@ -262,16 +263,30 @@ function listRuleFiles(rulesDir) {
   return out;
 }
 
+function homeRelative(p) {
+  const home = os.homedir();
+  return p === home || p.startsWith(home + path.sep) ? '~' + p.slice(home.length) : p;
+}
+
 function agentsShadowedSignal(repoRoot, projectRules, skipped) {
-  const entry = projectRules.claudeFiles[0] || path.join(repoRoot, 'CLAUDE.md');
+  const shadow = projectRules.shadowedBy;
+  const inRepo = Boolean(shadow) && !path.relative(repoRoot, shadow).startsWith('..');
+  const entry = inRepo ? shadow : path.join(repoRoot, 'CLAUDE.md');
   const entryRel = path.relative(repoRoot, entry);
   const names = skipped.map(f => path.relative(repoRoot, f)).join(' and ');
   const verb = skipped.length > 1 ? 'are' : 'is';
   const imports = skipped.map(f => `\`@${path.relative(path.dirname(entry), f)}\``).join(' and ');
-  const supportOff = projectRules.mode !== 'claude-md-or-agents-md' && projectRules.mode !== 'claude-md-and-agents-md';
-  const body = supportOff
-    ? `${names} ${verb} not loaded: Project instructions is set to \`${projectRules.mode}\` or the agents-md plugin is disabled. Add ${imports} to ${entryRel}, or allow AGENTS.md in /config.`
-    : `${names} ${verb} not loaded: ${entryRel} takes precedence. Add ${imports} to ${entryRel}, or set Project instructions to \`claude-md-and-agents-md\` in /config.`;
+  const addImport = inRepo ? `Add ${imports} to ${entryRel}` : `Add a ${entryRel} with ${imports}`;
+  let reason = 'Project instructions is set to `claude-md`';
+  let alternative = 'allow AGENTS.md in /config';
+  if (projectRules.pluginDisabled) {
+    reason = 'the built-in agents-md plugin is disabled';
+    alternative = 'enable it in /plugin';
+  } else if (projectRules.mode !== 'claude-md') {
+    reason = `${inRepo ? entryRel : homeRelative(shadow)} takes precedence`;
+    alternative = 'set Project instructions to `claude-md-and-agents-md` in /config';
+  }
+  const body = `${names} ${verb} not loaded: ${reason}. ${addImport}, or ${alternative}.`;
   return { id: 'agents-md-shadowed', severity: 'info', category: 'rules', body };
 }
 
@@ -303,14 +318,14 @@ function main() {
 
   const isGitRepo = git(['rev-parse', '--is-inside-work-tree'], repoRoot) === 'true';
   const briefPath = path.join(repoRoot, 'BRIEF.md');
-  const projectRules = projectRuleFiles(repoRoot);
+  const projectRules = projectRuleFiles(repoRoot, agentsMdSetting(cwd));
   const rulesDir = path.join(repoRoot, '.claude', 'rules');
 
   // BRIEF.md is deprecated — no longer read, injected, or staleness-linted.
   // We only detect its presence to nudge migration (notice below).
   const briefPresent = fileExists(briefPath);
   const hasProjectRules = projectRules.present;
-  const memDir = autoMemoryDir(repoRoot);
+  const memDir = autoMemoryDir(cwd);
 
   const state = loadState(STATE_FILE);
   const sessionState = state[sessionId] || {};
@@ -453,11 +468,13 @@ function main() {
 
   // Bootstrap signals — EXEMPT from the first-prompt diet above: "set up
   // project rules" is most actionable on prompt #1 of a fresh repo. An
-  // AGENTS.md is out of context when a CLAUDE.md file takes precedence (or
-  // AGENTS.md support is off) and nothing imports it; symlinks count as loaded.
-  if (!hasProjectRules) {
+  // AGENTS.md is out of context when a CLAUDE.md file here or above takes
+  // precedence (or AGENTS.md support is off) and nothing imports it; symlinks
+  // count as loaded. 'managed-only' loads no project file, so both stay quiet.
+  const projectFilesLoad = projectRules.mode !== 'managed-only';
+  if (projectFilesLoad && !hasProjectRules && !projectRules.inherited.length) {
     addSignal({ id: 'no-rules-file', severity: 'info', fix: '/mastersoft:init-rules', category: 'rules', body: 'No project rules (AGENTS.md or CLAUDE.md) in this repo. Scaffold them so every session shares the same conventions.' });
-  } else if (projectRules.agentsFiles.length) {
+  } else if (projectFilesLoad && projectRules.agentsFiles.length) {
     const real = p => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
     const loaded = new Set(importedRuleFiles.map(rf => real(rf.path)));
     const skipped = projectRules.agentsFiles.filter(f => !loaded.has(real(f)));

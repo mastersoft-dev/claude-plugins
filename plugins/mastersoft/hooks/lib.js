@@ -12,6 +12,12 @@ const PROJECT_SLUG_MAX = 200;
 const PROJECT_DIR_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const WINDOWS_DEVICE_NAME_RE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 const GIT_TIMEOUT_MS = 3000;
+const MANAGED_SETTINGS_DIRS = {
+  darwin: '/Library/Application Support/ClaudeCode',
+  linux: '/etc/claude-code',
+  win32: 'C:\\Program Files\\ClaudeCode',
+};
+const MANAGED_CONTROL_KEYS = ['managedSourcesBehavior', 'wslInheritsWindowsSettings'];
 
 // Single source of truth for the plugin's state dir. Resolved identically in
 // EVERY execution context — the lint-engine / inject / reset hooks AND the
@@ -113,16 +119,75 @@ function readJsonFile(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
 }
 
-/** First value of a settings key across local, project and user settings, in Claude Code's precedence order. */
-function settingValue(repoRoot, key) {
-  const files = [
-    path.join(repoRoot, '.claude', 'settings.local.json'),
-    path.join(repoRoot, '.claude', 'settings.json'),
-    path.join(claudeConfigDir(), 'settings.json'),
-  ];
-  for (const file of files) {
-    const settings = readJsonFile(file);
-    if (settings && settings[key] !== undefined) return settings[key];
+/** managed-settings.json merged with managed-settings.d/*.json in alphabetical order, or null. */
+function managedFileSettings() {
+  const dir = process.env.MASTERSOFT_MANAGED_SETTINGS_DIR || MANAGED_SETTINGS_DIRS[process.platform];
+  if (!dir) return null;
+  const dropInDir = path.join(dir, 'managed-settings.d');
+  let dropIns = [];
+  try { dropIns = fs.readdirSync(dropInDir).filter(f => f.endsWith('.json') && !f.startsWith('.')).sort(); } catch {}
+  const parts = [path.join(dir, 'managed-settings.json'), ...dropIns.map(f => path.join(dropInDir, f))]
+    .map(readJsonFile).filter(Boolean);
+  return parts.length ? Object.assign({}, ...parts) : null;
+}
+
+/**
+ * The managed policy: the cached server-managed settings in
+ * <config>/remote-settings.json, then the managed settings files. By default
+ * only the highest source that sets a policy key applies; with
+ * managedSourcesBehavior "merge" the higher source wins key by key. MDM plist
+ * and registry policies are not read. MASTERSOFT_MANAGED_SETTINGS_DIR replaces
+ * the system directory for tests only.
+ */
+function managedSettings() {
+  const hasPolicy = s => s && Object.keys(s).some(k => !MANAGED_CONTROL_KEYS.includes(k));
+  const sources = [readJsonFile(path.join(claudeConfigDir(), 'remote-settings.json')), managedFileSettings()]
+    .filter(hasPolicy);
+  if (!sources.length) return null;
+  if (sources.some(s => s.managedSourcesBehavior === 'merge')) return Object.assign({}, ...sources.slice().reverse());
+  return sources[0];
+}
+
+/**
+ * Where Claude Code keeps .claude/settings.local.json for a session started in
+ * cwd: the main checkout's root inside a git repository, so subdirectories and
+ * worktrees share it. It stays in cwd outside git, on Windows, when that root
+ * is the home directory, or when the root, its .git or its .claude isn't owned
+ * by the user.
+ */
+function localSettingsRoot(cwd) {
+  if (process.platform === 'win32' || !gitToplevel(cwd)) return cwd;
+  const root = mainRepoRoot(cwd);
+  if (root === realpathOr(os.homedir())) return cwd;
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  const foreign = p => { try { return uid !== null && fs.statSync(p).uid !== uid; } catch { return false; } };
+  return [root, path.join(root, '.git'), path.join(root, '.claude')].some(foreign) ? cwd : root;
+}
+
+/**
+ * Settings layers for a session started in cwd, highest precedence first:
+ * managed, local (the root file, then one an older version left in cwd),
+ * project (cwd's own .claude/settings.json, with no parent-directory fallback)
+ * and user. --settings files are invisible to the plugin.
+ */
+function settingsLayers(cwd) {
+  const dir = realpathOr(cwd);
+  const localRoot = localSettingsRoot(dir);
+  const localDirs = localRoot === dir ? [dir] : [localRoot, dir];
+  return [
+    { scope: 'managed', settings: managedSettings() },
+    ...localDirs.map(d => ({ scope: 'local', settings: readJsonFile(path.join(d, '.claude', 'settings.local.json')) })),
+    { scope: 'project', settings: readJsonFile(path.join(dir, '.claude', 'settings.json')) },
+    { scope: 'user', settings: readJsonFile(path.join(claudeConfigDir(), 'settings.json')) },
+  ].filter(layer => layer.settings);
+}
+
+/** The first value pick() returns across cwd's settings layers, optionally limited to some scopes. */
+function settingValue(cwd, pick, scopes = null) {
+  for (const { scope, settings } of settingsLayers(cwd)) {
+    if (scopes && !scopes.includes(scope)) continue;
+    const value = pick(settings);
+    if (value !== undefined) return value;
   }
   return undefined;
 }
@@ -136,13 +201,12 @@ function settingValue(repoRoot, key) {
 function autoMemoryDir(cwd) {
   const env = (process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY || '').trim().toLowerCase();
   if (env === '1' || env === 'true') return null;
-  const root = mainRepoRoot(cwd);
   const forcedOn = env === '0' || env === 'false';
-  if (!forcedOn && settingValue(root, 'autoMemoryEnabled') === false) return null;
-  const custom = settingValue(root, 'autoMemoryDirectory');
+  if (!forcedOn && settingValue(cwd, s => s.autoMemoryEnabled) === false) return null;
+  const custom = settingValue(cwd, s => s.autoMemoryDirectory);
   if (typeof custom === 'string' && custom.startsWith('~/')) return path.join(os.homedir(), custom.slice(2));
   if (typeof custom === 'string' && path.isAbsolute(custom)) return custom;
-  const data = projectDataDir(root);
+  const data = projectDataDir(mainRepoRoot(cwd));
   return data ? path.join(data, 'memory') : null;
 }
 
@@ -151,43 +215,70 @@ const AGENTS_MD_MODES = ['claude-md-or-agents-md', 'claude-md-and-agents-md', 'c
 const DEFAULT_AGENTS_MD_MODE = 'claude-md-or-agents-md';
 
 /**
- * The user's "Project instructions" setting for AGENTS.md, read from
- * <config>/settings.json (Claude Code ignores it in project settings).
- * A disabled built-in agents-md plugin behaves like 'claude-md'.
+ * The "Project instructions" setting for AGENTS.md for a session started in
+ * cwd, and whether the built-in agents-md plugin is disabled.
+ * instructionFiles counts only in managed and user settings; enabledPlugins in
+ * any layer. A disabled plugin behaves like 'claude-md'.
  */
-function agentsMdMode() {
-  const settings = readJsonFile(path.join(claudeConfigDir(), 'settings.json')) || {};
-  if (settings.enabledPlugins && settings.enabledPlugins[AGENTS_MD_PLUGIN] === false) return 'claude-md';
-  const configs = settings.pluginConfigs && settings.pluginConfigs[AGENTS_MD_PLUGIN];
-  const mode = configs && configs.options && configs.options.instructionFiles;
-  return AGENTS_MD_MODES.includes(mode) ? mode : DEFAULT_AGENTS_MD_MODE;
+function agentsMdSetting(cwd) {
+  const pluginDisabled = settingValue(cwd, s => (s.enabledPlugins || {})[AGENTS_MD_PLUGIN]) === false;
+  const configured = settingValue(cwd,
+    s => (((s.pluginConfigs || {})[AGENTS_MD_PLUGIN] || {}).options || {}).instructionFiles,
+    ['managed', 'user']);
+  const mode = pluginDisabled ? 'claude-md'
+    : AGENTS_MD_MODES.includes(configured) ? configured : DEFAULT_AGENTS_MD_MODE;
+  return { mode, pluginDisabled };
+}
+
+function isFile(p) {
+  try { return fs.statSync(p).isFile(); } catch { return false; }
+}
+
+/** Rule files a directory contributes; at the home directory the .claude/ entries are the user-global files. */
+function ruleFilesIn(dir) {
+  const atHome = realpathOr(dir) === realpathOr(os.homedir());
+  const pick = list => list
+    .filter(f => !(atHome && f.startsWith('.claude' + path.sep)))
+    .map(f => path.join(dir, f));
+  return { claude: pick(CLAUDE_RULE_FILES), agents: pick(AGENTS_RULE_FILES) };
 }
 
 /**
- * Project instruction files at repoRoot and which of them Claude Code loads.
- * CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md always load. AGENTS.md and
- * .claude/AGENTS.md load when no CLAUDE.md file exists (the default), always
- * with 'claude-md-and-agents-md', never with 'claude-md' / 'managed-only'.
- * At the home directory the .claude/ entries are the user-global files, so
- * they are not project rules. Returns absolute paths: { mode, present,
- * claudeFiles, agentsFiles, files (loaded entry points), candidates }.
+ * Project instruction files for repoRoot and which of them Claude Code loads.
+ * CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md always load, also from the
+ * directories above. AGENTS.md and .claude/AGENTS.md load when none of those
+ * exists here or above (the default), always with 'claude-md-and-agents-md',
+ * never with 'claude-md'. 'managed-only' loads no project file at launch.
+ * Returns absolute paths: { mode, pluginDisabled, present, inherited (rule
+ * files above repoRoot), shadowedBy, claudeFiles, agentsFiles, files (loaded
+ * entry points in repoRoot), candidates }.
  */
-function projectRuleFiles(repoRoot, mode = agentsMdMode()) {
-  const atHome = path.resolve(repoRoot) === path.resolve(os.homedir());
-  const local = list => list.filter(f => !(atHome && f.startsWith('.claude' + path.sep)));
-  const abs = list => local(list).map(f => path.join(repoRoot, f));
-  const isFile = p => { try { return fs.statSync(p).isFile(); } catch { return false; } };
-  const claudeFiles = abs(CLAUDE_RULE_FILES).filter(isFile);
-  const agentsFiles = abs(AGENTS_RULE_FILES).filter(isFile);
+function projectRuleFiles(repoRoot, setting = agentsMdSetting(repoRoot)) {
+  const { mode, pluginDisabled } = setting;
+  const own = ruleFilesIn(repoRoot);
+  const claudeFiles = own.claude.filter(isFile);
+  const agentsFiles = own.agents.filter(isFile);
+  const above = { claude: [], agents: [] };
+  for (let dir = path.dirname(repoRoot); ; dir = path.dirname(dir)) {
+    const found = ruleFilesIn(dir);
+    above.claude.push(...found.claude.filter(isFile));
+    above.agents.push(...found.agents.filter(isFile));
+    if (path.dirname(dir) === dir) break;
+  }
+  const shadowedBy = claudeFiles[0] || above.claude[0] || null;
   const agentsLoad = mode === 'claude-md-and-agents-md'
-    || (mode === DEFAULT_AGENTS_MD_MODE && !claudeFiles.length);
+    || (mode === DEFAULT_AGENTS_MD_MODE && !shadowedBy);
+  const loaded = agentsLoad ? [...claudeFiles, ...agentsFiles] : claudeFiles;
   return {
     mode,
+    pluginDisabled,
     present: claudeFiles.length + agentsFiles.length > 0,
+    inherited: [...above.claude, ...above.agents],
+    shadowedBy,
     claudeFiles,
     agentsFiles,
-    files: agentsLoad ? [...claudeFiles, ...agentsFiles] : claudeFiles,
-    candidates: abs([...CLAUDE_RULE_FILES, ...AGENTS_RULE_FILES]),
+    files: mode === 'managed-only' ? [] : loaded,
+    candidates: [...own.claude, ...own.agents],
   };
 }
 
@@ -246,6 +337,7 @@ function saveState(filePath, state, maxSessions) {
 }
 
 module.exports = {
-  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, runGit, gitToplevel, resolveRepoRoot, projectRuleFiles,
-  mainRepoRoot, claudeConfigDir, pluginsRoot, projectSlug, projectDataDir, autoMemoryDir,
+  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, runGit, gitToplevel, resolveRepoRoot,
+  projectRuleFiles, agentsMdSetting, mainRepoRoot, claudeConfigDir, pluginsRoot, projectSlug, projectDataDir,
+  autoMemoryDir,
 };

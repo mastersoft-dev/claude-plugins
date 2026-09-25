@@ -24,7 +24,7 @@ const lib = require(LIB);
 
 const ENV_KEYS = [
   'HOME', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_PLUGIN_CACHE_DIR', 'CLAUDE_CODE_PROJECT_DIR_NAME',
-  'CLAUDE_CODE_DISABLE_AUTO_MEMORY',
+  'CLAUDE_CODE_DISABLE_AUTO_MEMORY', 'MASTERSOFT_MANAGED_SETTINGS_DIR',
 ];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -55,16 +55,18 @@ function mkRepo(dir) {
   return dir;
 }
 
+const NO_MANAGED = mkTmp('ms-managed-');
+
 function isolatedEnv(vars) {
   const env = { ...process.env };
   for (const k of ENV_KEYS) delete env[k];
-  return { ...env, ...vars };
+  return { ...env, MASTERSOFT_MANAGED_SETTINGS_DIR: NO_MANAGED, ...vars };
 }
 
 function withEnv(vars, fn) {
   const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   for (const k of ENV_KEYS) delete process.env[k];
-  Object.assign(process.env, vars);
+  Object.assign(process.env, { MASTERSOFT_MANAGED_SETTINGS_DIR: NO_MANAGED }, vars);
   try { return fn(); }
   finally {
     for (const k of ENV_KEYS) {
@@ -233,6 +235,89 @@ test('state.js memory-path prints the dir, or nothing when auto memory is off', 
   assertIncludes(off.stderr, 'auto memory is off');
 });
 
+console.log('\n3. settings layers');
+
+test('project settings.json counts only in the session dir; local settings come from the repo root', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const sub = path.join(repo, 'sub');
+  fs.mkdirSync(sub);
+  const config = mkTmp();
+  write(path.join(repo, '.claude', 'settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
+  withEnv({ CLAUDE_CONFIG_DIR: config }, () => {
+    assertEq(lib.autoMemoryDir(repo), null, 'root session reads the root settings.json');
+    assertEq(lib.autoMemoryDir(sub), path.join(config, 'projects', lib.projectSlug(repo), 'memory'), 'subdir session ignores it');
+  });
+  write(path.join(repo, '.claude', 'settings.local.json'), JSON.stringify({ autoMemoryDirectory: '/root-local' }));
+  withEnv({ CLAUDE_CONFIG_DIR: config }, () => {
+    assertEq(lib.autoMemoryDir(sub), '/root-local', 'subdir session reads the root settings.local.json');
+  });
+});
+
+test('a linked worktree reads the main checkout local settings first, then its own', () => {
+  const base = mkTmp();
+  const repo = mkRepo(path.join(base, 'repo'));
+  const wt = path.join(base, 'repo-wt');
+  git(repo, 'worktree', 'add', '-q', wt);
+  const config = mkTmp();
+  write(path.join(wt, '.claude', 'settings.local.json'), JSON.stringify({ autoMemoryDirectory: '/wt-local' }));
+  withEnv({ CLAUDE_CONFIG_DIR: config }, () => assertEq(lib.autoMemoryDir(wt), '/wt-local', 'file an older version left in the worktree'));
+  write(path.join(repo, '.claude', 'settings.local.json'), JSON.stringify({ autoMemoryDirectory: '/main-local' }));
+  withEnv({ CLAUDE_CONFIG_DIR: config }, () => assertEq(lib.autoMemoryDir(wt), '/main-local', 'main checkout file wins'));
+  write(path.join(wt, '.claude', 'settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
+  withEnv({ CLAUDE_CONFIG_DIR: config }, () => {
+    assertEq(lib.autoMemoryDir(wt), null, 'worktree settings.json applies to the worktree');
+    assertEq(lib.autoMemoryDir(repo), '/main-local', 'and not to the main checkout');
+  });
+});
+
+test('managed settings win: remote first, files merged with drop-ins, merge on request', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const config = mkTmp();
+  const managed = mkTmp();
+  write(path.join(config, 'settings.json'), JSON.stringify({ autoMemoryDirectory: '/user' }));
+  write(path.join(managed, 'managed-settings.json'), JSON.stringify({ autoMemoryDirectory: '/file' }));
+  write(path.join(managed, 'managed-settings.d', '20-memory.json'), JSON.stringify({ autoMemoryDirectory: '/drop-in' }));
+  const env = { CLAUDE_CONFIG_DIR: config, MASTERSOFT_MANAGED_SETTINGS_DIR: managed };
+  withEnv(env, () => assertEq(lib.autoMemoryDir(repo), '/drop-in', 'drop-ins merge after managed-settings.json'));
+  write(path.join(config, 'remote-settings.json'), JSON.stringify({ autoMemoryDirectory: '/remote' }));
+  withEnv(env, () => assertEq(lib.autoMemoryDir(repo), '/remote', 'server-managed ranks first'));
+  write(path.join(config, 'remote-settings.json'), JSON.stringify({ cleanupPeriodDays: 10 }));
+  withEnv(env, () => assertEq(lib.autoMemoryDir(repo), '/user', 'first-wins skips the lower managed source'));
+  write(path.join(config, 'remote-settings.json'), JSON.stringify({ cleanupPeriodDays: 10, managedSourcesBehavior: 'merge' }));
+  withEnv(env, () => assertEq(lib.autoMemoryDir(repo), '/drop-in', 'merge fills the key from the files'));
+});
+
+test('agents-md mode: instructionFiles from managed and user only, enabledPlugins from any layer', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  const config = mkTmp();
+  const managed = mkTmp();
+  const mode = (value) => JSON.stringify({ pluginConfigs: { 'agents-md@builtin': { options: { instructionFiles: value } } } });
+  const env = { CLAUDE_CONFIG_DIR: config, MASTERSOFT_MANAGED_SETTINGS_DIR: managed };
+  write(path.join(repo, '.claude', 'settings.json'), mode('claude-md'));
+  withEnv(env, () => assertEq(lib.agentsMdSetting(repo).mode, 'claude-md-or-agents-md', 'ignored in project settings'));
+  write(path.join(config, 'settings.json'), mode('claude-md-and-agents-md'));
+  withEnv(env, () => assertEq(lib.agentsMdSetting(repo).mode, 'claude-md-and-agents-md', 'user settings'));
+  write(path.join(managed, 'managed-settings.json'), mode('managed-only'));
+  withEnv(env, () => assertEq(lib.agentsMdSetting(repo).mode, 'managed-only', 'managed wins'));
+  write(path.join(repo, '.claude', 'settings.local.json'), JSON.stringify({ enabledPlugins: { 'agents-md@builtin': false } }));
+  withEnv(env, () => {
+    const setting = lib.agentsMdSetting(repo);
+    assertEq(setting.pluginDisabled, true, 'disabled in local settings');
+    assertEq(setting.mode, 'claude-md', 'disabled plugin behaves like claude-md');
+  });
+});
+
+test('state.js rule-files and agents-md-mode follow the mode', () => {
+  const repo = mkRepo(path.join(mkTmp(), 'repo'));
+  write(path.join(repo, 'AGENTS.md'), '# rules\n');
+  const config = mkTmp();
+  const files = run(STATE, ['rule-files'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } });
+  assertEq(files.stdout.trim(), path.join(repo, 'AGENTS.md'), 'default mode loads AGENTS.md');
+  write(path.join(config, 'settings.json'), JSON.stringify({ pluginConfigs: { 'agents-md@builtin': { options: { instructionFiles: 'claude-md' } } } }));
+  assertEq(run(STATE, ['rule-files'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } }).stdout, '', 'claude-md mode loads nothing here');
+  assertEq(run(STATE, ['agents-md-mode'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } }).stdout.trim(), 'claude-md');
+});
+
 test('state.js claude-project-slug resolves long paths to the hashed dir', () => {
   const long = path.join(mkTmp(), 'd'.repeat(90), 'e'.repeat(90), 'repo');
   const repo = mkRepo(long);
@@ -246,7 +331,7 @@ test('state.js claude-project-slug resolves long paths to the hashed dir', () =>
   assertEq(run(STATE, ['claude-project-slug'], { cwd: repo, env: { CLAUDE_CONFIG_DIR: config } }).code, 1, 'ambiguous prefix fails');
 });
 
-console.log('\n3. recall — which transcripts count as the current project');
+console.log('\n4. recall — which transcripts count as the current project');
 
 function recallFixture() {
   const base = mkTmp();
@@ -336,7 +421,7 @@ test('--project expands to the named repo subdirs and worktrees', () => {
   assertExcludes(r.stdout, 'SIBLING_SESSION');
 });
 
-console.log('\n4. recall — transcript files and format drift');
+console.log('\n5. recall — transcript files and format drift');
 
 test('orphaned and superseded transcripts are not sessions', () => {
   const f = recallFixture();

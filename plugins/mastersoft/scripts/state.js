@@ -17,13 +17,15 @@
 //   state-path                    — print canonical state file path
 //   findings-path [slug]          — print canonical verify findings path
 //   memory-path                   — print Claude Code auto-memory dir for current repo (nothing when it's off)
+//   agents-md-mode                — print the Project instructions mode Claude Code applies to AGENTS.md
+//   rule-files                    — print the project rule files Claude Code loads at launch, one per line
 //   repo-root                     — print canonicalized repo root for current cwd
 //   slug                          — print plugin-internal repo slug (underscore-encoded)
 //   claude-project-slug           — print Claude Code's per-project dir name (dash-encoded, hashed past 200 chars)
 
 const fs = require('fs');
 const path = require('path');
-const { loadState, saveState, resolveStateDir, resolveRepoRoot, projectDataDir, autoMemoryDir } = require('../hooks/lib');
+const { loadState, saveState, resolveStateDir, resolveRepoRoot, projectDataDir, projectRuleFiles, agentsMdSetting, autoMemoryDir } = require('../hooks/lib');
 
 const STATE_DIR = resolveStateDir();
 const STATE_FILE = path.join(STATE_DIR, 'lint-engine-state.json');
@@ -157,6 +159,17 @@ switch (cmd) {
     else process.stderr.write('No auto-memory dir for this repo: auto memory is off (autoMemoryEnabled or CLAUDE_CODE_DISABLE_AUTO_MEMORY), or its project dir name is past 200 characters and not unique on disk.\n');
     break;
   }
+  case 'agents-md-mode': {
+    const setting = agentsMdSetting(process.cwd());
+    process.stdout.write(setting.mode + (setting.pluginDisabled ? ' (agents-md plugin disabled)' : '') + '\n');
+    break;
+  }
+  case 'rule-files': {
+    const cwd = process.cwd();
+    const rules = projectRuleFiles(resolveRepoRoot(cwd), agentsMdSetting(cwd));
+    for (const file of rules.files) process.stdout.write(file + '\n');
+    break;
+  }
   case 'record-promotion-check':
     recordTimestamp('last_promotion_check_at');
     break;
@@ -177,7 +190,7 @@ switch (cmd) {
   }
   default:
     process.stderr.write(
-      'Usage: state.js {record-refresh|record-verify|record-audit|record-promotion-check|ack-lints {defer|suppress|clear} [categories...]|write-findings|state-path|findings-path [slug]|memory-path|repo-root|slug|claude-project-slug}\n',
+      'Usage: state.js {record-refresh|record-verify|record-audit|record-promotion-check|ack-lints {defer|suppress|clear} [categories...]|write-findings|state-path|findings-path [slug]|memory-path|agents-md-mode|rule-files|repo-root|slug|claude-project-slug}\n',
     );
     process.exit(2);
 }

@@ -57,6 +57,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - A project path whose name is past 200 characters resolves to its hashed dir
   only when exactly one matches, instead of the first one found;
   `state.js claude-project-slug` prints that hashed name.
+- Settings are read where Claude Code reads them: `.claude/settings.json` from the
+  session's directory, `.claude/settings.local.json` from the repository root (the
+  main checkout in a worktree), and managed settings (`remote-settings.json`,
+  `managed-settings.json` and its drop-ins) first. The lint signals follow
+  `managed-only` and rule files in parent directories, and say when the
+  agents-md plugin is disabled; init-rules and the rule auditor read the same
+  mode.
 
 ## [3.6.0] — 2026-09-24
 
