@@ -29,6 +29,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   frame ring and the logcat tail run as background tasks stopped with `TaskStop`,
   instead of through PID variables lost between Bash calls. The listener's notes
   no longer mention the removed Monitor `persistent` option.
+- `android-testing` batches accept `force_dump` on `snapshot`, as the flow
+  reference documents: the batch validator rejected it with exit 64.
 
 ## [3.7.0] — 2026-09-25
 

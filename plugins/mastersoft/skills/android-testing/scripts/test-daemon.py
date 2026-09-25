@@ -296,6 +296,15 @@ def test_validate_accepts_post_sync_keys() -> bool:
     return err == ""
 
 
+def test_validate_accepts_snapshot_force_dump() -> bool:
+    """flow-composition.md documents `force_dump` on `snapshot`, and the
+    handler reads it; the validator must not reject it."""
+    err = daemon.Daemon._validate_batch_ops([
+        {"op": "snapshot", "args": {"max_lines": 80, "force_dump": True}}
+    ])
+    return err == ""
+
+
 # ---------------------------------------------------------------------------
 # _summarise_args — field handling
 # ---------------------------------------------------------------------------
@@ -756,6 +765,7 @@ ALL = [
     "test_validate_rejects_timeout_typo_with_hint",
     "test_validate_rejects_unknown_arg",
     "test_validate_accepts_post_sync_keys",
+    "test_validate_accepts_snapshot_force_dump",
     "test_summarise_drops_text_keeps_length",
     "test_summarise_collapses_taps_to_count",
     "test_summarise_collapses_long_wait_for",
