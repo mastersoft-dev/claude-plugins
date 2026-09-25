@@ -50,6 +50,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   verify now runs as a forked `rule-auditor` that waits in the invoking turn, and
   `write-findings` reads the finding blocks, since the permission check refuses
   JSON in a heredoc.
+- The rule audit behind `/mastersoft:verify` and `/mastersoft:refresh-rules` no
+  longer reports a missing `CLAUDE.md` pointer for an `AGENTS.md` that Claude Code
+  loads on its own.
 - `/mastersoft:recall` runs its session index again: the `hindsight` agent was
   calling `/scripts/recall.js` and fell back to reading transcripts by hand.
 - `/mastersoft:doc` reads the type and title from the right arguments and finds

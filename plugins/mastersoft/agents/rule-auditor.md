@@ -33,6 +33,7 @@ You run as a subagent — `AskUserQuestion` is unavailable. Never ask the user a
 1. **Inventory rule files** (skip silently if none):
    - The files `node ${CLAUDE_PLUGIN_ROOT}/scripts/state.js rule-files` prints from `<root>`: the project rule files Claude Code loads at launch under the current Project instructions mode (both CLAUDE.md and AGENTS.md with `claude-md-and-agents-md`). Add all `<root>/.claude/rules/**/*.md` (recursive).
    - It prints nothing under `managed-only`, where Claude Code loads no project rules (`state.js agents-md-mode` confirms): report that and stop.
+   - Its output is the authority on what loads. An `AGENTS.md` it lists is in context natively, so a missing `CLAUDE.md` pointer is no finding.
    - Follow `@path.md` import chains recursively — lint-engine follows them, so must you.
 
 2. **Inventory codebase signal**:
