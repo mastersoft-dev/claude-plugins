@@ -2,8 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
-const { readStdinJson, loadState, saveState, resolveStateDir, resolveRepoRoot, projectRuleFiles, claudeConfigDir, autoMemoryDir } = require('./lib');
+const { readStdinJson, loadState, saveState, resolveStateDir, runGit: git, resolveRepoRoot, projectRuleFiles, claudeConfigDir, autoMemoryDir } = require('./lib');
 const { ORG, cfg } = require('./lib-org-rules');
 
 const STATE_DIR = resolveStateDir();
@@ -62,14 +61,6 @@ const UNKNOWN_FRONTMATTER_KEYS = Object.keys(ORG.config)
 
 function ensureStateDir() {
   try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
-}
-
-function git(args, cwd) {
-  try {
-    return execFileSync('git', args, {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { return null; }
 }
 
 function readFileSafe(filePath) {

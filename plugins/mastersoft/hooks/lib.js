@@ -10,6 +10,7 @@ const CLAUDE_RULE_FILES = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md'), 'CLAU
 const AGENTS_RULE_FILES = ['AGENTS.md', path.join('.claude', 'AGENTS.md')];
 const PROJECT_SLUG_MAX = 200;
 const PROJECT_DIR_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const GIT_TIMEOUT_MS = 3000;
 
 // Single source of truth for the plugin's state dir. Resolved identically in
 // EVERY execution context — the lint-engine / inject / reset hooks AND the
@@ -27,12 +28,21 @@ function resolveStateDir() {
     || path.join(os.homedir(), '.claude', 'mastersoft', 'state');
 }
 
-function gitToplevel(cwd) {
+/** git's trimmed stdout in cwd, or null when git fails or runs past GIT_TIMEOUT_MS. */
+function runGit(args, cwd) {
   try {
-    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    return execFileSync('git', args, {
+      cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch { return null; }
+}
+
+function gitToplevel(cwd) {
+  return runGit(['rev-parse', '--show-toplevel'], cwd);
+}
+
+function realpathOr(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 
 // Resolve the per-repo state KEY (state.__repos[<repoRoot>]) identically in
@@ -54,12 +64,8 @@ function resolveRepoRoot(cwd) {
 
 /** The main working tree for cwd, shared by all its linked worktrees; the toplevel otherwise. */
 function mainRepoRoot(cwd) {
-  try {
-    const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    if (path.basename(common) === '.git') return fs.realpathSync(path.dirname(common));
-  } catch {}
+  const common = runGit(['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd);
+  if (common && path.basename(common) === '.git') return realpathOr(path.dirname(common));
   return resolveRepoRoot(cwd);
 }
 
@@ -237,6 +243,6 @@ function saveState(filePath, state, maxSessions) {
 }
 
 module.exports = {
-  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, gitToplevel, resolveRepoRoot, projectRuleFiles,
+  readStdinJson, readStdinJsonAsync, loadState, saveState, resolveStateDir, runGit, gitToplevel, resolveRepoRoot, projectRuleFiles,
   mainRepoRoot, claudeConfigDir, pluginsRoot, projectSlug, projectDataDir, autoMemoryDir,
 };

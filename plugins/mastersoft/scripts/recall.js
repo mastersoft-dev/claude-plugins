@@ -24,7 +24,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { execFileSync } = require('child_process');
-const { gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, projectDataDir } = require('../hooks/lib');
+const { runGit, gitToplevel, resolveRepoRoot, claudeConfigDir, projectSlug, projectDataDir } = require('../hooks/lib');
 
 const SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
 const CWD_PROBE_BYTES = 65536;
@@ -123,11 +123,9 @@ function realpathSafe(p) {
 }
 
 function worktreePaths(repoRoot) {
-  try {
-    return execFileSync('git', ['worktree', 'list', '--porcelain'], {
-      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).split('\n').filter((l) => l.startsWith('worktree ')).map((l) => realpathSafe(l.slice(9)));
-  } catch { return []; }
+  const out = runGit(['worktree', 'list', '--porcelain'], repoRoot);
+  if (!out) return [];
+  return out.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => realpathSafe(l.slice(9)));
 }
 
 function insideRepo(dir, repoRoot) {
