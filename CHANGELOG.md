@@ -179,6 +179,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   reasons the docs give: its worker runs on Haiku and loads the repo's CLAUDE.md,
   while Explore runs on the session's model and skips it. They no longer say that
   Explore is only for broad searches, since Explore also has a quick level.
+- The statusline wrapper skips a plugin version dir marked `.orphaned_at`, which
+  Claude Code keeps for 14 days after an update, and the README's manual
+  statusline install reads the installed path from `installed_plugins.json`
+  instead of a glob that could match the stale copy.
 
 ## [3.7.0] — 2026-09-25
 

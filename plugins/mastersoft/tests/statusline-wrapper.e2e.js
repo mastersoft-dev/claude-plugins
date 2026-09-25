@@ -46,6 +46,11 @@ function fakeStatusline(pluginsRoot, version, marker) {
   fs.writeFileSync(path.join(hooks, 'statusline.js'), `console.log(${JSON.stringify(marker)});\n`);
 }
 
+function orphanVersion(pluginsRoot, version) {
+  const dir = path.join(pluginsRoot, 'cache', 'mastersoft', 'mastersoft', version);
+  fs.writeFileSync(path.join(dir, '.orphaned_at'), String(Date.now()));
+}
+
 function runWrapper(home, extraEnv = {}) {
   const env = { ...process.env, HOME: home, ...extraEnv };
   for (const k of ['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_PLUGIN_CACHE_DIR']) if (!(k in extraEnv)) delete env[k];
@@ -170,6 +175,15 @@ test('CLAUDE_CODE_PLUGIN_CACHE_DIR wins, and the highest version is picked', () 
   fakeStatusline(cache, '3.9.0', 'OLD');
   fakeStatusline(cache, '3.10.0', 'NEW');
   assertEq(runWrapper(home, { CLAUDE_CODE_PLUGIN_CACHE_DIR: cache }), 'NEW');
+});
+
+test('an orphaned version dir is skipped even when it sorts highest', () => {
+  const home = mkHome();
+  const cache = path.join(home, '.claude', 'plugins');
+  fakeStatusline(cache, '3.6.0', 'GOOD');
+  fakeStatusline(cache, '3.7.0', 'ORPHANED');
+  orphanVersion(cache, '3.7.0');
+  assertEq(runWrapper(home), 'GOOD');
 });
 
 console.log('\n5. install-statusline.sh --apply');

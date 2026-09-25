@@ -51,7 +51,7 @@ once. `--apply` patches the `settings.json` in `$CLAUDE_CONFIG_DIR` (default
 block is printed to paste manually:
 
 ```bash
-bash ~/.claude/plugins/cache/mastersoft/mastersoft/*/scripts/install-statusline.sh --apply
+bash "$(jq -r '.plugins["mastersoft@mastersoft"][0].installPath' ~/.claude/plugins/installed_plugins.json)/scripts/install-statusline.sh" --apply
 ```
 
 Idempotent: re-running with `--apply` is a no-op once wired. If a different
