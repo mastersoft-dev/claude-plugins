@@ -20,6 +20,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   (`memory: local`, in `.claude/agent-memory-local/`) instead of across every
   project, so notes about one codebase stay out of the others. Notes saved under
   `~/.claude/agent-memory/` no longer load.
+- `/mastersoft:codex` says that `ultrathink` also asks Claude Code for deeper
+  reasoning on that turn, and points to `--xhigh` for codex alone.
 
 ### Fixed
 
