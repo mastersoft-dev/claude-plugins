@@ -83,6 +83,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - Skills start their agents by the scoped `mastersoft:<agent>` name that Claude
   Code documents for plugin agents, so an agent of the same name from another
   plugin or from the user can't take their place.
+- `/mastersoft:recall` runs as a `hindsight` fork that finishes in the same turn
+  (`context: fork`, `background: false`): in an interactive session the agent it
+  started ran in the background and reported in a later turn.
 
 ## [3.7.0] — 2026-09-25
 
