@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.9.0] — 2026-09-26
+
 ### Added
 
 - `/mastersoft:babysit` takes a merge request or pull request to ready to
