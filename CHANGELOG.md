@@ -8,6 +8,14 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `/mastersoft:babysit` takes a merge request or pull request to ready to
+  merge, merged or deployed (`--until`, else the rules files, else ready). It
+  writes its own pipeline watch for the forge, fixes red jobs, retries a
+  transient failure once, answers the review bot's threads and resolves them
+  only after replying, and pushes once per round after the local gates.
+
 ## [3.8.1] — 2026-09-26
 
 ### Changed

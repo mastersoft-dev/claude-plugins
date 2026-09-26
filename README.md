@@ -63,7 +63,7 @@ via the wrapper instead.
 
 | Type | Items |
 |------|-------|
-| **Skills** | `ack-lints`, `adversary`, `android-testing`, `ask`, `audit`, `audit-deps`, `codex`, `commit`, `doc`, `glab`, `handoff`, `help`, `init-rules`, `investigate`, `promote-patterns`, `recall`, `refresh-rules`, `release`, `sentry`, `verify`, `vet` |
+| **Skills** | `ack-lints`, `adversary`, `android-testing`, `ask`, `audit`, `audit-deps`, `babysit`, `codex`, `commit`, `doc`, `glab`, `handoff`, `help`, `init-rules`, `investigate`, `promote-patterns`, `recall`, `refresh-rules`, `release`, `sentry`, `verify`, `vet` |
 | **Agents** | `ask-explore`, `code-reviewer`, `devils-advocate`, `hindsight`, `qa-specialist`, `rule-auditor`, `security-auditor`, `system-architect`, `tech-writer` |
 | **Hooks** | `install-statusline-wrapper` (SessionStart), `inject-session` (SessionStart), `reset-session-state` (SessionStart clear + PostCompact), `lint-engine` + `inject-turn` (UserPromptSubmit), `suggest-push` (PreToolUse:Bash\|PowerShell), `inject-org-rules` (SubagentStart) |
 | **Output styles** | `Brief`: the shortest correct answer, stricter than the built-in Concise style. Pick it with `/output-style` or `/config` |

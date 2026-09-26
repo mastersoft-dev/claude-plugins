@@ -12,6 +12,7 @@
 | `/mastersoft:ask` | Fast read-only Q&A about codebase / libraries / concepts. |
 | `/mastersoft:audit` | Static security audit with severity ratings + mitigations. |
 | `/mastersoft:audit-deps` | Run native dependency audit (`npm`/`pip`/`cargo`/…); records timestamp so the `security-audit-due` lint goes quiet. |
+| `/mastersoft:babysit` | Shepherd an MR/PR to ready, merged or deployed (`--until`): watches the pipeline, fixes red jobs, answers the review bot's threads, one push per round. GitLab and GitHub. |
 | `/mastersoft:codex` | Orchestrate OpenAI Codex CLI non-interactively. |
 | `/mastersoft:doc` | Author a design doc (`adr`, `prd`) under `docs/<type>/` from a template. `doc <type> "<title>"`. Registry-driven (rfc/postmortem/runbook/onboarding add later). |
 | `/mastersoft:commit` | Atomic Conventional Commits with adaptive quality gates. |
