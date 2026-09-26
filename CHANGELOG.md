@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.9.0] — 2026-09-26
+
 ### Added
 
 - `/mastersoft:babysit` takes a merge request or pull request to ready to
@@ -15,6 +17,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   writes its own pipeline watch for the forge, fixes red jobs, retries a
   transient failure once, answers the review bot's threads and resolves them
   only after replying, and pushes once per round after the local gates.
+- `/mastersoft:sharpen` rewrites a task prompt before work starts. It reads
+  the repo from the angles the request's intent calls for (one new `scout`
+  agent per angle), asks only the decisions the repo can't answer, and returns
+  a self-contained prompt to copy or run (`--run`). A question the repo already
+  answers gets the answer instead.
 
 ## [3.8.1] — 2026-09-26
 
