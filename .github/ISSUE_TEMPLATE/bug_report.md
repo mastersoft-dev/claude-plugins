@@ -25,7 +25,7 @@ labels: bug
 
 ## Environment
 
-- Plugin version: <!-- from `plugins/mastersoft/.claude-plugin/plugin.json` -->
+- Plugin and version: <!-- mastersoft or relay, from its `.claude-plugin/plugin.json` -->
 - Claude Code version: <!-- `claude --version` -->
 - OS: <!-- macOS / Linux / Windows + version -->
 - Node version (for hook bugs): <!-- `node --version` -->

@@ -1,0 +1,13 @@
+{
+  "name": "relay",
+  "displayName": "Relay",
+  "version": "0.1.0",
+  "description": "Continue in a fresh session from a local digest, without re-reading the old one",
+  "author": {
+    "name": "Mastersoft"
+  },
+  "homepage": "https://github.com/mastersoft-dev/claude-plugins",
+  "repository": "https://github.com/mastersoft-dev/claude-plugins",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

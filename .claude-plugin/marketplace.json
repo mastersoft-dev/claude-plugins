@@ -8,6 +8,10 @@
     {
       "name": "mastersoft",
       "source": "./plugins/mastersoft"
+    },
+    {
+      "name": "relay",
+      "source": "./plugins/relay"
     }
   ]
 }

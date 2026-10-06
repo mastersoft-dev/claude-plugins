@@ -1,0 +1,17 @@
+# Changelog
+
+All notable user-facing changes to the Relay Claude Code plugin are documented
+here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project aims to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- `/relay` continues in a fresh session from a digest built locally, without
+  calling the model on the old session, so a cold prompt cache is not paid
+  again. It hands over to Claude after `/clear`, or to Codex, OpenCode or
+  Gemini through herdr or Orca, and to the clipboard otherwise. Secrets in
+  failed commands are redacted before the prompt leaves the session.
