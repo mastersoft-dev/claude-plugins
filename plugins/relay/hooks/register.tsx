@@ -22,6 +22,7 @@ type Launcher = 'herdr' | 'orca' | 'none'
 
 const PANE = 'relay'
 const TICK_MS = 60_000
+const SECOND_MS = 1_000
 const MINUTE_MS = 60_000
 const CACHE_TTL_MS = 60 * MINUTE_MS
 const BAND_MIN_TOKENS = 80_000
@@ -36,6 +37,7 @@ const ERROR_CHARS = 240
 const AGENT_NAME_SUFFIX = 6
 const FORK_TIMEOUT_MS = 120_000
 const GIT_NOT_A_REPO_EXIT = 128
+const READ_LIMIT_BYTES = 4 * 1024 * 1024
 const CLAUDE_PREFIX = 'claude:'
 const CURRENT_NOTE = 'this session, current model'
 const FAILED_PREFIX = 'Failed:'
@@ -197,12 +199,18 @@ async function resolveTranscript($: Engine): Promise<string | null> {
   return null
 }
 
+async function transcriptTail($: Engine, path: string): Promise<string> {
+  const { size } = await $.fs.stat(path)
+  if (size <= READ_LIMIT_BYTES) return $.fs.read(path)
+  return runChecked($, ['tail', '-c', String(READ_LIMIT_BYTES), path])
+}
+
 async function activityAt($: Engine): Promise<number | null> {
   const at = await read($, lastActivityAt)
   if (at !== null) return at
   const path = await resolveTranscript($)
   if (path === null) return null
-  const found = lastAssistantAt(await $.fs.read(path))
+  const found = lastAssistantAt(await transcriptTail($, path))
   if (found !== null) await update($, lastActivityAt, current => current ?? found)
   return found
 }
@@ -216,6 +224,16 @@ async function readCache($: Engine): Promise<CacheReading | null> {
   if (at === null) return null
   const idleMs = Math.max(0, (await $.clock.now()) - at)
   return { activityAt: at, idleMs, isWarm: idleMs < CACHE_TTL_MS, contextTokens }
+}
+
+type CacheCheck = { cache: CacheReading | null; failure: string }
+
+async function checkCache($: Engine): Promise<CacheCheck> {
+  try {
+    return { cache: await readCache($), failure: '' }
+  } catch (error) {
+    return { cache: null, failure: `Cache check failed: ${clip(describeError(error), ERROR_CHARS)}.` }
+  }
 }
 
 async function tick($: Engine): Promise<void> {
@@ -307,12 +325,12 @@ type Prepared = { prepared: RelayPanel; picked: RelayArgs }
 async function preparePanel($: Engine, args: string): Promise<Prepared> {
   await update($, panel, () => ({ ...EMPTY_PANEL, phase: 'loading' }))
   const launcher = await detectLauncher($)
-  const [claude, agents, messages, git, cache, transcriptPath] = await Promise.all([
+  const [claude, agents, messages, git, { cache, failure }, transcriptPath] = await Promise.all([
     claudeTargets($),
     agentTargets($, launcher),
     readMessages($),
     gitSnapshot($),
-    readCache($),
+    checkCache($),
     resolveTranscript($),
   ])
   const targets = [...claude, ...agents]
@@ -338,7 +356,7 @@ async function preparePanel($: Engine, args: string): Promise<Prepared> {
     transcriptPath,
     message: messages.length === 0
       ? 'The session is empty: nothing to hand over.'
-      : [unknownNote, needsConfirm ? coldConfirmMessage(contextTokens) : ''].filter(Boolean).join(' '),
+      : [unknownNote, failure, needsConfirm ? coldConfirmMessage(contextTokens) : ''].filter(Boolean).join(' '),
   }
   await update($, panel, current => (current.phase === 'working' ? current : prepared))
   return { prepared, picked }
@@ -500,7 +518,11 @@ export const register: Register = on => {
 
   on('classic.SessionStart', async ($, e, next) => {
     await update($, knownTranscript, () => e.transcript_path)
-    await update($, lastActivityAt, () => null)
+    const idleSeconds = e.seconds_since_last_response
+    const respondedAt = idleSeconds !== undefined && Number.isFinite(idleSeconds) && idleSeconds >= 0
+      ? (await $.clock.now()) - idleSeconds * SECOND_MS
+      : null
+    await update($, lastActivityAt, () => respondedAt)
     return next(e)
   }).catch(($, e, next) => {
     logDebug($, 'transcript path not saved', 'classic.SessionStart')
