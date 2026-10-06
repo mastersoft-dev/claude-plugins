@@ -4,14 +4,18 @@ Thanks for considering a contribution. The repo follows a small set of conventio
 
 ## Layout
 
-All shipped content lives under `plugins/mastersoft/`:
+The marketplace ships two plugins: `plugins/mastersoft/`, enabled for the organization, and `plugins/relay/`, an opt-in hooks module (see "Relay" below). The mastersoft plugin holds:
 
 - `hooks/` — JS hooks loaded by Claude Code (`hooks.json` declares wiring)
 - `agents/` — Markdown agent definitions
 - `skills/<name>/SKILL.md` — skill entry points, with optional `references/` and `assets/` siblings
 - `scripts/` — installers and helper scripts
 
-The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at `plugins/mastersoft`. The plugin version lives only in `plugins/mastersoft/.claude-plugin/plugin.json`.
+The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at both plugins. Each plugin's version lives only in its own `.claude-plugin/plugin.json`.
+
+### Relay
+
+`plugins/relay/` is a hooks module (`hooks/register.tsx`) with its pure logic in `hooks/digest.ts`. Its name is not locked by managed settings, so `claude --plugin-dir plugins/relay` loads the working copy directly and reloads it on save. `claude plugin test plugins/relay` runs its `*.test.ts(x)` files, and once a session has loaded it, `tsc -p plugins/relay` type-checks it against the types the engine lays in `.claude-plugin/types/` (git-ignored).
 
 ## Local development
 

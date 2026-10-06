@@ -13,7 +13,8 @@ dependencies, Python helpers for the Android skill. No package manager.
 
 - Suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`
 - Android: `cd plugins/mastersoft/skills/android-testing/scripts && python3 test-daemon.py && python3 test-wedge.py`
-- Manifests: `claude plugin validate --strict .` and `claude plugin validate --strict plugins/mastersoft`
+- Manifests: `claude plugin validate --strict .`, `claude plugin validate --strict plugins/mastersoft` and `claude plugin validate --strict plugins/relay`
+- Relay: `claude plugin test plugins/relay`
 - Shell: `shellcheck` on every `.sh` you touch. CI config: `glab ci lint`. Both are local only.
 - The GitLab pipeline runs the suites, the Android tests and both validates on every MR; push only with everything above green locally.
 
@@ -23,7 +24,7 @@ dependencies, Python helpers for the Android skill. No package manager.
 - One-line Conventional Commit subjects, no body. One concern per commit.
 - Every user-facing commit adds its own line to `CHANGELOG.md` (Keep a Changelog sections) in the same commit. Test-only and CI commits don't.
 - No ADR numbers in code, comments or messages; explain the reason in words.
-- No new hooks: behaviour goes in skills and agents. Fix existing hooks when they break.
+- No new hooks in `plugins/mastersoft`: behaviour goes in skills and agents. Fix existing hooks when they break. `plugins/relay` is a hooks module by design and ships as its own opt-in plugin.
 - Before changing anything that depends on Claude Code behaviour, check the current docs (the `claude-doc` MCP server, `search_docs`) and keep the `file:line` in the MR or audit notes, not in the code.
 - Tests build their fixtures in temp dirs; never depend on other checkouts on the machine.
 

@@ -133,6 +133,15 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 
 `quiet`, `org_rules` and `push_protected_branches` are also plugin options, set with `/plugin configure mastersoft@mastersoft` or `/config`. An env var wins over the option.
 
+## Relay
+
+`relay` is a separate, opt-in plugin in the same marketplace. `/relay` continues the work in a fresh session without calling the model on the old one, so an expired prompt cache is not paid again. It builds the prompt locally (goal, latest prompts, last answer, edited files, failed commands, todos, git status, transcript path) and delivers it as a draft after `/clear`, optionally on another model, or to Codex, OpenCode or Gemini in a new herdr pane or Orca terminal (the clipboard otherwise). A summary written by the model is offered only while the cache is warm. The status line shows the cache state, and a band above the prompt suggests `/relay` when the cache is cold and the context is large.
+
+```text
+/plugin install relay@mastersoft
+/relay [opus|sonnet|codex|opencode|gemini] [focused|full] [local|model]
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

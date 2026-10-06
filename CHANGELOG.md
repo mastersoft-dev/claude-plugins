@@ -8,6 +8,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `relay`, a second plugin in the marketplace: `/relay` continues in a fresh
+  session from a digest built locally, without calling the model on the old
+  session, so a cold prompt cache is not paid again. It hands over to Claude
+  after `/clear`, or to Codex, OpenCode or Gemini through herdr or Orca.
+
 ## [3.9.1] — 2026-10-06
 
 ### Changed

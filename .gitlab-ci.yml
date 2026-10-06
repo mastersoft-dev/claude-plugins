@@ -24,5 +24,7 @@ plugin:
     - claude --version
     - claude plugin validate --strict .
     - claude plugin validate --strict plugins/mastersoft
+    - claude plugin validate --strict plugins/relay
+    - claude plugin test plugins/relay
     - for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done
     - cd plugins/mastersoft/skills/android-testing/scripts && python3 test-daemon.py && python3 test-wedge.py
