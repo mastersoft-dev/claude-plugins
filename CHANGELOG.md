@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- The `cache` statusline segment shows the prompt cache as it is now: cached
+  tokens and the time left before it goes cold, or `cold` with the tokens the
+  next request re-caches, plus the miss cause only when the last request missed.
+
 ## [3.9.0] — 2026-09-26
 
 ### Added
