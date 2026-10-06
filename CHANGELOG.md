@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.9.1] — 2026-10-06
+
 ### Changed
 
 - The `cache` statusline segment shows the prompt cache as it is now: cached
