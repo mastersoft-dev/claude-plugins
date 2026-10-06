@@ -405,10 +405,10 @@ test('falls back to the git remote name when workspace.repo is absent', () => {
 
 console.log('\n10. statusline.js — cache segment (F56)');
 
-function runStatuslineCache(promptCache) {
+function runStatuslineCache(promptCache, extra = {}) {
   const stateDir = mkDir();
-  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_STATUSLINE_SEGMENTS: 'cache' };
-  const input = { session_id: 'cache-test' };
+  const env = { ...process.env, MASTERSOFT_STATE_DIR: stateDir, CLAUDE_STATUSLINE_SEGMENTS: 'cache', CLAUDE_STATUSLINE_ICONS: 'ascii' };
+  const input = { session_id: 'cache-test', ...extra };
   if (promptCache !== undefined) input.prompt_cache = promptCache;
   const result = cp.spawnSync(process.execPath, [STATUSLINE], {
     input: JSON.stringify(input),
@@ -417,27 +417,72 @@ function runStatuslineCache(promptCache) {
     timeout: 5000,
   });
   if (result.error) throw result.error;
-  return (result.stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+  return (result.stdout || '').trim();
+}
+
+const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
+const nowSec = () => Math.floor(Date.now() / 1000);
+const ICON_CACHE = '⧉ ';
+
+function warmCache(remainingSec, overrides = {}) {
+  return {
+    warm: true,
+    caching_observed: true,
+    ttl: '1h',
+    expires_at: nowSec() + remainingSec,
+    last_miss_at: null,
+    last_miss_cause: null,
+    recache_tokens_if_cold: 59000,
+    ...overrides,
+  };
 }
 
 test('renders nothing when prompt_cache is absent', () => {
   assertEq(runStatuslineCache(undefined), '');
 });
 
-test('renders hit ratio and warm state when prompt_cache is present', () => {
-  const out = runStatuslineCache({ warm: true, hit_ratio: 0.91, last_miss_cause: null });
-  if (!/91%/.test(out)) throw new Error(`expected 91% in [${out}]`);
-  if (!/warm/.test(out)) throw new Error(`expected warm in [${out}]`);
+test('renders the cached prefix size and time left while warm', () => {
+  const out = runStatuslineCache(warmCache(47 * 60 + 30));
+  assertEq(stripAnsi(out), `${ICON_CACHE}59.0k · 47m`);
+  if (!out.includes('\x1b[38;5;2m')) throw new Error(`expected green in [${JSON.stringify(out)}]`);
 });
 
-test('appends the last miss cause when non-null', () => {
-  const out = runStatuslineCache({
-    warm: false,
-    hit_ratio: 0.5,
-    last_miss_cause: { causes: ['tools_changed'] },
-  });
-  if (!/cold/.test(out)) throw new Error(`expected cold in [${out}]`);
-  if (!/tools_changed/.test(out)) throw new Error(`expected tools_changed in [${out}]`);
+test('turns yellow when under a fifth of the TTL is left', () => {
+  const out = runStatuslineCache(warmCache(4 * 60));
+  if (!out.includes('\x1b[38;5;3m')) throw new Error(`expected yellow in [${JSON.stringify(out)}]`);
+});
+
+test('renders cold with the tokens the next request re-caches', () => {
+  const out = runStatuslineCache(warmCache(-120, { warm: false }));
+  assertEq(stripAnsi(out), `${ICON_CACHE}cold · 59.0k`);
+  if (!out.includes('\x1b[38;5;1m')) throw new Error(`expected red in [${JSON.stringify(out)}]`);
+});
+
+test('treats a warm flag past expires_at as cold', () => {
+  assertEq(stripAnsi(runStatuslineCache(warmCache(-5))), `${ICON_CACHE}cold · 59.0k`);
+});
+
+test('appends the cause of a miss since the last activity', () => {
+  const pc = warmCache(3600 + 30);
+  pc.last_miss_at = pc.expires_at - 3600 - 1;
+  pc.last_miss_cause = { causes: ['tools_changed'] };
+  assertEq(stripAnsi(runStatuslineCache(pc)), `${ICON_CACHE}59.0k · 60m · miss tools_changed`);
+});
+
+test('drops a miss older than the last activity', () => {
+  const pc = warmCache(1800 + 30, { last_miss_cause: { causes: ['tools_changed'] } });
+  pc.last_miss_at = pc.expires_at - 3600 - 600;
+  assertEq(stripAnsi(runStatuslineCache(pc)), `${ICON_CACHE}59.0k · 30m`);
+});
+
+test('falls back to the last response cache tokens', () => {
+  const pc = warmCache(600 + 30, { recache_tokens_if_cold: null });
+  const extra = { context_window: { current_usage: { cache_read_input_tokens: 58194, cache_creation_input_tokens: 689 } } };
+  assertEq(stripAnsi(runStatuslineCache(pc, extra)), `${ICON_CACHE}58.9k · 10m`);
+});
+
+test('renders off when no response reported cache tokens', () => {
+  assertEq(stripAnsi(runStatuslineCache({ warm: false, caching_observed: false })), `${ICON_CACHE}off`);
 });
 
 // ─── summary ──────────────────────────────────────────────────────────────────

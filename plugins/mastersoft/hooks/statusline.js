@@ -13,6 +13,9 @@ const DEFAULT_MODEL_LABEL = 'Model';
 const DEFAULT_USERNAME = 'user';
 const CONTEXT_MAX_TOKENS = 200000;
 const TREAT_EMPTY_CONTEXT_AS_NEW_CHAT = true;
+const CACHE_TTL_SEC = { '5m': 300, '1h': 3600 };
+const CACHE_LOW_FRACTION = 0.2;
+const CACHE_EPOCH_ROUNDING_SEC = 1;
 
 const DEFAULT_SEGMENTS = ['model', 'folder', 'branch', 'context', 'cost'];
 
@@ -528,17 +531,44 @@ function renderLines(data) {
   return `${iconPrefix(ICONS.lines_add, COL_CONTEXT_GREEN)}${added} ${iconPrefix(ICONS.lines_remove, COL_CONTEXT_RED)}${removed}`;
 }
 
+function cachedPrefixTokens(data) {
+  const pc = data.prompt_cache;
+  if (typeof pc.recache_tokens_if_cold === 'number') return pc.recache_tokens_if_cold;
+  const cu = data.context_window?.current_usage;
+  if (!cu) return 0;
+  return (parseInt(cu.cache_read_input_tokens, 10) || 0) + (parseInt(cu.cache_creation_input_tokens, 10) || 0);
+}
+
+function formatCacheRemaining(remainingSec) {
+  return remainingSec >= 60 ? `${Math.floor(remainingSec / 60)}m` : '<1m';
+}
+
+function missedSinceLastActivity(pc, ttlSec) {
+  if (!ttlSec || typeof pc.last_miss_at !== 'number' || typeof pc.expires_at !== 'number') return false;
+  return pc.last_miss_at >= pc.expires_at - ttlSec - CACHE_EPOCH_ROUNDING_SEC;
+}
+
 function renderCache(data) {
   const pc = data.prompt_cache;
   if (!pc) return '';
+  if (pc.caching_observed === false) return `${iconPrefix(ICONS.cache, COL_CONTEXT_YELLOW)}off`;
 
-  const col = pc.warm ? COL_CONTEXT_GREEN : COL_CONTEXT_YELLOW;
-  let label = pc.warm ? 'warm' : 'cold';
-  if (typeof pc.hit_ratio === 'number') label = `${Math.round(pc.hit_ratio * 100)}% (${label})`;
-  if (pc.last_miss_cause && Array.isArray(pc.last_miss_cause.causes) && pc.last_miss_cause.causes.length) {
-    label += ` ${pc.last_miss_cause.causes.join(',')}`;
+  const ttlSec = CACHE_TTL_SEC[pc.ttl];
+  const remainingSec = typeof pc.expires_at === 'number' ? pc.expires_at - Math.floor(Date.now() / 1000) : 0;
+  const warm = Boolean(pc.warm) && remainingSec > 0;
+  const tokens = cachedPrefixTokens(data);
+  const size = tokens ? formatCompact(tokens) : '';
+
+  const parts = warm ? [size, formatCacheRemaining(remainingSec)] : ['cold', size];
+  if (missedSinceLastActivity(pc, ttlSec)) {
+    const causes = pc.last_miss_cause?.causes;
+    parts.push(Array.isArray(causes) && causes.length ? `miss ${causes.join(',')}` : 'miss');
   }
-  return `${iconPrefix(ICONS.cache, col)}${label}`;
+
+  let col = COL_CONTEXT_GREEN;
+  if (!warm) col = COL_CONTEXT_RED;
+  else if (ttlSec && remainingSec < ttlSec * CACHE_LOW_FRACTION) col = COL_CONTEXT_YELLOW;
+  return `${iconPrefix(ICONS.cache, col)}${parts.filter(Boolean).join(' · ')}`;
 }
 
 const SEGMENT_REGISTRY = {

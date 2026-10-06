@@ -92,7 +92,7 @@ Configured via `CLAUDE_STATUSLINE_SEGMENTS` env var (comma-separated). Default: 
 | `tokens_in` | Total input tokens | no |
 | `tokens_out` | Total output tokens | no |
 | `lines` | `+added -removed` lines | no |
-| `cache` | Prompt cache hit ratio and warm/cold state, plus the last miss's cause when known | no |
+| `cache` | Prompt cache right now: cached tokens and time left before it goes cold (yellow under a fifth of the TTL), `cold` with the tokens the next request re-caches, and the miss cause when the last request missed. Set `refreshInterval` on the status line to keep the countdown live | no |
 
 Personal override:
 
