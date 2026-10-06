@@ -41,6 +41,7 @@ const READ_LIMIT_BYTES = 4 * 1024 * 1024
 const CLAUDE_PREFIX = 'claude:'
 const CURRENT_NOTE = 'this session, current model'
 const FAILED_PREFIX = 'Failed:'
+const MODEL_SUMMARY_WAIT = 'tens of seconds'
 const CLAUDE_MODELS = [
   { id: 'opus', label: 'Opus' },
   { id: 'sonnet', label: 'Sonnet' },
@@ -347,7 +348,7 @@ async function preparePanel($: Engine, args: string): Promise<Prepared> {
     targets,
     target: picked.target ?? current?.value ?? '',
     mode: picked.mode ?? 'focused',
-    summary: picked.summary ?? (picked.target === undefined && isWarm ? 'model' : 'local'),
+    summary: picked.summary ?? 'local',
     isWarm,
     isCacheKnown: cache !== null,
     idleMinutes: Math.floor((cache?.idleMs ?? 0) / MINUTE_MS),
@@ -636,7 +637,7 @@ export const register: Register = on => {
             value={state.summary}
             options={[
               { value: 'local', label: 'Local · 0 tokens' },
-              { value: 'model', label: `From the model · ~${cost} tokens (${state.isWarm ? 'cache warm' : 'cache cold'})` },
+              { value: 'model', label: `From the model · ~${cost} tokens · ${MODEL_SUMMARY_WAIT} (${state.isWarm ? 'cache warm' : 'cache cold'})` },
             ]}
             onSelect={value => setChoice($, { summary: value as RelaySummary })}
           />

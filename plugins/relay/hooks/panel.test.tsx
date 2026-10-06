@@ -148,13 +148,15 @@ test('/relay codex model on a cold cache waits for confirmation instead of forki
   expect(await ui.find({ type: 'Text', text: /press Continue to confirm/ })).toBeDefined()
 })
 
-test('a warm cache preselects the model summary when /relay opens the pane', async ($, on) => {
+test('a warm cache still preselects the local summary and tells how long the model one takes', async ($, on) => {
   const { clock } = fakeSession(on, { lastAssistant: WARM_AT })
   await runRelayCommand($, clock, '')
   const ui = await mountPane($)
 
   expect(await ui.find({ type: 'Text', text: /Cache warm/ })).toBeDefined()
-  expect(JSON.stringify(await ui.find({ key: 'summary' }))).toContain('"value":"model"')
+  const summary = JSON.stringify(await ui.find({ key: 'summary' }))
+  expect(summary).toContain('"value":"local"')
+  expect(summary).toContain('tens of seconds')
 })
 
 test('a refused draft keeps the pane open with the error and the prompt on the clipboard', async ($, on) => {

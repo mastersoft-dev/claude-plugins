@@ -16,6 +16,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   Gemini through herdr or Orca, and to the clipboard otherwise. Secrets in
   failed commands are redacted before the prompt leaves the session.
 
+### Changed
+
+- `/relay` preselects the local summary even when the cache is warm, so the
+  handover is instant. The summary from the model is still offered, and the
+  pane says it takes tens of seconds.
+
 ### Fixed
 
 - `/relay` reads only the last 4 MiB of a transcript over Claude Code's 4 MiB
