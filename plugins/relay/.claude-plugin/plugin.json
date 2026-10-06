@@ -1,7 +1,7 @@
 {
   "name": "relay",
   "displayName": "Relay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Continue in a fresh session from a local digest, without re-reading the old one",
   "author": {
     "name": "Mastersoft"
