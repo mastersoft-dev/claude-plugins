@@ -22,6 +22,7 @@ type Launcher = 'herdr' | 'orca' | 'none'
 
 const PANE = 'relay'
 const TICK_MS = 60_000
+const SECOND_MS = 1_000
 const MINUTE_MS = 60_000
 const CACHE_TTL_MS = 60 * MINUTE_MS
 const BAND_MIN_TOKENS = 80_000
@@ -517,7 +518,11 @@ export const register: Register = on => {
 
   on('classic.SessionStart', async ($, e, next) => {
     await update($, knownTranscript, () => e.transcript_path)
-    await update($, lastActivityAt, () => null)
+    const idleSeconds = e.seconds_since_last_response
+    const respondedAt = idleSeconds !== undefined && Number.isFinite(idleSeconds) && idleSeconds >= 0
+      ? (await $.clock.now()) - idleSeconds * SECOND_MS
+      : null
+    await update($, lastActivityAt, () => respondedAt)
     return next(e)
   }).catch(($, e, next) => {
     logDebug($, 'transcript path not saved', 'classic.SessionStart')

@@ -23,3 +23,5 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   "Cannot read the session".
 - A cache check that fails no longer stops `/relay`: the pane opens with the
   cache state unknown and says why.
+- A resumed session takes its idle time from Claude Code, so `/relay` knows
+  the cache state without reading the transcript.

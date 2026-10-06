@@ -254,3 +254,25 @@ test('a cache check that fails still opens the pane with the digest and the cach
   expect(await ui.find({ key: 'go' })).toBeDefined()
   expect(JSON.stringify(await ui.drawn())).not.toContain('Cannot read the session')
 })
+
+test('a resumed session takes its idle time from the engine without reading the transcript', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT })
+  on('classic.SessionStart', () => ({}))
+  await $.classic.SessionStart({ source: 'resume', transcript_path: TRANSCRIPT, seconds_since_last_response: 600 })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  expect(recorded.reads).toBe(0)
+  expect(await ui.find({ type: 'Text', text: /Cache warm · idle 10m/ })).toBeDefined()
+})
+
+test('a session start without an idle time falls back to the transcript', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT })
+  on('classic.SessionStart', () => ({}))
+  await $.classic.SessionStart({ source: 'compact', transcript_path: TRANSCRIPT })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  expect(recorded.reads).toBe(1)
+  expect(await ui.find({ type: 'Text', text: /Cache cold · idle 2h 14m/ })).toBeDefined()
+})
