@@ -225,6 +225,16 @@ async function readCache($: Engine): Promise<CacheReading | null> {
   return { activityAt: at, idleMs, isWarm: idleMs < CACHE_TTL_MS, contextTokens }
 }
 
+type CacheCheck = { cache: CacheReading | null; failure: string }
+
+async function checkCache($: Engine): Promise<CacheCheck> {
+  try {
+    return { cache: await readCache($), failure: '' }
+  } catch (error) {
+    return { cache: null, failure: `Cache check failed: ${clip(describeError(error), ERROR_CHARS)}.` }
+  }
+}
+
 async function tick($: Engine): Promise<void> {
   const cache = await readCache($)
   if (cache === null) {
@@ -314,12 +324,12 @@ type Prepared = { prepared: RelayPanel; picked: RelayArgs }
 async function preparePanel($: Engine, args: string): Promise<Prepared> {
   await update($, panel, () => ({ ...EMPTY_PANEL, phase: 'loading' }))
   const launcher = await detectLauncher($)
-  const [claude, agents, messages, git, cache, transcriptPath] = await Promise.all([
+  const [claude, agents, messages, git, { cache, failure }, transcriptPath] = await Promise.all([
     claudeTargets($),
     agentTargets($, launcher),
     readMessages($),
     gitSnapshot($),
-    readCache($),
+    checkCache($),
     resolveTranscript($),
   ])
   const targets = [...claude, ...agents]
@@ -345,7 +355,7 @@ async function preparePanel($: Engine, args: string): Promise<Prepared> {
     transcriptPath,
     message: messages.length === 0
       ? 'The session is empty: nothing to hand over.'
-      : [unknownNote, needsConfirm ? coldConfirmMessage(contextTokens) : ''].filter(Boolean).join(' '),
+      : [unknownNote, failure, needsConfirm ? coldConfirmMessage(contextTokens) : ''].filter(Boolean).join(' '),
   }
   await update($, panel, current => (current.phase === 'working' ? current : prepared))
   return { prepared, picked }

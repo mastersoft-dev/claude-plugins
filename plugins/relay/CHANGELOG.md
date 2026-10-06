@@ -21,3 +21,5 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - `/relay` reads only the last 4 MiB of a transcript over Claude Code's 4 MiB
   read limit to find when the session last answered, instead of failing with
   "Cannot read the session".
+- A cache check that fails no longer stops `/relay`: the pane opens with the
+  cache state unknown and says why.

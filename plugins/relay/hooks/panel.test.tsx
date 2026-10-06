@@ -22,7 +22,7 @@ const MESSAGES: SessionMessage[] = [
 
 type Recorded = { argv: string[][]; reads: number; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
 
-type SessionOptions = { lastAssistant: string; transcriptBytes?: number; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
+type SessionOptions = { lastAssistant: string; transcriptBytes?: number; tailFails?: boolean; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
 
 type TestClock = { advance: (ms: number) => Promise<void>; settle: () => Promise<void> }
 
@@ -81,7 +81,7 @@ function fakeSession(on: On, options: SessionOptions) {
   })
   on('process.run', (_$, e) => {
     recorded.argv.push([...e.argv])
-    if (e.argv[0] === 'tail') return { value: ran(0, `t":"cut mid-line"}\n${transcript(options.lastAssistant)}`) }
+    if (e.argv[0] === 'tail') return { value: options.tailFails === true ? ran(1, 'tail: read error') : ran(0, `t":"cut mid-line"}\n${transcript(options.lastAssistant)}`) }
     if (e.argv[0] === 'which') return { value: ran(e.argv[1] === 'codex' ? 0 : 1, '') }
     if (e.argv[0] === 'herdr' && e.argv[1] === 'pane' && e.argv[2] === 'split') return { value: ran(0, '{"result":{"pane":{"pane_id":"w1:p9"}}}') }
     if (e.argv[0] === 'herdr' && e.argv[2] === 'start' && options.agentStartFails === true) return { value: ran(1, 'agent did not start') }
@@ -241,4 +241,16 @@ test('a transcript exactly at the engine read limit is still read whole', async 
 
   expect(recorded.reads).toBe(1)
   expect(recorded.argv.some(argv => argv[0] === 'tail')).toBe(false)
+})
+
+test('a cache check that fails still opens the pane with the digest and the cache unknown', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, transcriptBytes: READ_LIMIT_BYTES + 1, tailFails: true })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  expect(recorded.reads).toBe(0)
+  expect(await ui.find({ type: 'Text', text: /Cache state unknown · 148k/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Cache check failed: tail -c \d+ exited with 1: tail: read error/ })).toBeDefined()
+  expect(await ui.find({ key: 'go' })).toBeDefined()
+  expect(JSON.stringify(await ui.drawn())).not.toContain('Cannot read the session')
 })
