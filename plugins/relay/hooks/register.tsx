@@ -637,7 +637,7 @@ export const register: Register = on => {
             value={state.summary}
             options={[
               { value: 'local', label: 'Local · 0 tokens' },
-              { value: 'model', label: `From the model · ~${cost} tokens · ${MODEL_SUMMARY_WAIT} (${state.isWarm ? 'cache warm' : 'cache cold'})` },
+              { value: 'model', label: `From the model · ~${cost} tokens · ${MODEL_SUMMARY_WAIT}` },
             ]}
             onSelect={value => setChoice($, { summary: value as RelaySummary })}
           />
