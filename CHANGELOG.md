@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- The `cache` statusline segment leaves out the token count right after a
+  compaction instead of showing the size from before it, and falls back to the
+  5-minute TTL when Claude Code reports one it doesn't know.
+
 ## [3.9.1] — 2026-10-06
 
 ### Changed

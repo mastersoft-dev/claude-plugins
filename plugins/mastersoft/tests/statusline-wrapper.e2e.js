@@ -475,10 +475,46 @@ test('drops a miss older than the last activity', () => {
   assertEq(stripAnsi(runStatuslineCache(pc)), `${ICON_CACHE}59.0k · 30m`);
 });
 
-test('falls back to the last response cache tokens', () => {
-  const pc = warmCache(600 + 30, { recache_tokens_if_cold: null });
+test('falls back to the last response cache tokens when recache_tokens_if_cold is absent', () => {
+  const pc = warmCache(600 + 30);
+  delete pc.recache_tokens_if_cold;
   const extra = { context_window: { current_usage: { cache_read_input_tokens: 58194, cache_creation_input_tokens: 689 } } };
   assertEq(stripAnsi(runStatuslineCache(pc, extra)), `${ICON_CACHE}58.9k · 10m`);
+});
+
+test('omits the token count while recache_tokens_if_cold is null after a compaction', () => {
+  const pc = warmCache(47 * 60 + 30, { recache_tokens_if_cold: null });
+  const extra = { context_window: { current_usage: { cache_read_input_tokens: 400000, cache_creation_input_tokens: 0 } } };
+  assertEq(stripAnsi(runStatuslineCache(pc, extra)), `${ICON_CACHE}47m`);
+});
+
+test('keeps the 5m TTL thresholds', () => {
+  const green = runStatuslineCache(warmCache(4 * 60 + 30, { ttl: '5m' }));
+  assertEq(stripAnsi(green), `${ICON_CACHE}59.0k · 4m`);
+  if (!green.includes('\x1b[38;5;2m')) throw new Error(`expected green in [${JSON.stringify(green)}]`);
+  const yellow = runStatuslineCache(warmCache(40, { ttl: '5m' }));
+  assertEq(stripAnsi(yellow), `${ICON_CACHE}59.0k · <1m`);
+  if (!yellow.includes('\x1b[38;5;3m')) throw new Error(`expected yellow in [${JSON.stringify(yellow)}]`);
+});
+
+test('falls back to the 5m TTL when the ttl is unknown', () => {
+  const pc = warmCache(40, { ttl: '2h', last_miss_cause: { causes: ['tools_changed'] } });
+  pc.last_miss_at = pc.expires_at - 300;
+  const out = runStatuslineCache(pc);
+  assertEq(stripAnsi(out), `${ICON_CACHE}59.0k · <1m · miss tools_changed`);
+  if (!out.includes('\x1b[38;5;3m')) throw new Error(`expected yellow in [${JSON.stringify(out)}]`);
+});
+
+test('renders a bare miss when the cause is unknown', () => {
+  const pc = warmCache(3600 + 30, { last_miss_cause: { causes: [] } });
+  pc.last_miss_at = pc.expires_at - 3600;
+  assertEq(stripAnsi(runStatuslineCache(pc)), `${ICON_CACHE}59.0k · 60m · miss`);
+});
+
+test('renders a miss while cold', () => {
+  const pc = warmCache(-120, { warm: false, last_miss_cause: { causes: ['ttl_expired_1h'] } });
+  pc.last_miss_at = pc.expires_at - 3600;
+  assertEq(stripAnsi(runStatuslineCache(pc)), `${ICON_CACHE}cold · 59.0k · miss ttl_expired_1h`);
 });
 
 test('renders off when no response reported cache tokens', () => {
