@@ -8,13 +8,7 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
-### Added
-
-- `/relay` continues in a fresh session from a digest built locally, without
-  calling the model on the old session, so a cold prompt cache is not paid
-  again. It hands over to Claude after `/clear`, or to Codex, OpenCode or
-  Gemini through herdr or Orca, and to the clipboard otherwise. Secrets in
-  failed commands are redacted before the prompt leaves the session.
+## [0.1.1] — 2026-10-06
 
 ### Changed
 
@@ -31,3 +25,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   cache state unknown and says why.
 - A resumed session takes its idle time from Claude Code, so `/relay` knows
   the cache state without reading the transcript.
+
+## [0.1.0] — 2026-10-06
+
+### Added
+
+- `/relay` continues in a fresh session from a digest built locally, without
+  calling the model on the old session, so a cold prompt cache is not paid
+  again. It hands over to Claude after `/clear`, or to Codex, OpenCode or
+  Gemini through herdr or Orca, and to the clipboard otherwise. Secrets in
+  failed commands are redacted before the prompt leaves the session.
