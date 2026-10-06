@@ -37,7 +37,7 @@ const AGENT_NAME_SUFFIX = 6
 const FORK_TIMEOUT_MS = 120_000
 const GIT_NOT_A_REPO_EXIT = 128
 const CLAUDE_PREFIX = 'claude:'
-const CURRENT_NOTE = 'here, current model'
+const CURRENT_NOTE = 'this session, current model'
 const FAILED_PREFIX = 'Failed:'
 const CLAUDE_MODELS = [
   { id: 'opus', label: 'Opus' },
@@ -49,7 +49,7 @@ const AGENT_CLIS = [
   { id: 'gemini', label: 'Gemini' },
 ] as const
 const LAUNCHER_NOTES: Record<Launcher, string> = {
-  herdr: 'pane herdr',
+  herdr: 'herdr pane',
   orca: 'Orca terminal',
   none: 'copy the prompt',
 }
@@ -66,6 +66,7 @@ const EMPTY_PANEL: RelayPanel = {
   mode: 'focused',
   summary: 'local',
   isWarm: false,
+  isCacheKnown: false,
   idleMinutes: 0,
   contextTokens: 0,
   digest: null,
@@ -150,7 +151,7 @@ async function launchInHerdr($: Engine, kind: string, prompt: string, cwd: strin
   } catch (failure) {
     return cleanupAfter($, failure, ['herdr', 'pane', 'close', paneId])
   }
-  return `pane herdr ${paneId}`
+  return `herdr pane ${paneId}`
 }
 
 async function launchInOrca($: Engine, cli: string, prompt: string, cwd: string): Promise<string> {
@@ -246,8 +247,24 @@ function tickSafely($: Engine): void {
   tick($).catch(error => logDebug($, 'cache check failed', error))
 }
 
+function toastSafely($: Engine, text: string): void {
+  try {
+    $.ui.toast(text, { timeoutMs: TOAST_MS })
+  } catch (error) {
+    logDebug($, 'toast failed', error)
+  }
+}
+
 function guarded($: Engine, what: string, work: () => Promise<void>): void {
-  work().catch(error => $.ui.toast(`Relay · ${what} failed: ${clip(describeError(error), ERROR_CHARS)}`, { timeoutMs: TOAST_MS }))
+  work().catch(error => toastSafely($, `Relay · ${what} failed: ${clip(describeError(error), ERROR_CHARS)}`))
+}
+
+async function closeSafely($: Engine): Promise<void> {
+  try {
+    await $.ui.close({ id: PANE })
+  } catch (error) {
+    logDebug($, 'closing the pane failed', error)
+  }
 }
 
 async function claudeTargets($: Engine): Promise<RelayTarget[]> {
@@ -255,7 +272,7 @@ async function claudeTargets($: Engine): Promise<RelayTarget[]> {
   return CLAUDE_MODELS.map(model => ({
     value: `${CLAUDE_PREFIX}${model.id}`,
     label: `Claude · ${model.label}`,
-    note: current.includes(model.id) ? CURRENT_NOTE : 'here',
+    note: current.includes(model.id) ? CURRENT_NOTE : 'this session',
   }))
 }
 
@@ -278,7 +295,11 @@ async function readMessages($: Engine): Promise<SessionMessage[]> {
 }
 
 function shouldAutoRun(args: RelayArgs, isWarm: boolean): boolean {
-  return args.target !== undefined && !(args.summary === 'model' && !isWarm)
+  return args.target !== undefined && args.unknown.length === 0 && !(args.summary === 'model' && !isWarm)
+}
+
+function coldConfirmMessage(contextTokens: number): string {
+  return `On a cold cache the model summary costs ~${formatTokens(modelSummaryCost(contextTokens, false))} tokens: press Continue to confirm.`
 }
 
 type Prepared = { prepared: RelayPanel; picked: RelayArgs }
@@ -298,8 +319,11 @@ async function preparePanel($: Engine, args: string): Promise<Prepared> {
   const picked = parseArgs(args, targets.map(target => target.value))
   const current = claude.find(target => target.note === CURRENT_NOTE) ?? claude[0]
   const isWarm = cache?.isWarm ?? false
-  const contextTokens = cache?.contextTokens ?? 0
+  const contextTokens = cache?.contextTokens ?? (await $.session.usage()).context.tokens ?? 0
   const needsConfirm = picked.target !== undefined && !shouldAutoRun(picked, isWarm)
+  const unknownNote = picked.unknown.length === 0
+    ? ''
+    : `Not an installed target, mode or summary: ${picked.unknown.join(', ')}.`
   const prepared: RelayPanel = {
     phase: messages.length === 0 ? 'idle' : 'ready',
     targets,
@@ -307,17 +331,16 @@ async function preparePanel($: Engine, args: string): Promise<Prepared> {
     mode: picked.mode ?? 'focused',
     summary: picked.summary ?? (picked.target === undefined && isWarm ? 'model' : 'local'),
     isWarm,
+    isCacheKnown: cache !== null,
     idleMinutes: Math.floor((cache?.idleMs ?? 0) / MINUTE_MS),
     contextTokens,
     digest: buildDigest(messages, git),
     transcriptPath,
     message: messages.length === 0
       ? 'The session is empty: nothing to hand over.'
-      : needsConfirm
-        ? `On a cold cache the model summary costs ~${formatTokens(modelSummaryCost(contextTokens, false))} tokens: press Continue to confirm.`
-        : '',
+      : [unknownNote, needsConfirm ? coldConfirmMessage(contextTokens) : ''].filter(Boolean).join(' '),
   }
-  await update($, panel, () => prepared)
+  await update($, panel, current => (current.phase === 'working' ? current : prepared))
   return { prepared, picked }
 }
 
@@ -358,10 +381,12 @@ async function continueInClaude($: Engine, model: string, prompt: string): Promi
   const isSameModel = (await $.session.model()).toLowerCase().includes(model)
   await $.command.run({ command: 'clear' })
   if (!isSameModel) await $.command.run({ command: 'model', args: model })
+  const now = await $.session.model()
   const filled = await $.prompt.fill({ text: prompt })
   if (!filled.isFilled) throw new Error(`the draft did not reach the prompt (${filled.refusal ?? 'refused by a plugin'})`)
-  await $.ui.close({ id: PANE })
-  $.ui.toast(`Relay · draft ready (~${formatTokens(estimateTokens(prompt))} tokens). Review it and press Enter.`, { timeoutMs: TOAST_MS })
+  await closeSafely($)
+  const modelNote = now.toLowerCase().includes(model) ? '' : ` The model is still ${now}: /model ${model} did not switch it.`
+  toastSafely($, `Relay · draft ready (~${formatTokens(estimateTokens(prompt))} tokens). Review it and press Enter.${modelNote}`)
 }
 
 async function continueElsewhere($: Engine, cli: string, prompt: string): Promise<void> {
@@ -369,16 +394,16 @@ async function continueElsewhere($: Engine, cli: string, prompt: string): Promis
   if (launcher === 'none') {
     const copied = await $.ui.copy({ text: prompt })
     if (!copied.isCopied) throw new Error(`copy to clipboard failed (${copied.reason})`)
-    await $.ui.close({ id: PANE })
-    $.ui.toast(`Relay · prompt on the clipboard. Start ${cli} and paste it.`, { timeoutMs: TOAST_MS })
+    await closeSafely($)
+    toastSafely($, `Relay · prompt on the clipboard. Start ${cli} and paste it.`)
     return
   }
   const cwd = await $.session.cwd()
   const where = launcher === 'herdr'
     ? await launchInHerdr($, cli, prompt, cwd)
     : await launchInOrca($, cli, prompt, cwd)
-  await $.ui.close({ id: PANE })
-  $.ui.toast(`Relay · handed to ${cli} (${where}), prompt sent.`, { timeoutMs: TOAST_MS })
+  await closeSafely($)
+  toastSafely($, `Relay · handed to ${cli} (${where}), prompt sent.`)
 }
 
 async function copyAsFallback($: Engine, prompt: string): Promise<boolean> {
@@ -398,6 +423,10 @@ async function runRelay($: Engine): Promise<void> {
   isRunning = true
   let prompt = ''
   try {
+    if (state.summary === 'model' && state.isWarm && !((await readCache($))?.isWarm ?? false)) {
+      await update($, panel, (current): RelayPanel => ({ ...current, isWarm: false, message: coldConfirmMessage(current.contextTokens) }))
+      return
+    }
     await update($, panel, (current): RelayPanel => ({ ...current, phase: 'working', message: 'Building the prompt…' }))
     const modelSummary = state.summary === 'model' ? await summarizeWithModel($) : null
     prompt = await buildPrompt($, state, modelSummary)
@@ -409,9 +438,9 @@ async function runRelay($: Engine): Promise<void> {
     await update($, panel, () => EMPTY_PANEL)
   } catch (error) {
     const copied = await copyAsFallback($, prompt)
-    const message = `${FAILED_PREFIX} ${clip(describeError(error), ERROR_CHARS)}${copied ? ' The prompt is on the clipboard.' : ''}`
-    $.ui.toast(`Relay · ${message}`, { timeoutMs: TOAST_MS })
-    await update($, panel, (current): RelayPanel => ({ ...current, phase: 'ready', message }))
+    const reason = `${clip(describeError(error), ERROR_CHARS)}${copied ? ' The prompt is on the clipboard.' : ''}`
+    await update($, panel, (current): RelayPanel => ({ ...current, phase: 'ready', message: `${FAILED_PREFIX} ${reason}` }))
+    toastSafely($, `Relay · handover failed: ${reason}`)
   } finally {
     isRunning = false
   }
@@ -420,16 +449,25 @@ async function runRelay($: Engine): Promise<void> {
 async function copyPrompt($: Engine): Promise<void> {
   const state = await read($, panel)
   const copied = await $.ui.copy({ text: await buildPrompt($, state, null) })
-  if (!copied.isCopied) throw new Error(`copy to clipboard (${copied.reason})`)
+  if (!copied.isCopied) throw new Error(`copy to clipboard failed (${copied.reason})`)
   $.ui.toast('Relay · prompt copied.')
 }
 
-async function openPanel($: Engine, args: string): Promise<void> {
+async function showPane($: Engine): Promise<boolean> {
   if (isRunning) {
-    $.ui.toast('Relay · a handover is already running.')
-    return
+    toastSafely($, 'Relay · a handover is already running.')
+    return false
   }
-  await $.ui.open({ id: PANE, title: 'Relay', focus: true, closeOnEscape: true })
+  const opened = await $.ui.open({ id: PANE, title: 'Relay', focus: true, closeOnEscape: true })
+  if (!opened.isPlaced) toastSafely($, `Relay · the pane cannot be shown here: ${clip(opened.reason, ERROR_CHARS)}`)
+  return opened.isPlaced
+}
+
+async function openPanel($: Engine, args: string): Promise<void> {
+  if (await showPane($)) await fillPanel($, args)
+}
+
+async function fillPanel($: Engine, args: string): Promise<void> {
   let ready: Prepared
   try {
     ready = await preparePanel($, args)
@@ -441,7 +479,7 @@ async function openPanel($: Engine, args: string): Promise<void> {
 }
 
 function setChoice($: Engine, patch: Partial<Pick<RelayPanel, 'target' | 'mode' | 'summary'>>): void {
-  void update($, panel, current => ({ ...current, ...patch, message: '' }))
+  guarded($, 'choice', () => update($, panel, current => ({ ...current, ...patch, message: '' })).then(() => undefined))
 }
 
 function previewLine(label: string, value: string): { label: string; value: string } {
@@ -488,13 +526,13 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'relay' }, async ($, e) => {
-    $.clock.after(0, () => guarded($, 'opening', () => openPanel($, e.args)))
+    if (await showPane($)) $.clock.after(0, () => guarded($, 'opening', () => fillPanel($, e.args)))
     return {}
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const shown = await read($, band)
-    if (shown === null || e.props.hasSurvey) return next(e)
+    if (shown === null || e.props.hasSurvey || e.props.isWorking) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     return (
       <Box flexWrap="wrap" columnGap={1}>
@@ -527,7 +565,9 @@ export const register: Register = on => {
     const digest = state.digest
     const cacheLine = state.contextTokens === 0
       ? 'No turns yet: no cache to protect.'
-      : `Cache ${state.isWarm ? 'warm' : 'cold'} · idle ${formatMinutes(state.idleMinutes)} · ${formatTokens(state.contextTokens)} of context`
+      : !state.isCacheKnown
+        ? `Cache state unknown · ${formatTokens(state.contextTokens)} of context`
+        : `Cache ${state.isWarm ? 'warm' : 'cold'} · idle ${formatMinutes(state.idleMinutes)} · ${formatTokens(state.contextTokens)} of context`
     const cost = formatTokens(modelSummaryCost(state.contextTokens, state.isWarm))
     const localTokens = digest === null
       ? 0
@@ -574,7 +614,7 @@ export const register: Register = on => {
             value={state.summary}
             options={[
               { value: 'local', label: 'Local · 0 tokens' },
-              { value: 'model', label: `From the model · ~${cost} (${state.isWarm ? 'cache warm' : 'cache cold'})` },
+              { value: 'model', label: `From the model · ~${cost} tokens (${state.isWarm ? 'cache warm' : 'cache cold'})` },
             ]}
             onSelect={value => setChoice($, { summary: value as RelaySummary })}
           />
@@ -582,7 +622,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text dimColor>PREVIEW · ~{formatTokens(localTokens)} TOKENS</Text>
           {preview.map(row => (
-            <Text>
+            <Text key={`preview-${row.label}`}>
               <Text dimColor>{row.label.padEnd(10)}</Text>
               {row.value}
             </Text>

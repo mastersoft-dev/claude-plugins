@@ -18,9 +18,9 @@ const MESSAGES: SessionMessage[] = [
   },
 ]
 
-type Recorded = { argv: string[][]; commands: string[]; fills: string[]; forks: number; copies: number }
+type Recorded = { argv: string[][]; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
 
-type SessionOptions = { lastAssistant: string; env?: Record<string, string>; fillRefused?: boolean }
+type SessionOptions = { lastAssistant: string; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
 
 type TestClock = { advance: (ms: number) => Promise<void>; settle: () => Promise<void> }
 
@@ -29,7 +29,7 @@ function ran(exitCode: number, stdout: string) {
 }
 
 function fakeSession(on: On, options: SessionOptions) {
-  const recorded: Recorded = { argv: [], commands: [], fills: [], forks: 0, copies: 0 }
+  const recorded: Recorded = { argv: [], commands: [], fills: [], forks: 0, copies: 0, closes: 0, toasts: [] }
   const clock = mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/home/u', ...options.env })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
@@ -38,10 +38,16 @@ function fakeSession(on: On, options: SessionOptions) {
     recorded.commands.push(e.command)
     return {}
   })
-  on('ui.open', () => ({ value: { isPlaced: true } }))
-  on('ui.close', () => ({ value: undefined }))
+  on('ui.open', () => ({ value: options.notPlaced === true ? { isPlaced: false, reason: 'narrow terminal' } : { isPlaced: true } }))
+  on('ui.close', () => {
+    recorded.closes += 1
+    return { value: undefined }
+  })
   on('ui.status', () => ({ value: undefined }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', (_$, e) => {
+    recorded.toasts.push(e.text)
+    return { value: undefined }
+  })
   on('ui.log', () => ({ value: undefined }))
   on('ui.copy', () => {
     recorded.copies += 1
@@ -66,7 +72,8 @@ function fakeSession(on: On, options: SessionOptions) {
   on('process.run', (_$, e) => {
     recorded.argv.push([...e.argv])
     if (e.argv[0] === 'which') return { value: ran(e.argv[1] === 'codex' ? 0 : 1, '') }
-    if (e.argv[0] === 'herdr' && e.argv[1] === 'pane') return { value: ran(0, '{"result":{"pane":{"pane_id":"w1:p9"}}}') }
+    if (e.argv[0] === 'herdr' && e.argv[1] === 'pane' && e.argv[2] === 'split') return { value: ran(0, '{"result":{"pane":{"pane_id":"w1:p9"}}}') }
+    if (e.argv[0] === 'herdr' && e.argv[2] === 'start' && options.agentStartFails === true) return { value: ran(1, 'agent did not start') }
     if (e.argv[0] === 'herdr') return { value: ran(0, '{}') }
     return { value: ran(0, '## feat/csv\n M src/export.ts\n') }
   })
@@ -146,7 +153,54 @@ test('a refused draft keeps the pane open with the error and the prompt on the c
   await ui.press({ key: 'go' })
 
   expect(recorded.copies).toBe(1)
+  expect(recorded.closes).toBe(0)
   expect(await ui.find({ type: 'Text', text: /Failed: the draft did not reach the prompt/ })).toBeDefined()
+})
+
+test('/relay sonnet clears, switches the model and fills the draft, warning when the model did not change', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT })
+  await runRelayCommand($, clock, 'sonnet')
+
+  expect(recorded.commands).toEqual(['clear', 'model'])
+  expect(recorded.fills).toHaveLength(1)
+  expect(recorded.closes).toBe(1)
+  expect(recorded.toasts.at(-1)).toContain('did not switch it')
+})
+
+test('a pane that cannot be placed stops /relay before any handover', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, notPlaced: true })
+  await runRelayCommand($, clock, 'sonnet')
+
+  expect(recorded.commands).toEqual([])
+  expect(recorded.fills).toHaveLength(0)
+  expect(recorded.toasts.at(-1)).toContain('narrow terminal')
+})
+
+test('outside herdr and Orca /relay codex puts the prompt on the clipboard', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT })
+  await runRelayCommand($, clock, 'codex')
+
+  expect(recorded.copies).toBe(1)
+  expect(recorded.argv.some(argv => argv[0] === 'herdr' || argv[0] === 'orca')).toBe(false)
+  expect(recorded.commands).not.toContain('clear')
+})
+
+test('a herdr agent that fails to start closes the pane it split', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, env: { HERDR_PANE_ID: 'w1:p1' }, agentStartFails: true })
+  await runRelayCommand($, clock, 'codex')
+
+  const herdr = recorded.argv.filter(argv => argv[0] === 'herdr').map(argv => argv.slice(0, 3).join(' '))
+  expect(herdr).toEqual(['herdr pane split', 'herdr agent start', 'herdr pane close'])
+  expect(recorded.toasts.at(-1)).toContain('handover failed')
+})
+
+test('an unknown argument opens the pane with a note instead of handing over', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT })
+  await runRelayCommand($, clock, 'gemini')
+  const ui = await mountPane($)
+
+  expect(recorded.fills).toHaveLength(0)
+  expect(await ui.find({ type: 'Text', text: /Not an installed target, mode or summary: gemini/ })).toBeDefined()
 })
 
 test('inside herdr /relay codex splits a pane, starts codex there and prompts it', async ($, on) => {

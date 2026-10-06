@@ -25,6 +25,7 @@ export type RelayPanel = {
   mode: RelayMode
   summary: RelaySummary
   isWarm: boolean
+  isCacheKnown: boolean
   idleMinutes: number
   contextTokens: number
   digest: RelayDigest | null
