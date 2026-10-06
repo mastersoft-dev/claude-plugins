@@ -7,6 +7,8 @@ const COLD_AT = '2026-10-06T09:46:00Z'
 const WARM_AT = '2026-10-06T11:50:00Z'
 const SCROLL = { offset: 0, bodyRows: 40 }
 const PANE_PROPS = { title: 'Relay', isFocused: true, bodyColumns: 60, placement: 'dock', scroll: SCROLL, view: {} } as const
+const TRANSCRIPT = '/home/u/.claude/projects/-repo/abc.jsonl'
+const READ_LIMIT_BYTES = 4 * 1024 * 1024
 const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 3, bodyColumns: 160, scroll: SCROLL, view: {} } as const
 
 const MESSAGES: SessionMessage[] = [
@@ -18,9 +20,9 @@ const MESSAGES: SessionMessage[] = [
   },
 ]
 
-type Recorded = { argv: string[][]; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
+type Recorded = { argv: string[][]; reads: number; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
 
-type SessionOptions = { lastAssistant: string; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
+type SessionOptions = { lastAssistant: string; transcriptBytes?: number; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
 
 type TestClock = { advance: (ms: number) => Promise<void>; settle: () => Promise<void> }
 
@@ -28,8 +30,12 @@ function ran(exitCode: number, stdout: string) {
   return { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
 }
 
+function transcript(lastAssistant: string): string {
+  return `{"type":"user","timestamp":"${COLD_AT}"}\n{"type":"assistant","timestamp":"${lastAssistant}"}\n`
+}
+
 function fakeSession(on: On, options: SessionOptions) {
-  const recorded: Recorded = { argv: [], commands: [], fills: [], forks: 0, copies: 0, closes: 0, toasts: [] }
+  const recorded: Recorded = { argv: [], reads: 0, commands: [], fills: [], forks: 0, copies: 0, closes: 0, toasts: [] }
   const clock = mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/home/u', ...options.env })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
@@ -68,9 +74,14 @@ function fakeSession(on: On, options: SessionOptions) {
   on('session.root', () => ({ value: '/repo' }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 148_000, window: 1_000_000 }, rateLimits: [] } }))
   on('fs.exists', () => ({ value: true }))
-  on('fs.read', () => ({ value: `{"type":"user","timestamp":"${COLD_AT}"}\n{"type":"assistant","timestamp":"${options.lastAssistant}"}\n` }))
+  on('fs.stat', () => ({ value: { kind: 'file' as const, size: options.transcriptBytes ?? 1024, mtimeMs: 0, isLink: false } }))
+  on('fs.read', () => {
+    recorded.reads += 1
+    return { value: transcript(options.lastAssistant) }
+  })
   on('process.run', (_$, e) => {
     recorded.argv.push([...e.argv])
+    if (e.argv[0] === 'tail') return { value: ran(0, `t":"cut mid-line"}\n${transcript(options.lastAssistant)}`) }
     if (e.argv[0] === 'which') return { value: ran(e.argv[1] === 'codex' ? 0 : 1, '') }
     if (e.argv[0] === 'herdr' && e.argv[1] === 'pane' && e.argv[2] === 'split') return { value: ran(0, '{"result":{"pane":{"pane_id":"w1:p9"}}}') }
     if (e.argv[0] === 'herdr' && e.argv[2] === 'start' && options.agentStartFails === true) return { value: ran(1, 'agent did not start') }
@@ -212,4 +223,22 @@ test('inside herdr /relay codex splits a pane, starts codex there and prompts it
   const start = recorded.argv.find(argv => argv[1] === 'agent' && argv[2] === 'start') ?? []
   expect(start[start.indexOf('--pane') + 1]).toBe('w1:p9')
   expect(start[start.indexOf('--kind') + 1]).toBe('codex')
+})
+
+test('a transcript over the engine read limit is read from its tail, never whole', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, transcriptBytes: READ_LIMIT_BYTES + 1 })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  expect(recorded.reads).toBe(0)
+  expect(recorded.argv.find(argv => argv[0] === 'tail')).toEqual(['tail', '-c', String(READ_LIMIT_BYTES), TRANSCRIPT])
+  expect(await ui.find({ type: 'Text', text: /Cache cold · idle 2h 14m · 148k/ })).toBeDefined()
+})
+
+test('a transcript exactly at the engine read limit is still read whole', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, transcriptBytes: READ_LIMIT_BYTES })
+  await runRelayCommand($, clock, '')
+
+  expect(recorded.reads).toBe(1)
+  expect(recorded.argv.some(argv => argv[0] === 'tail')).toBe(false)
 })

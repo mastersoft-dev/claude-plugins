@@ -36,6 +36,7 @@ const ERROR_CHARS = 240
 const AGENT_NAME_SUFFIX = 6
 const FORK_TIMEOUT_MS = 120_000
 const GIT_NOT_A_REPO_EXIT = 128
+const READ_LIMIT_BYTES = 4 * 1024 * 1024
 const CLAUDE_PREFIX = 'claude:'
 const CURRENT_NOTE = 'this session, current model'
 const FAILED_PREFIX = 'Failed:'
@@ -197,12 +198,18 @@ async function resolveTranscript($: Engine): Promise<string | null> {
   return null
 }
 
+async function transcriptTail($: Engine, path: string): Promise<string> {
+  const { size } = await $.fs.stat(path)
+  if (size <= READ_LIMIT_BYTES) return $.fs.read(path)
+  return runChecked($, ['tail', '-c', String(READ_LIMIT_BYTES), path])
+}
+
 async function activityAt($: Engine): Promise<number | null> {
   const at = await read($, lastActivityAt)
   if (at !== null) return at
   const path = await resolveTranscript($)
   if (path === null) return null
-  const found = lastAssistantAt(await $.fs.read(path))
+  const found = lastAssistantAt(await transcriptTail($, path))
   if (found !== null) await update($, lastActivityAt, current => current ?? found)
   return found
 }

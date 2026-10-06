@@ -15,3 +15,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   again. It hands over to Claude after `/clear`, or to Codex, OpenCode or
   Gemini through herdr or Orca, and to the clipboard otherwise. Secrets in
   failed commands are redacted before the prompt leaves the session.
+
+### Fixed
+
+- `/relay` reads only the last 4 MiB of a transcript over Claude Code's 4 MiB
+  read limit to find when the session last answered, instead of failing with
+  "Cannot read the session".
