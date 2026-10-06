@@ -15,16 +15,17 @@ You will get an acknowledgement within 5 business days.
 
 ## Supported versions
 
-Only the latest minor release line of the `mastersoft` plugin receives security fixes. Older versions are not maintained.
+Only the latest minor release line of each plugin receives security fixes. Older versions are not maintained.
 
-| Version | Supported |
-|---------|-----------|
-| 3.9.x   | yes       |
-| < 3.9   | no        |
+| Plugin | Version | Supported |
+|--------|---------|-----------|
+| mastersoft | 3.9.x | yes |
+| mastersoft | < 3.9 | no |
+| relay | 0.1.x | yes |
 
 ## Scope
 
-This repository ships hooks, agents, skills, and a statusline that run inside Claude Code on the user's machine. Reports we care about include:
+This repository ships hooks, agents, skills, and a statusline that run inside Claude Code on the user's machine. Relay also starts other agent CLIs through herdr or Orca, sends them a prompt built from the session, and writes to the clipboard. Reports we care about include:
 
 - arbitrary code execution via a malicious workspace
 - secret exfiltration from `~/.claude/` or the user's environment

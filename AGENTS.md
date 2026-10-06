@@ -1,6 +1,6 @@
 # claude-plugins — project rules
 
-Rules for working on the Mastersoft Claude Code plugin, shared across coding
+Rules for working on the Mastersoft Claude Code plugins, shared across coding
 agents. Layout, local development, tests and commit types are in
 [CONTRIBUTING.md](CONTRIBUTING.md); this file holds what it doesn't say.
 
@@ -8,15 +8,17 @@ agents. Layout, local development, tests and commit types are in
 
 Claude Code plugin: Markdown skills and agents, Node.js hooks and scripts with no
 dependencies, Python helpers for the Android skill. No package manager.
+`plugins/relay` is a TypeScript hooks module typed by the declarations the engine
+lays in its `.claude-plugin/types/`.
 
 ## Build & test
 
 - Suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`
 - Android: `cd plugins/mastersoft/skills/android-testing/scripts && python3 test-daemon.py && python3 test-wedge.py`
 - Manifests: `claude plugin validate --strict .`, `claude plugin validate --strict plugins/mastersoft` and `claude plugin validate --strict plugins/relay`
-- Relay: `claude plugin test plugins/relay`
+- Relay: `claude plugin test plugins/relay`, and `tsc -p plugins/relay` (local only; needs a session that loaded the plugin, see CONTRIBUTING.md)
 - Shell: `shellcheck` on every `.sh` you touch. CI config: `glab ci lint`. Both are local only.
-- The GitLab pipeline runs the suites, the Android tests and both validates on every MR; push only with everything above green locally.
+- The GitLab pipeline runs the suites, the Android tests, the three validates and the relay tests on every MR; push only with everything above green locally.
 
 ## Conventions
 

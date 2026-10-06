@@ -1,6 +1,6 @@
 # Mastersoft Claude Plugins
 
-Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. Hooks, agents, skills, and a modular statusline shipped as a single plugin.
+Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. Hooks, agents, skills, and a modular statusline ship as the `mastersoft` plugin; [Relay](#relay) is a second, opt-in plugin.
 
 ## Install
 
@@ -60,6 +60,8 @@ Idempotent: re-running with `--apply` is a no-op once wired. If a different
 via the wrapper instead.
 
 ## Contents
+
+What the `mastersoft` plugin ships:
 
 | Type | Items |
 |------|-------|
@@ -122,6 +124,8 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 /reload-plugins
 ```
 
+The same commands update Relay when it is installed.
+
 ## Suppression
 
 | Mechanism | Scope | How |
@@ -135,7 +139,9 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 
 ## Relay
 
-`relay` is a separate, opt-in plugin in the same marketplace. `/relay` continues the work in a fresh session without calling the model on the old one, so an expired prompt cache is not paid again. It builds the prompt locally (goal, latest prompts, last answer, edited files, failed commands, todos, git status, transcript path) and delivers it as a draft after `/clear`, optionally on another model, or to Codex, OpenCode or Gemini in a new herdr pane or Orca terminal (the clipboard otherwise). A summary written by the model is offered only while the cache is warm. The status line shows the cache state, and a band above the prompt suggests `/relay` when the cache is cold and the context is large.
+`relay` is a separate, opt-in plugin in the same marketplace. `/relay` continues the work in a fresh session without calling the model on the old one, so an expired prompt cache is not paid again. It builds the prompt locally (goal, latest prompts, last answer, edited files, failed commands, todos, git status, transcript path) and delivers it as a draft after `/clear`, optionally on another model, or to Codex, OpenCode or Gemini in a new herdr pane or Orca terminal (the clipboard otherwise). A summary written by the model is offered only while the cache is warm. Relay adds its own status line entry with the cache state, and a row above the prompt that suggests `/relay` when the cache is cold and the context is large.
+
+Install it once the marketplace is added (team members have it already; see [Install](#install)). The changes are in [plugins/relay/CHANGELOG.md](plugins/relay/CHANGELOG.md).
 
 ```text
 /plugin install relay@mastersoft
