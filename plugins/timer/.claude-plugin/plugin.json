@@ -20,6 +20,12 @@
       "title": "Booking reminder",
       "description": "Time of day (HH:mm, Italian time) from when the band shows the timers still to book and reminds you to ask Claude to book them",
       "default": "17:30"
+    },
+    "retentionDays": {
+      "type": "number",
+      "title": "Keep booked timers for",
+      "description": "Days a booked timer is kept after it stopped; time not yet booked is kept however old",
+      "default": 90
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   closeStale,
   dayOf,
   fileUrl,
+  isExpired,
   markBooked,
   minutesByDay,
   parseBookingRange,
@@ -188,6 +189,21 @@ describe('closeStale', () => {
     const paused = entry({ segments: [{ start: T0, end: T0 + 20 * MINUTE }], stoppedAt: undefined, lastSeen: T0 + 25 * MINUTE })
     expect(closeStale(paused, T0 + 30 * MINUTE)).toEqual({ ...paused, stoppedAt: T0 + 25 * MINUTE })
     expect(closeStale(paused, T0 + 24 * MINUTE)).toBe(undefined)
+  })
+})
+
+describe('isExpired', () => {
+  const DAY = 24 * 60 * MINUTE
+  const booked = entry({ booked: { '2026-10-06': 'a1' } })
+
+  test('lets a booked entry go once it stopped more than the retention ago', () => {
+    expect(isExpired(booked, T0 + 63 * MINUTE + 91 * DAY, 90)).toBe(true)
+    expect(isExpired(booked, T0 + 63 * MINUTE + 89 * DAY, 90)).toBe(false)
+  })
+
+  test('keeps time not yet booked, and open timers, however old', () => {
+    expect(isExpired(entry(), T0 + 400 * DAY, 90)).toBe(false)
+    expect(isExpired({ ...booked, segments: [{ start: T0 }], stoppedAt: undefined }, T0 + 400 * DAY, 90)).toBe(false)
   })
 })
 

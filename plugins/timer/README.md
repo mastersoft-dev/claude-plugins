@@ -35,6 +35,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | Option | Default | Meaning |
 |---|---|---|
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
+| `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 
 ## Development
 

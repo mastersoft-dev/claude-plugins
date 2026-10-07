@@ -4,6 +4,8 @@ import type { On } from 'claude-code'
 
 const SECOND = 1_000
 const MINUTE = 60_000
+const DAY = 24 * 60 * MINUTE
+const dayOfT = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 const T0 = Date.parse('2026-10-06T07:00:00Z')
 const REMOTE = 'git@gitlab.sermix.com:mastersoft/acme-site.git'
 const PANE = {
@@ -235,6 +237,41 @@ test('a timer left paused by a closed session stops on a later heartbeat', async
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(undefined)
   await clock.advance(5 * MINUTE)
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(T0)
+})
+
+test('a new session drops booked timers past the retention and past reminders, keeping unbooked time', async ($, on) => {
+  const old = {
+    repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+    repoName: 'acme-site',
+    note: '',
+    segments: [{ start: T0 - 40 * DAY, end: T0 - 40 * DAY + 30 * MINUTE }],
+    stoppedAt: T0 - 40 * DAY + 30 * MINUTE,
+  }
+  const { store } = world(on, {
+    'entry:booked': { ...old, id: 'booked', sessionId: 's0', booked: { [dayOfT(T0 - 40 * DAY)]: 'a1' } },
+    'entry:unbooked': { ...old, id: 'unbooked', sessionId: 's0' },
+    'reminded:2026-10-05': T0 - DAY,
+    'reminded:2026-10-06': T0,
+  })
+  await startSession($, on)
+  expect([...store.keys()].sort()).toEqual(['entry:booked', 'entry:unbooked', 'reminded:2026-10-06'])
+})
+
+test('a shorter retention drops booked timers sooner', { options: { retentionDays: 30 } }, async ($, on) => {
+  const { store } = world(on, {
+    'entry:booked': {
+      id: 'booked',
+      sessionId: 's0',
+      repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+      repoName: 'acme-site',
+      note: '',
+      segments: [{ start: T0 - 40 * DAY, end: T0 - 40 * DAY + 30 * MINUTE }],
+      stoppedAt: T0 - 40 * DAY + 30 * MINUTE,
+      booked: { [dayOfT(T0 - 40 * DAY)]: 'a1' },
+    },
+  })
+  await startSession($, on)
+  expect([...store.keys()]).toEqual([])
 })
 
 test('ending the session stops its timer', async ($, on) => {

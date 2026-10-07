@@ -20,6 +20,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - Two tools for Claude: `mcp__timer__entries` lists the tracked time per timer
   and day, and `mcp__timer__mark_booked` records a day as booked. Booking on
   GEWEB is now a request to Claude, which the `ms` skill handles.
+- Booked timers are dropped once they are older than `retentionDays` (default
+  90), so the store stays small; time not yet booked is kept however old.
 
 ### Removed
 

@@ -195,6 +195,17 @@ export const pendingDays = (entry: Entry): [string, { minutes: number; firstStar
     : []
 
 /**
+ * Whether a stopped entry with nothing left to book stopped more than
+ * `retentionDays` before `now`, so it can go. Time not yet booked is kept,
+ * however old.
+ */
+export const isExpired = (entry: Entry, now: number, retentionDays: number): boolean => {
+  if (stateOf(entry) !== 'stopped' || pendingDays(entry).length > 0) return false
+  const stoppedAt = entry.stoppedAt ?? entry.segments.at(-1)?.end ?? now
+  return stoppedAt < now - retentionDays * DAY_MS
+}
+
+/**
  * One line per entry and day, oldest first, for whoever books the time (Claude,
  * through the timer's `entries` tool): whole minutes, the closed time only, so
  * a timer still open counts what it has done so far and says it is open.

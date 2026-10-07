@@ -11,6 +11,7 @@ import {
   errorText,
   fileUrl,
   formatDuration,
+  isExpired,
   markBooked,
   parseBookingRange,
   parseEntry,
@@ -40,6 +41,7 @@ const ENTRY_PREFIX = 'entry:'
 const SEEN_PREFIX = 'seen:'
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
+const DEFAULT_RETENTION_DAYS = 90
 const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 const EXPORT_PREFIX = 'timer-export-'
 const EXPORT_SUFFIX = '.csv'
@@ -106,6 +108,21 @@ const repoOf = async ($: EngineInterface): Promise<Repo> => {
 const countUnbooked = (entries: readonly Entry[]): number => entries.filter(e => pendingDays(e).length > 0).length
 
 let reminderAt = DEFAULT_REMINDER
+let retentionDays = DEFAULT_RETENTION_DAYS
+
+/** Drops booked timers older than the retention, and the reminders of days gone by. */
+const prune = async ($: EngineInterface) => {
+  const now = await $.clock.now()
+  for (const entry of await loadEntries($)) {
+    if (!isExpired(entry, now, retentionDays)) continue
+    await $.store.delete(ENTRY_PREFIX + entry.id)
+    await $.store.delete(SEEN_PREFIX + entry.id)
+  }
+  const today = dayOf(now)
+  for (const key of await $.store.keys()) {
+    if (key.startsWith(REMINDED_PREFIX) && key.slice(REMINDED_PREFIX.length) < today) await $.store.delete(key)
+  }
+}
 
 const isBookTime = (now: number) => timeOf(now) >= reminderAt
 
@@ -426,6 +443,8 @@ let ticker: Timer | undefined
 export const register: Register = (on, options) => {
   const configured = String(options.reminderTime ?? '')
   reminderAt = CLOCK_TIME.test(configured) ? configured : DEFAULT_REMINDER
+  const retention = Number(options.retentionDays)
+  retentionDays = Number.isInteger(retention) && retention > 0 ? retention : DEFAULT_RETENTION_DAYS
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -472,6 +491,7 @@ export const register: Register = (on, options) => {
       if (open !== undefined) await update($, activeId, () => open.id)
     }
     lastTickAt = undefined
+    await prune($)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
