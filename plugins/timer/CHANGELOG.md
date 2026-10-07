@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-07
+
 ### Added
 
 - A work timer per session: start, pause and stop it from a band above the
