@@ -9,7 +9,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 - **Session end**: closing Claude Code stops the timer; after `/clear` the band asks whether to keep it running or stop it.
 - **Panel** (`/timer open` or ☰): today's timers for this session or for all sessions, with editable notes. You can continue or delete a timer from there.
 - **Names from git**: a timer with no note is named after its branch (`feat/login-sso` → "login sso") and links to its worktree folder; on a default branch it keeps the repo's name.
-- **Booking by Claude**: the plugin gives Claude two tools. `mcp__timer__entries` lists the time per timer and day (minutes, start, title, repo, git remote, branch, folder, state); `mcp__timer__mark_booked` records a day as booked so it is not offered again. From the reminder time (default 17:30, Italian time) the band shows how many timers wait to be booked.
+- **Booking by Claude**: the plugin gives Claude two tools. `mcp__timer__entries` lists the time per timer and day (minutes, the subagents' share of them, start, title, repo, git remote, branch, folder, state); `mcp__timer__mark_booked` records a day as booked so it is not offered again. From the reminder time (default 17:30, Italian time) the band shows how many timers wait to be booked.
 - **Export**: `/timer export [file.csv]` writes every session's time as CSV.
 
 ## Booking on GEWEB
@@ -36,6 +36,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 |---|---|---|
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
+| `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
 
 ## Development
 

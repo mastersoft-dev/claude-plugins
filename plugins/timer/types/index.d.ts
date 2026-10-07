@@ -14,6 +14,11 @@ export type Entry = {
   branch?: string
   /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
   booked?: Record<string, string | number>
+  /**
+   * Per day, the milliseconds subagents worked while the timer ran. Kept under
+   * its own store key and joined on load, never written with the entry.
+   */
+  agentMs?: Record<string, number>
 }
 
 /** One entry's time on one day, as the `entries` tool hands it to whoever books it. */
@@ -34,6 +39,8 @@ export type BookingLine = {
   folder?: string
   state: 'running' | 'paused' | 'stopped'
   booked?: string
+  /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
+  agentMinutes?: number
 }
 
 export type TodayTab = 'session' | 'all'

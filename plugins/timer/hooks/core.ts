@@ -72,8 +72,26 @@ export const stateOf = (entry: Entry): EntryState => {
   return entry.segments.at(-1)?.end === undefined ? 'running' : 'paused'
 }
 
-export const workedMs = (entry: Entry, now: number): number =>
-  entry.segments.reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0)
+/** The timer's wall-clock time, plus every subagent's run while it ran when `withAgents`. */
+export const workedMs = (entry: Entry, now: number, withAgents = false): number =>
+  entry.segments.reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0) +
+  (withAgents ? Object.values(entry.agentMs ?? {}).reduce((sum, ms) => sum + ms, 0) : 0)
+
+/** Adds a subagent's run that ended at `end` to the per-day agent time, split at midnight. */
+export const addAgentRun = (byDay: Record<string, number>, end: number, durationMs: number): Record<string, number> => {
+  const added = { ...byDay }
+  for (const s of splitAtMidnight({ start: end - Math.max(0, durationMs), end }, end)) {
+    const day = dayOf(s.start)
+    added[day] = (added[day] ?? 0) + ((s.end ?? end) - s.start)
+  }
+  return added
+}
+
+/** The per-day agent time a store value holds; anything malformed reads as none. */
+export const parseAgentMs = (value: unknown): Record<string, number> =>
+  typeof value === 'object' && value !== null
+    ? Object.fromEntries(Object.entries(value).filter(([, ms]) => typeof ms === 'number' && Number.isFinite(ms) && ms > 0))
+    : {}
 
 export const formatDuration = (ms: number): string => {
   const minutes = Math.floor(ms / MS_PER_MINUTE)
@@ -174,7 +192,7 @@ export const canonicalRemote = (url: string): string | null => {
 }
 
 /** Minutes worked per day, closed segments cut at midnight so that each day holds only its own time. */
-export const minutesByDay = (entry: Entry): Map<string, { minutes: number; firstStart: number }> => {
+export const minutesByDay = (entry: Entry, withAgents = false): Map<string, { minutes: number; firstStart: number }> => {
   const days = new Map<string, { minutes: number; firstStart: number }>()
   for (const s of entry.segments.flatMap(closed => (closed.end === undefined ? [] : splitAtMidnight(closed, closed.end)))) {
     if (s.end === undefined) continue
@@ -184,6 +202,11 @@ export const minutesByDay = (entry: Entry): Map<string, { minutes: number; first
       minutes: held.minutes + (s.end - s.start) / MS_PER_MINUTE,
       firstStart: Math.min(held.firstStart, s.start),
     })
+  }
+  if (!withAgents) return days
+  for (const [day, ms] of Object.entries(entry.agentMs ?? {})) {
+    const held = days.get(day)
+    if (held !== undefined) days.set(day, { ...held, minutes: held.minutes + ms / MS_PER_MINUTE })
   }
   return days
 }
@@ -208,16 +231,19 @@ export const isExpired = (entry: Entry, now: number, retentionDays: number): boo
 /**
  * One line per entry and day, oldest first, for whoever books the time (Claude,
  * through the timer's `entries` tool): whole minutes, the closed time only, so
- * a timer still open counts what it has done so far and says it is open.
+ * a timer still open counts what it has done so far and says it is open. With
+ * `withAgents` the minutes add the subagents' runs, always listed apart too.
  */
 export const bookingLines = (
   entries: readonly Entry[],
   range: { from?: string; to?: string; includeBooked?: boolean },
+  withAgents = false,
 ): BookingLine[] =>
   entries
     .flatMap(entry =>
-      [...minutesByDay(entry)].map(([day, { minutes, firstStart }]) => {
+      [...minutesByDay(entry, withAgents)].map(([day, { minutes, firstStart }]) => {
         const booked = entry.booked?.[day]
+        const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
         return {
           firstStart,
           line: {
@@ -233,6 +259,7 @@ export const bookingLines = (
             ...(entry.location === undefined ? {} : { folder: entry.location }),
             state: stateOf(entry),
             ...(booked === undefined ? {} : { booked: String(booked) }),
+            ...(agentMinutes > 0 ? { agentMinutes } : {}),
           },
         }
       }),
@@ -350,7 +377,7 @@ export const fileUrl = (path: string): string => {
  * to its last end (`now` while it runs), the minutes worked that day, and the
  * repo it ran in.
  */
-export const todayRows = (entries: readonly Entry[], day: string, now: number): TodayRow[] =>
+export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] =>
   entries
     .map(entry => ({
       entry,
@@ -368,7 +395,11 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number): 
           sessionId: entry.sessionId,
           from: timeOf(first),
           to: isOpen ? 'now' : timeOf(last),
-          minutes: Math.round(segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) / MS_PER_MINUTE),
+          minutes: Math.round(
+            (segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) +
+              (withAgents ? (entry.agentMs?.[day] ?? 0) : 0)) /
+              MS_PER_MINUTE,
+          ),
           state: stateOf(entry),
           note: entry.note,
           name: titleOf(entry),

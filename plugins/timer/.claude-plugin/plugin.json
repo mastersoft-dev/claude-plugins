@@ -26,6 +26,13 @@
       "title": "Keep booked timers for",
       "description": "Days a booked timer is kept after it stopped; time not yet booked is kept however old",
       "default": 90
+    },
+    "agentTime": {
+      "type": "string",
+      "title": "Time with subagents",
+      "description": "wall-clock counts the timer's own time; summed adds every subagent's run while the timer runs, so parallel agents each count",
+      "options": ["wall-clock", "summed"],
+      "default": "wall-clock"
     }
   }
 }

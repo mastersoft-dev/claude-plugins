@@ -22,6 +22,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   GEWEB is now a request to Claude, which the `ms` skill handles.
 - Booked timers are dropped once they are older than `retentionDays` (default
   90), so the store stays small; time not yet booked is kept however old.
+- The time subagents work while the timer runs is recorded per day and listed
+  as `agentMinutes`. The `agentTime` setting (`wall-clock` by default) can
+  switch to `summed`, which adds it to the timer's time and the booked minutes.
 
 ### Removed
 

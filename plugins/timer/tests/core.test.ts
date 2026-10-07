@@ -2,6 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { Entry } from '../types'
 import {
+  addAgentRun,
   bookingLines,
   branchLabel,
   canonicalRemote,
@@ -175,6 +176,16 @@ describe('toCsv', () => {
   test('defuses notes that a spreadsheet would run as a formula', () => {
     const csv = toCsv([entry({ note: '=HYPERLINK("x")' })], T0)
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
+  })
+})
+
+describe('addAgentRun', () => {
+  test('adds a run to its day and splits one that crossed midnight', () => {
+    const midnight = Date.parse('2026-10-06T22:00:00Z')
+    expect(addAgentRun({ '2026-10-06': MINUTE }, midnight + 10 * MINUTE, 30 * MINUTE)).toEqual({
+      '2026-10-06': 21 * MINUTE,
+      '2026-10-07': 10 * MINUTE,
+    })
   })
 })
 

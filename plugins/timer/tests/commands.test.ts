@@ -85,7 +85,16 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
 
-type Line = { entryId: string; day: string; start: string; minutes: number; title: string; state: string; booked?: string }
+type Line = {
+  entryId: string
+  day: string
+  start: string
+  minutes: number
+  title: string
+  state: string
+  booked?: string
+  agentMinutes?: number
+}
 
 const call = async ($: Engine, tool: 'entries' | 'mark_booked', input: Record<string, unknown>) =>
   (await $.tool.call({ tool: `mcp__timer__${tool}`, input } as never)) as { result?: unknown; deny?: string }
@@ -272,6 +281,42 @@ test('a shorter retention drops booked timers sooner', { options: { retentionDay
   })
   await startSession($, on)
   expect([...store.keys()]).toEqual([])
+})
+
+const subagentDone = ($: Engine, agentId: string, durationMs: number) =>
+  $.turn.complete({
+    turnId: agentId,
+    agentId,
+    answer: '',
+    durationMs,
+    isAborted: false,
+    reason: 'end_turn',
+    category: null,
+    explanation: null,
+    text: '',
+  } as never)
+
+const trackWithSubagents = async ($: Engine, on: On, clock: { advance: (ms: number) => Promise<void> }) => {
+  on('turn.complete', ($, e) => ({ text: '', turnId: e.turnId }) as never)
+  await timer($, 'start fix login')
+  await clock.advance(30 * MINUTE)
+  await Promise.all([subagentDone($, 'a1', 20 * MINUTE), subagentDone($, 'a2', 20 * MINUTE)])
+  await clock.advance(33 * MINUTE)
+  await timer($, 'stop')
+  await subagentDone($, 'a3', 10 * MINUTE)
+}
+
+test('subagents running while the timer runs are listed apart, out of the wall-clock minutes', async ($, on) => {
+  const { clock } = world(on)
+  await trackWithSubagents($, on, clock)
+  expect((await lines($)).map(l => [l.minutes, l.agentMinutes])).toEqual([[63, 40]])
+})
+
+test('with agent time summed, every subagent run adds to the minutes', { options: { agentTime: 'summed' } }, async ($, on) => {
+  const { clock } = world(on)
+  await trackWithSubagents($, on, clock)
+  expect((await lines($)).map(l => [l.minutes, l.agentMinutes])).toEqual([[103, 40]])
+  expect(await timer($, 'status')).toContain('1h 43m')
 })
 
 test('ending the session stops its timer', async ($, on) => {
