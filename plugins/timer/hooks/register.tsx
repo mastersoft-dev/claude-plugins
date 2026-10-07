@@ -417,7 +417,7 @@ const pickProject = async ($: EngineInterface, words: string): Promise<string> =
 }
 
 const prepareBooking = async ($: EngineInterface): Promise<string> => {
-  await recoverStale($)
+  await recoverStale($, (await $.clock.now()) - STALE_MS)
   const entries = await loadEntries($)
   const links = new Map<string, Link>()
   try {

@@ -166,6 +166,21 @@ test('a timer left running by a crashed session stops at its last heartbeat', as
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(lastSeen)
 })
 
+test('book stops and offers a timer left running by a closed session', async ($, on) => {
+  world(on, geweb, {
+    'entry:old': {
+      id: 'old',
+      sessionId: 's0',
+      repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+      repoName: 'acme-site',
+      note: 'fix login',
+      segments: [{ start: T0 - 80 * MINUTE }],
+      lastSeen: T0 - 20 * MINUTE,
+    },
+  })
+  expect(await timer($, 'book')).toContain('1 slot ready')
+})
+
 test('a timer left paused by a closed session stops on a later heartbeat', async ($, on) => {
   const { clock, store } = world(on)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
