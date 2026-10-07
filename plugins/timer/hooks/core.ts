@@ -3,6 +3,7 @@ import type { Draft, Entry, Link, Project, Segment, TodayRow } from '../types'
 export const TIME_ZONE = 'Europe/Rome'
 export const BOOKING_STEP_MINUTES = 5
 const MS_PER_MINUTE = 60_000
+const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', ''])
 
 export type EntryState = 'running' | 'paused' | 'stopped'
 
@@ -101,6 +102,7 @@ export const parseEntry = (value: unknown): Entry | undefined => {
     (e.lastSeen === undefined || isNumber(e.lastSeen)) &&
     (e.auto === undefined || typeof e.auto === 'boolean') &&
     (e.location === undefined || typeof e.location === 'string') &&
+    (e.branch === undefined || typeof e.branch === 'string') &&
     (e.booked === undefined || (typeof e.booked === 'object' && Object.values(e.booked).every(isNumber)))
   return isValid ? e : undefined
 }
@@ -201,7 +203,7 @@ export const planBooking = (
         startHour: hourOf(firstStart),
         minutes: roundToStep(minutes),
         project: link.project,
-        descrizione: entry.note || entry.repoName,
+        descrizione: titleOf(entry),
       })
     }
   }
@@ -253,6 +255,20 @@ export const toCsv = (
   return [CSV_HEADER, ...rows.map(r => r.cells)].map(cells => cells.map(csvCell).join(',')).join('\r\n') + '\r\n'
 }
 
+/**
+ * A work branch as words for a timer's name (`feat/login-sso` → `login sso`);
+ * undefined for a default branch or a detached HEAD, which name no task.
+ */
+export const branchLabel = (branch: string): string | undefined => {
+  if (DEFAULT_BRANCHES.has(branch)) return undefined
+  const words = branch.split('/').at(-1)?.replace(/[-_]+/g, ' ').trim()
+  return words || undefined
+}
+
+/** What a timer is called and booked as: its note, else its branch, else its repo. */
+export const titleOf = (entry: Entry): string =>
+  entry.note || (entry.branch === undefined ? undefined : branchLabel(entry.branch)) || entry.repoName
+
 /** A local folder as a `file:` URL, a Windows drive kept as written and every other segment encoded. */
 export const fileUrl = (path: string): string => {
   const joined = path
@@ -291,7 +307,7 @@ export const todayRows = (
           minutes: Math.round(segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) / MS_PER_MINUTE),
           state: stateOf(entry),
           note: entry.note,
-          name: entry.note || entry.repoName,
+          name: titleOf(entry),
           ...whereOf(entry),
           isBooked: entry.booked?.[day] !== undefined,
         },

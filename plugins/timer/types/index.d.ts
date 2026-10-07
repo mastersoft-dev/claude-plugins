@@ -11,6 +11,7 @@ export type Entry = {
   lastSeen?: number
   auto?: boolean
   location?: string
+  branch?: string
   booked?: Record<string, number>
 }
 
@@ -67,7 +68,7 @@ export type TodayRow = {
   minutes: number
   state: 'running' | 'paused' | 'stopped'
   note: string
-  /** The note, else the repo's name (its git remote's, else its folder's). */
+  /** The note, else the branch's words, else the repo's name (its git remote's, else its folder's). */
   name: string
   where: string
   /** The repo it ran in, shown when its time books onto no project; `path` is its folder. */
@@ -81,7 +82,8 @@ export type Band = {
   state: 'idle' | 'running' | 'paused'
   worked: string
   note: string
-  repoName: string
+  /** What the timer is called while it has no note: its branch's words, else its repo. */
+  defaultTitle: string
   unbooked: number
   auto: boolean
   isBookTime: boolean

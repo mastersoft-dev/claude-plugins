@@ -7,6 +7,7 @@ A Claude Code plugin that tracks working time per Claude Code session and books 
 - **Timer per session**: start, pause, resume and stop from the band above the prompt or with `/timer`. The status line shows the running time.
 - **Auto mode**: the timer runs only while Claude is working on a turn, for long background tasks.
 - **Panel** (`/timer open` or ☰): today's timers for this session or for all sessions, with editable notes. You can continue or delete a timer from there.
+- **Names from git**: a timer with no note is named and booked after its branch (`feat/login-sso` → "login sso") and links to its worktree folder; on a default branch it keeps the repo's name.
 - **Customer recognition**: the repo's git remote is looked up in GEWEB.
   - Linked to a project (`hr/GitRepo`): the time is booked on that project.
   - Installed at a customer but with no project (`hr/Istanza`): it is listed so the user can pick a project with `/timer project <search>`.

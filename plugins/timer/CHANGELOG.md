@@ -8,6 +8,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- A timer started without a note is named and booked after its git branch
+  (`feat/login-sso` books as "login sso"), and links to its own git worktree
+  folder, so parallel tasks run by any orchestrator read apart. Default
+  branches, or no git at all, keep the repo's name.
+
 ### Changed
 
 - The timer panel names a timer with no note by its repo (the git remote's

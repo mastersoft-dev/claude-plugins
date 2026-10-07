@@ -19,12 +19,14 @@ import {
   stateOf,
   stopEntry,
   timeOf,
+  titleOf,
   toCsv,
   todayRows,
   workedMs,
 } from './core'
 import { createActivity, customersOfRemote, errorText, fillActivity, projectOfRemote, searchProjects } from './geweb'
 import type { Runner } from './geweb'
+import { worktreeOf } from './git'
 
 const COMMAND = 'timer'
 const PANE = 'timer'
@@ -181,7 +183,7 @@ const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => 
 }
 
 const describe = (entry: Entry, now: number): string =>
-  `${formatDuration(workedMs(entry, now))}${entry.note ? ` · ${entry.note}` : ''} (${entry.repoName})`
+  `${formatDuration(workedMs(entry, now))}${titleOf(entry) === entry.repoName ? '' : ` · ${titleOf(entry)}`} (${entry.repoName})`
 
 const beat = async ($: EngineInterface) => {
   const entry = await loadActive($)
@@ -195,7 +197,7 @@ const beat = async ($: EngineInterface) => {
       state: 'idle',
       worked: '',
       note: '',
-      repoName: '',
+      defaultTitle: '',
       unbooked,
       auto: false,
       isBookTime: bookTime,
@@ -211,7 +213,7 @@ const beat = async ($: EngineInterface) => {
     state,
     worked,
     note: entry.note,
-    repoName: entry.repoName,
+    defaultTitle: titleOf({ ...entry, note: '' }),
     unbooked,
     auto,
     isBookTime: bookTime,
@@ -247,12 +249,12 @@ const setNote = async ($: EngineInterface, entryId: string, note: string): Promi
       ? {
           ...current,
           drafts: current.drafts.map(d =>
-            d.entryId === entryId ? { ...d, descrizione: trimmed || entry.repoName } : d,
+            d.entryId === entryId ? { ...d, descrizione: titleOf({ ...entry, note: trimmed }) } : d,
           ),
         }
       : current,
   )
-  return `Note set: ${trimmed || `(none, books as ${entry.repoName})`}`
+  return `Note set: ${trimmed || `(none, books as ${titleOf({ ...entry, note: '' })})`}`
 }
 
 const setActiveNote = async ($: EngineInterface, note: string) => {
@@ -352,6 +354,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
   await recoverStale($, now - STALE_MS)
   const others = (await loadEntries($)).filter(e => stateOf(e) === 'running')
   const repo = await repoOf($)
+  const worktree = await worktreeOf(runnerOf($))
   const entry = startEntry(
     {
       id: crypto.randomUUID(),
@@ -359,7 +362,8 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
       repoKey: repo.key,
       repoName: repo.name,
       note,
-      location: repo.root,
+      location: worktree?.root ?? repo.root,
+      branch: worktree?.branch,
     },
     now,
   )
@@ -577,9 +581,9 @@ const continueEntry = async ($: EngineInterface, id: string): Promise<string> =>
       { id: crypto.randomUUID(), sessionId, repoKey: entry.repoKey, repoName: entry.repoName, note: entry.note },
       now,
     )
-    await saveEntry($, { ...fresh, location: entry.location, lastSeen: now })
+    await saveEntry($, { ...fresh, location: entry.location, branch: entry.branch, lastSeen: now })
     await update($, activeId, () => fresh.id)
-    return `Started a new timer for "${entry.note || entry.repoName}": today's time on it is already booked.`
+    return `Started a new timer for "${titleOf(entry)}": today's time on it is already booked.`
   }
   const reopened = reopenEntry(entry, sessionId, now)
   if (typeof reopened === 'string') return reopened
@@ -752,14 +756,14 @@ export const register: Register = (on, options) => {
         <Box flexDirection="column">
           {Input === undefined ? (
             <Text dimColor wrap="truncate-end">
-              {info.note || info.repoName}
+              {info.note || info.defaultTitle}
             </Text>
           ) : (
             <Input
               key="note"
               label="Note"
               value={info.note}
-              placeholder={info.repoName}
+              placeholder={info.defaultTitle}
               submitLabel="Set note"
               onSubmit={(value: string) => setActiveNote($, value)}
             />

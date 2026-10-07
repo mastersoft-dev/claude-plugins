@@ -39,10 +39,16 @@ const geweb = (argv: readonly string[]) => {
   return ok({})
 }
 
+const gitAnswer = (head: string | null) =>
+  head === null
+    ? { ...ok({}), exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' }
+    : { ...ok({}), stdout: head }
+
 const world = (
   on: On,
   answer: (argv: readonly string[]) => ReturnType<typeof ok> = geweb,
   stored: Record<string, unknown> = {},
+  head: string | null = 'C:/repos/acme-site\nmaster\n',
 ) => {
   const clock = mock.clock(on, { now: T0 })
   const store = new Map(Object.entries(stored))
@@ -68,7 +74,7 @@ const world = (
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
   on('process.run', ($, e) => {
     calls.push({ argv: e.argv, stdin: e.init?.stdin })
-    return { value: answer(e.argv) }
+    return { value: e.argv[0] === 'git' ? gitAnswer(head) : answer(e.argv) }
   })
   on('fs.write', ($, e) => {
     files[e.path] = e.text
@@ -416,6 +422,35 @@ test('the Today pane names a timer with no note by its repo, never by its path',
   const link = await ui.find({ type: 'Link' })
   expect(link?.children).toEqual(['acme-site'])
   expect(link?.props.href).toBe('file:///C:/repos/acme-site')
+  await ui.unmount()
+})
+
+test('a timer in a worktree is named and booked by its branch and linked to the worktree', async ($, on) => {
+  const { clock, calls, store } = world(on, geweb, {}, 'C:/repos/acme-site-login\nfeat/login-sso\n')
+  await timer($, 'start')
+  await clock.advance(63 * MINUTE)
+  await timer($, 'stop')
+  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
+  expect((entry as { location?: string }).location).toBe('C:/repos/acme-site-login')
+  await timer($, 'open')
+  const today = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await today.find({ type: 'Button', text: /login sso/ })).toBeDefined()
+  await today.unmount()
+  await timer($, 'book')
+  const book = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await book.press({ key: 'confirm' })
+  const create = calls.find(c => c.argv[3] === 'POST' && c.argv[4] === 'api/hr/attivita-temporale/')
+  expect(JSON.parse(create?.stdin ?? '{}').descrizione).toBe('login sso')
+  await book.unmount()
+})
+
+test('a timer outside git falls back to the session folder and the repo name', async ($, on) => {
+  world(on, unlinked([]), {}, null)
+  await timer($, 'start')
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Button', text: /acme-site/ })).toBeDefined()
+  expect((await ui.find({ type: 'Link' }))?.props.href).toBe('file:///C:/repos/acme-site')
   await ui.unmount()
 })
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { Entry, Link, Project } from '../types'
 import {
+  branchLabel,
   canonicalRemote,
   closeStale,
   dayOf,
@@ -14,6 +15,7 @@ import {
   startEntry,
   stateOf,
   stopEntry,
+  titleOf,
   toCsv,
   todayRows,
 } from '../hooks/core'
@@ -145,6 +147,32 @@ describe('parseEntry', () => {
 
   test('accepts an entry this version wrote', () => {
     expect(parseEntry(entry())).toEqual(entry())
+  })
+})
+
+describe('branchLabel', () => {
+  test('turns a work branch into words', () => {
+    expect(branchLabel('feat/login-sso')).toBe('login sso')
+    expect(branchLabel('123_fix_export')).toBe('123 fix export')
+  })
+
+  test('names nothing for a default branch or a detached HEAD', () => {
+    for (const branch of ['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', '']) {
+      expect(branchLabel(branch)).toBe(undefined)
+    }
+  })
+})
+
+describe('titleOf', () => {
+  test('prefers the note, then the branch, then the repo', () => {
+    expect(titleOf(entry({ branch: 'feat/login-sso' }))).toBe('fix login')
+    expect(titleOf(entry({ note: '', branch: 'feat/login-sso' }))).toBe('login sso')
+    expect(titleOf(entry({ note: '', branch: 'main' }))).toBe('acme')
+  })
+
+  test('books a timer with no note under its branch', () => {
+    const { drafts } = planBooking([entry({ note: '', branch: 'feat/login-sso' })], () => LINKED)
+    expect(drafts.map(d => d.descrizione)).toEqual(['login sso'])
   })
 })
 
