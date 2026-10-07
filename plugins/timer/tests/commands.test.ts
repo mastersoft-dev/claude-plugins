@@ -30,6 +30,14 @@ const gitAnswer = (head: string | null) => ({
   isStderrTruncated: false,
 })
 
+const orcaAnswer = (worktree: Record<string, unknown> | null) => ({
+  exitCode: worktree === null ? 1 : 0,
+  stdout: worktree === null ? '' : JSON.stringify({ id: 'r1', ok: true, result: { worktree } }),
+  stderr: worktree === null ? 'Orca is not running' : '',
+  isStdoutTruncated: false,
+  isStderrTruncated: false,
+})
+
 const world = (on: On, stored: Record<string, unknown> = {}, head: string | null = 'C:/repos/acme-site\nmaster\n') => {
   const clock = mock.clock(on, { now: T0 })
   const store = new Map(Object.entries(stored))
@@ -52,7 +60,12 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('session.id', () => ({ value: session.id }))
   on('session.cwd', () => ({ value: 'C:/repos/acme-site' }))
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
-  on('process.run', () => ({ value: gitAnswer(head) }))
+  const orca = { worktree: null as Record<string, unknown> | null }
+  on('process.run', ($, e) =>
+    e.argv[0] === 'orca'
+      ? { value: orcaAnswer(orca.worktree) }
+      : { value: gitAnswer(head) },
+  )
   on('fs.write', ($, e) => {
     files[e.path] = e.text
     return { value: undefined }
@@ -80,7 +93,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, files, store, toasts, panes, session, hold, tools }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -498,6 +511,27 @@ test('a timer in a worktree is named by its branch and linked to the worktree', 
   expect(await ui.find({ type: 'Button', text: /login sso/ })).toBeDefined()
   expect((await ui.find({ type: 'Link' }))?.props.href).toBe('file:///C:/repos/acme-site-login')
   await ui.unmount()
+})
+
+test('a timer in an Orca worktree is named by its linked issue and lists the worktree as its task', async ($, on) => {
+  const { clock, orca } = world(on, {}, 'C:/repos/acme-site-login\nfeat/login-sso\n')
+  orca.worktree = {
+    id: 'repo1::C:/repos/acme-site-login',
+    displayName: 'feat/login-sso',
+    displayNameMode: 'automatic',
+    linkedWorkItem: { provider: 'gitlab', type: 'issue', number: 131, title: 'SSO login', url: 'https://gitlab.sermix.com/mastersoft/acme-site/-/issues/131' },
+  }
+  await timer($, 'start')
+  await clock.advance(63 * MINUTE)
+  await timer($, 'stop')
+  const [line] = await lines($)
+  expect(line?.title).toBe('#131 SSO login')
+  expect((line as { task?: unknown }).task).toEqual({
+    source: 'orca',
+    group: 'repo1::C:/repos/acme-site-login',
+    title: '#131 SSO login',
+    url: 'https://gitlab.sermix.com/mastersoft/acme-site/-/issues/131',
+  })
 })
 
 test('a timer outside git falls back to the session folder and the repo name', async ($, on) => {

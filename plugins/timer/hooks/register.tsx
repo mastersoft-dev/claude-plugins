@@ -33,6 +33,7 @@ import {
 } from './core'
 import { worktreeOf } from './git'
 import type { Runner } from './git'
+import { orcaTaskOf } from './orca'
 
 const COMMAND = 'timer'
 const PANE = 'timer'
@@ -333,7 +334,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
   await recoverStale($, lastTickAt)
   const others = (await loadEntries($)).filter(e => stateOf(e) === 'running')
   const repo = await repoOf($)
-  const worktree = await worktreeOf(runnerOf($))
+  const [worktree, task] = await Promise.all([worktreeOf(runnerOf($)), orcaTaskOf(runnerOf($))])
   const entry = startEntry(
     {
       id: crypto.randomUUID(),
@@ -343,6 +344,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
       note,
       location: worktree?.root ?? repo.root,
       branch: worktree?.branch,
+      ...(task === undefined ? {} : { task }),
     },
     now,
   )
@@ -456,7 +458,7 @@ const continueEntry = async ($: EngineInterface, id: string): Promise<string> =>
       { id: crypto.randomUUID(), sessionId, repoKey: entry.repoKey, repoName: entry.repoName, note: entry.note },
       now,
     )
-    await saveEntry($, { ...fresh, location: entry.location, branch: entry.branch, lastSeen: now })
+    await saveEntry($, { ...fresh, location: entry.location, branch: entry.branch, task: entry.task, lastSeen: now })
     await update($, activeId, () => fresh.id)
     return `Started a new timer for "${titleOf(entry)}": today's time on it is already booked.`
   }
@@ -491,7 +493,7 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share), the time it started, its title (the person's note, else the git branch's words, else the repo), the repo, its git remote as host/path, branch, folder, state and, for a day already booked, the booking's reference. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state and, for a day already booked, the booking's reference. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {

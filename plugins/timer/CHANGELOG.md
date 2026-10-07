@@ -25,6 +25,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The time subagents work while the timer runs is recorded per day and listed
   as `agentMinutes`. The `agentTime` setting (`wall-clock` by default) can
   switch to `summed`, which adds it to the timer's time and the booked minutes.
+- In an Orca worktree a timer with no note is named after the worktree's
+  linked issue, else the name given to the worktree, and the entries tool
+  lists the worktree as the timer's `task`. Outside Orca nothing changes.
 
 ### Removed
 

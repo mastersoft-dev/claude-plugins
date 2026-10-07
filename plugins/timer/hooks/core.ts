@@ -158,6 +158,13 @@ export const parseEntry = (value: unknown): Entry | undefined => {
     (e.auto === undefined || typeof e.auto === 'boolean') &&
     (e.location === undefined || typeof e.location === 'string') &&
     (e.branch === undefined || typeof e.branch === 'string') &&
+    (e.task === undefined ||
+      (typeof e.task === 'object' &&
+        e.task !== null &&
+        typeof e.task.source === 'string' &&
+        typeof e.task.group === 'string' &&
+        (e.task.title === undefined || typeof e.task.title === 'string') &&
+        (e.task.url === undefined || typeof e.task.url === 'string'))) &&
     (e.booked === undefined ||
       (typeof e.booked === 'object' && Object.values(e.booked).every(v => isNumber(v) || typeof v === 'string')))
   return isValid ? e : undefined
@@ -257,6 +264,7 @@ export const bookingLines = (
             ...(entry.repoKey.startsWith(PATH_KEY_PREFIX) ? {} : { remote: entry.repoKey }),
             ...(entry.branch === undefined ? {} : { branch: entry.branch }),
             ...(entry.location === undefined ? {} : { folder: entry.location }),
+            ...(entry.task === undefined ? {} : { task: entry.task }),
             state: stateOf(entry),
             ...(booked === undefined ? {} : { booked: String(booked) }),
             ...(agentMinutes > 0 ? { agentMinutes } : {}),
@@ -360,7 +368,10 @@ export const branchLabel = (branch: string): string | undefined => {
 
 /** What a timer is called and booked as: its note, else its branch, else its repo. */
 export const titleOf = (entry: Entry): string =>
-  entry.note || (entry.branch === undefined ? undefined : branchLabel(entry.branch)) || entry.repoName
+  entry.note ||
+  entry.task?.title ||
+  (entry.branch === undefined ? undefined : branchLabel(entry.branch)) ||
+  entry.repoName
 
 /** A local folder as a `file:` URL, a Windows drive kept as written and every other segment encoded. */
 export const fileUrl = (path: string): string => {

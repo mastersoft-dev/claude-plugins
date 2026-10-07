@@ -1,5 +1,12 @@
 export type Segment = { start: number; end?: number }
 
+/**
+ * What an orchestrator says the timer's work is: `group` is the place it runs
+ * in (an Orca worktree), `title` the task's name (its linked issue, or a name
+ * the person gave it) and `url` the issue's link.
+ */
+export type Task = { source: string; group: string; title?: string; url?: string }
+
 export type Entry = {
   id: string
   sessionId: string
@@ -12,6 +19,7 @@ export type Entry = {
   auto?: boolean
   location?: string
   branch?: string
+  task?: Task
   /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
   booked?: Record<string, string | number>
   /**
@@ -29,7 +37,7 @@ export type BookingLine = {
   start: string
   /** Whole minutes, the closed time only. */
   minutes: number
-  /** The note, else the branch's words, else the repo's name. */
+  /** The note, else the orchestrator's task title, else the branch's words, else the repo's name. */
   title: string
   note: string
   repo: string
@@ -37,6 +45,8 @@ export type BookingLine = {
   remote?: string
   branch?: string
   folder?: string
+  /** The orchestrator's task, when the timer started under one. */
+  task?: Task
   state: 'running' | 'paused' | 'stopped'
   booked?: string
   /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
