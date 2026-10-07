@@ -1,0 +1,26 @@
+{
+  "name": "timer",
+  "displayName": "Timer",
+  "version": "0.1.0",
+  "description": "Work timer per Claude Code session, exported as CSV and booked on the GEWEB live timesheet through the ms CLI",
+  "author": {
+    "name": "Mastersoft"
+  },
+  "homepage": "https://github.com/mastersoft-dev/claude-plugins",
+  "repository": "https://github.com/mastersoft-dev/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "timer",
+    "timesheet",
+    "geweb"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "reminderTime": {
+      "type": "string",
+      "title": "GEWEB booking reminder",
+      "description": "Time of day (HH:mm, Italian time) when the band offers Book all and reminds you to book the day on GEWEB",
+      "default": "17:30"
+    }
+  }
+}

@@ -12,6 +12,10 @@
     {
       "name": "relay",
       "source": "./plugins/relay"
+    },
+    {
+      "name": "timer",
+      "source": "./plugins/timer"
     }
   ]
 }
