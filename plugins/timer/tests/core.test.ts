@@ -5,6 +5,7 @@ import {
   canonicalRemote,
   closeStale,
   dayOf,
+  fileUrl,
   parseEntry,
   pauseEntry,
   planBooking,
@@ -147,6 +148,16 @@ describe('parseEntry', () => {
   })
 })
 
+describe('fileUrl', () => {
+  test('links a Windows folder with the drive kept and the rest encoded', () => {
+    expect(fileUrl('C:\\Users\\me\\my repo#2')).toBe('file:///C:/Users/me/my%20repo%232')
+  })
+
+  test('links a POSIX folder', () => {
+    expect(fileUrl('/home/me/acme')).toBe('file:///home/me/acme')
+  })
+})
+
 describe('todayRows', () => {
   test('lists the day\'s timers oldest first, with their span, minutes and place', () => {
     const yesterday = entry({ id: 'y', segments: [{ start: T0 - 24 * 60 * MINUTE, end: T0 - 23 * 60 * MINUTE }] })
@@ -158,10 +169,10 @@ describe('todayRows', () => {
       ],
     })
     const running = entry({ id: 'r', note: '', segments: [{ start: T0 + 120 * MINUTE }], stoppedAt: undefined })
-    const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE, e => `at ${e.id}`)
+    const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE, e => ({ where: `at ${e.id}` }))
     expect(rows).toEqual([
-      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', where: 'at m', isBooked: false },
-      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', where: 'at r', isBooked: false },
+      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', where: 'at m', isBooked: false },
+      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', where: 'at r', isBooked: false },
     ])
   })
 })

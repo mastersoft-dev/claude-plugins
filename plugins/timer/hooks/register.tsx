@@ -1,11 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
 
-import type { BookView, Draft, Entry, Link, PickView, Project, TodayTab } from '../types'
+import type { BookView, Draft, Entry, Link, PickView, Project, TodayRow, TodayTab } from '../types'
 import {
   canonicalRemote,
   closeStale,
   dayOf,
+  fileUrl,
   formatDuration,
   parseEntry,
   pauseEntry,
@@ -485,16 +486,16 @@ const choose = async ($: EngineInterface, pick: PickView, project: Project) => {
   $.ui.toast(`${pick.repoName} now books on ${project.label}`)
 }
 
-/** Where an entry's time goes, for the Today pane: its project, else the folder it ran in. */
-const whereOf = (entry: Entry, link: Link | undefined): string => {
-  const folder = entry.location ?? entry.repoName
+/** Where an entry's time goes, for the Today pane: its project, else the repo it ran in. */
+const whereOf = (entry: Entry, link: Link | undefined): Pick<TodayRow, 'where' | 'repo'> => {
+  const repo = { name: entry.repoName, path: entry.location }
   switch (link?.kind) {
     case 'project':
-      return link.project.label
+      return { where: link.project.label }
     case 'customer':
-      return `${link.customers.join(', ')}, no project · ${folder}`
+      return { where: `${link.customers.join(', ')}, no project · `, repo }
     default:
-      return folder
+      return { where: '', repo }
   }
 }
 
@@ -781,7 +782,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const { Box, Button, Link, Text } = $.ui.resolve(e)
     const Input = e.surface === 'mobile' ? undefined : $.ui.resolve(e).Input
     const current = await read($, view)
     if (current === null) return <Text dimColor>Nothing to show.</Text>
@@ -827,7 +828,7 @@ export const register: Register = (on, options) => {
             <Text dimColor>Select a timer of this session to change its note, continue or delete it.</Text>
           )}
           {rows.map(r => {
-            const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.note || '(no note)'}`
+            const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.name}`
             return (
               <Box key={`t${r.id}`} gap={1}>
                 {r.sessionId === sessionId ? (
@@ -842,6 +843,7 @@ export const register: Register = (on, options) => {
                 )}
                 <Text dimColor wrap="truncate-end">
                   {r.where}
+                  {r.repo === undefined ? '' : r.repo.path === undefined ? r.repo.name : <Link href={fileUrl(r.repo.path)}>{r.repo.name}</Link>}
                   {r.id === own ? ' · running here' : r.sessionId === sessionId ? '' : ' · other session'}
                   {r.isBooked ? ' · booked' : ''}
                 </Text>

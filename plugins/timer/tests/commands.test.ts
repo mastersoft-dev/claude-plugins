@@ -369,6 +369,20 @@ test('the Today pane lists every timer of the day with its project', async ($, o
   await ui.unmount()
 })
 
+test('the Today pane names a timer with no note by its repo, never by its path', async ($, on) => {
+  world(on, unlinked([{ id: 1, text: '(Mastersoft) - [PRS] Presente @ Acme Spa' }]))
+  await timer($, 'start')
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Button', text: /acme-site/ })).toBeDefined()
+  const where = await ui.find({ type: 'Text', text: /no project/ })
+  expect(where?.children.filter(c => typeof c === 'string').join('')).toBe('Acme Spa, no project ·  · running here')
+  const link = await ui.find({ type: 'Link' })
+  expect(link?.children).toEqual(['acme-site'])
+  expect(link?.props.href).toBe('file:///C:/repos/acme-site')
+  await ui.unmount()
+})
+
 test('selecting a timer in the panel changes its note and continues it', async ($, on) => {
   const { clock } = world(on)
   await trackAndStop($, clock)

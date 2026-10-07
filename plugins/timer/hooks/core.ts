@@ -253,6 +253,16 @@ export const toCsv = (
   return [CSV_HEADER, ...rows.map(r => r.cells)].map(cells => cells.map(csvCell).join(',')).join('\r\n') + '\r\n'
 }
 
+/** A local folder as a `file:` URL, a Windows drive kept as written and every other segment encoded. */
+export const fileUrl = (path: string): string => {
+  const joined = path
+    .replace(/\\/g, '/')
+    .split('/')
+    .map(segment => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
+    .join('/')
+  return `file://${joined.startsWith('/') ? '' : '/'}${joined}`
+}
+
 /**
  * Every entry with time on `day`, oldest first: from its first start that day
  * to its last end (`now` while it runs), the minutes worked that day, and where
@@ -262,7 +272,7 @@ export const todayRows = (
   entries: readonly Entry[],
   day: string,
   now: number,
-  whereOf: (entry: Entry) => string,
+  whereOf: (entry: Entry) => Pick<TodayRow, 'where' | 'repo'>,
 ): TodayRow[] =>
   entries
     .map(entry => ({ entry, segments: entry.segments.filter(s => dayOf(s.start) === day) }))
@@ -281,7 +291,8 @@ export const todayRows = (
           minutes: Math.round(segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) / MS_PER_MINUTE),
           state: stateOf(entry),
           note: entry.note,
-          where: whereOf(entry),
+          name: entry.note || entry.repoName,
+          ...whereOf(entry),
           isBooked: entry.booked?.[day] !== undefined,
         },
       }

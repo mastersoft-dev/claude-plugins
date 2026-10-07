@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- The timer panel names a timer with no note by its repo (the git remote's
+  name, else the folder's) instead of "(no note)", and shows the repo's name,
+  a link to its folder, in place of its full path.
+
 ### Fixed
 
 - A timer left open by a session that closed without exiting (a closed window,
