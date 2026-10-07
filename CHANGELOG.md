@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.10.0] — 2026-10-07
+
 ### Added
 
 - `mastersoft:ms` skill for Mastersoft's `ms` CLI (Presente and GEWEB). It reads its

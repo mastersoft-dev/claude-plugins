@@ -19,8 +19,8 @@ Only the latest minor release line of each plugin receives security fixes. Older
 
 | Plugin | Version | Supported |
 |--------|---------|-----------|
-| mastersoft | 3.9.x | yes |
-| mastersoft | < 3.9 | no |
+| mastersoft | 3.10.x | yes |
+| mastersoft | < 3.10 | no |
 | relay | 0.1.x | yes |
 | timer | 0.1.x | yes |
 
