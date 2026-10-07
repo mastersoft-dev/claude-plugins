@@ -13,6 +13,7 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - The timer panel names a timer with no note by its repo (the git remote's
   name, else the folder's) instead of "(no note)", and shows the repo's name,
   a link to its folder, in place of its full path.
+- The band's ☰ button closes the timer panel when it is already open.
 
 ### Fixed
 

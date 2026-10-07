@@ -81,10 +81,18 @@ const world = (
     toasts.push(e.text)
     return { value: undefined }
   })
-  on('ui.open', () => ({ value: undefined }) as never)
-  on('ui.close', () => ({ value: undefined }))
+  const panes = new Set<string>()
+  on('ui.open', ($, e) => {
+    panes.add(e.id)
+    return { value: undefined } as never
+  })
+  on('ui.close', ($, e) => {
+    panes.delete(e.id)
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, calls, files, store, claims, toasts }
+  return { clock, calls, files, store, claims, toasts, panes }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -249,6 +257,19 @@ const BAND = {
   component: 'AbovePrompt',
   props: { hasSurvey: false, isWorking: false, maxRows: 3, bodyColumns: 100, scroll: { offset: 0, bodyRows: 3 }, view: {} },
 } as const
+
+test('the ☰ button opens the panel and a second press closes it', async ($, on) => {
+  const { panes } = world(on)
+  await timer($, 'start')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'today' })
+  expect(panes.has('timer')).toBe(true)
+  await ui.press({ key: 'today' })
+  expect(panes.has('timer')).toBe(false)
+  await ui.press({ key: 'today' })
+  expect(panes.has('timer')).toBe(true)
+  await ui.unmount()
+})
 
 test('the band above the prompt starts, pauses and stops the timer on every surface', async ($, on) => {
   const { clock } = world(on)

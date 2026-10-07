@@ -513,6 +513,13 @@ const openToday = async ($: EngineInterface): Promise<string> => {
   return 'Timer panel opened.'
 }
 
+/** The band's ☰: opens the Today panel, or closes it when it is the one showing. */
+const toggleToday = async ($: EngineInterface) => {
+  const isShowing = (await read($, view))?.kind === 'today' && (await $.ui.panes()).some(pane => pane.id === PANE)
+  if (isShowing) await closePane($)
+  else await openToday($)
+}
+
 const selectTab = ($: EngineInterface, tab: TodayTab) =>
   update($, view, current =>
     current?.kind === 'today' ? { ...current, tab, selectedId: null, confirmDeleteId: null } : current,
@@ -710,7 +717,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey || info === null) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const Input = e.surface === 'mobile' ? undefined : $.ui.resolve(e).Input
-    const today = <Button key="today" label="☰" onPress={() => openToday($)} />
+    const today = <Button key="today" label="☰" onPress={() => toggleToday($)} />
     const book = info.isBookTime && info.unbooked > 0 && (
       <Button key="book" label={`Book all (${info.unbooked})`} onPress={() => fromBand($, () => prepareBooking($))} />
     )
