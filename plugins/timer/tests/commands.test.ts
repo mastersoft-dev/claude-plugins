@@ -11,7 +11,7 @@ const PANE = {
   component: 'Pane',
   requestId: 'timer',
   props: {
-    title: 'Book on GEWEB',
+    title: 'Timer',
     isFocused: true,
     bodyColumns: 100,
     placement: 'dock',
@@ -20,45 +20,18 @@ const PANE = {
   },
 } as const
 
-type Call = { argv: readonly string[]; stdin?: string }
-
-const ok = (body: unknown) => ({
-  exitCode: 0,
-  stdout: JSON.stringify(body),
-  stderr: '',
+const gitAnswer = (head: string | null) => ({
+  exitCode: head === null ? 128 : 0,
+  stdout: head ?? '',
+  stderr: head === null ? 'fatal: not a git repository' : '',
   isStdoutTruncated: false,
   isStderrTruncated: false,
 })
 
-const geweb = (argv: readonly string[]) => {
-  const path = argv[4] ?? ''
-  if (path === 'api/autocomplete/hr/GitRepo/') {
-    return ok({ results: [{ id: 3, text: 'gitlab.sermix.com/mastersoft/acme-site', note: '(Acme) - [ACM01] Sito' }] })
-  }
-  if (path === 'api/autocomplete/hr/Progetto/') return ok({ results: [{ id: 42, text: '(Acme) - [ACM01] Sito' }] })
-  if (path === 'api/hr/attivita-temporale/') return ok({ id: 900 })
-  return ok({})
-}
-
-const gitAnswer = (head: string | null) =>
-  head === null
-    ? { ...ok({}), exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' }
-    : { ...ok({}), stdout: head }
-
-const world = (
-  on: On,
-  answer: (argv: readonly string[]) => ReturnType<typeof ok> = geweb,
-  stored: Record<string, unknown> = {},
-  head: string | null = 'C:/repos/acme-site\nmaster\n',
-) => {
+const world = (on: On, stored: Record<string, unknown> = {}, head: string | null = 'C:/repos/acme-site\nmaster\n') => {
   const clock = mock.clock(on, { now: T0 })
   const store = new Map(Object.entries(stored))
-  const claims: { day?: string } = {}
-  on('store.get', ($, e) => {
-    const value = store.get(e.key)
-    const isClaimed = claims.day !== undefined && e.key.startsWith('entry:') && typeof value === 'object'
-    return { value: isClaimed ? { ...value, booked: { [claims.day ?? '']: 0 } } : value }
-  })
+  on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => {
     store.set(e.key, JSON.parse(JSON.stringify(e.value)))
     return { value: undefined }
@@ -72,21 +45,22 @@ const world = (
     if (hold.afterKeys >= 0 && hold.afterKeys-- === 0) await clock.sleep(SECOND)
     return { value: [...store.keys()] }
   })
-  const calls: Call[] = []
   const files: Record<string, string> = {}
   const session = { id: 's1' }
   on('session.id', () => ({ value: session.id }))
   on('session.cwd', () => ({ value: 'C:/repos/acme-site' }))
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
-  on('process.run', ($, e) => {
-    calls.push({ argv: e.argv, stdin: e.init?.stdin })
-    return { value: e.argv[0] === 'git' ? gitAnswer(head) : answer(e.argv) }
-  })
+  on('process.run', () => ({ value: gitAnswer(head) }))
   on('fs.write', ($, e) => {
     files[e.path] = e.text
     return { value: undefined }
   })
   on('command.register', () => ({ value: undefined }) as never)
+  const tools: string[] = []
+  on('tool.register', ($, e) => {
+    tools.push(e.name)
+    return { value: { tool: `mcp__timer__${e.name}` } } as never
+  })
   on('ui.status', () => ({ value: undefined }))
   const toasts: string[] = []
   on('ui.toast', ($, e) => {
@@ -104,12 +78,18 @@ const world = (
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, calls, files, store, claims, toasts, panes, session, hold }
+  return { clock, files, store, toasts, panes, session, hold, tools }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
 
-const posts = (calls: Call[]) => calls.filter(c => c.argv[3] === 'POST').map(c => c.argv[4])
+type Line = { entryId: string; day: string; start: string; minutes: number; title: string; state: string; booked?: string }
+
+const call = async ($: Engine, tool: 'entries' | 'mark_booked', input: Record<string, unknown>) =>
+  (await $.tool.call({ tool: `mcp__timer__${tool}`, input } as never)) as { result?: unknown; deny?: string }
+
+const lines = async ($: Engine, input: Record<string, unknown> = {}) =>
+  ((await call($, 'entries', input)).result as { lines: Line[] }).lines
 
 const trackAndStop = async ($: Engine, clock: { advance: (ms: number) => Promise<void> }) => {
   await timer($, 'start fix login')
@@ -117,49 +97,82 @@ const trackAndStop = async ($: Engine, clock: { advance: (ms: number) => Promise
   await timer($, 'stop')
 }
 
+const entryOf = (store: Map<string, unknown>) => [...store].find(([key]) => key.startsWith('entry:'))?.[1]
+
 test('bare /timer shows the status', async ($, on) => {
   world(on)
   expect(await timer($, '')).toContain('No timer in this session.')
 })
 
-test('pressing Confirm twice books once', async ($, on) => {
-  const { clock, calls } = world(on)
-  await trackAndStop($, clock)
-  await timer($, 'book')
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await Promise.allSettled([ui.press({ key: 'confirm' }), ui.press({ key: 'confirm' })])
-  expect(posts(calls).filter(p => p === 'api/hr/attivita-temporale/')).toEqual(['api/hr/attivita-temporale/'])
-  await ui.unmount()
+test('the session registers the entries and mark_booked tools', async ($, on) => {
+  const { tools } = world(on)
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
+  expect(tools).toEqual(['entries', 'mark_booked'])
 })
 
-test('a day another session already claimed is not booked again', async ($, on) => {
-  const { clock, calls, claims } = world(on)
+test('the entries tool lists each timer and day with its minutes, start and title', async ($, on) => {
+  const { clock } = world(on)
   await trackAndStop($, clock)
-  await timer($, 'book')
-  claims.day = '2026-10-06'
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'confirm' })
-  expect(posts(calls)).toEqual([])
-  await ui.unmount()
+  expect(await lines($)).toEqual([
+    {
+      entryId: expect.any(String),
+      day: '2026-10-06',
+      start: '09:00',
+      minutes: 63,
+      title: 'fix login',
+      note: 'fix login',
+      repo: 'acme-site',
+      remote: 'gitlab.sermix.com/mastersoft/acme-site',
+      branch: 'master',
+      folder: 'C:/repos/acme-site',
+      state: 'stopped',
+    },
+  ])
 })
 
-test('a failed create releases the claim so the next book retries it', async ($, on) => {
-  let isDown = true
-  const { clock, calls } = world(on, argv =>
-    isDown && argv[3] === 'POST' ? { ...ok({}), exitCode: 1, stderr: 'error: POST returned HTTP 500' } : geweb(argv),
+test('mark_booked takes a day out of the entries tool and the band hint', async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  const [line] = await lines($)
+  const marked = await call($, 'mark_booked', { entryId: line?.entryId, day: line?.day, reference: '900' })
+  expect(marked.result).toEqual({ entryId: line?.entryId, day: '2026-10-06', booked: '900' })
+  expect(await lines($)).toEqual([])
+  expect((await lines($, { includeBooked: true })).map(l => l.booked)).toEqual(['900'])
+  expect(await timer($, 'status')).not.toContain('not booked')
+})
+
+test('mark_booked refuses an unknown timer, a day with no time and a missing reference', async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  const [line] = await lines($)
+  expect((await call($, 'mark_booked', { entryId: 'nope', day: '2026-10-06', reference: '1' })).deny).toContain('No timer nope')
+  expect((await call($, 'mark_booked', { entryId: line?.entryId, day: '2026-10-05', reference: '1' })).deny).toContain(
+    'no time on 2026-10-05',
   )
-  await trackAndStop($, clock)
-  await timer($, 'book')
-  const first = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await first.press({ key: 'confirm' })
-  await first.unmount()
-  isDown = false
-  expect(await timer($, 'book')).toContain('1 slot ready')
-  const second = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await second.press({ key: 'confirm' })
-  expect(posts(calls).filter(p => p === 'api/hr/attivita-temporale/')).toHaveLength(2)
-  expect(await timer($, 'book')).toContain('Nothing to book')
-  await second.unmount()
+  expect((await call($, 'mark_booked', { entryId: line?.entryId, day: '2026-10-06', reference: ' ' })).deny).toContain(
+    'reference',
+  )
+})
+
+test('the entries tool refuses a day that is not YYYY-MM-DD', async ($, on) => {
+  world(on)
+  expect((await call($, 'entries', { from: 'yesterday' })).deny).toContain('from must be a day')
+})
+
+test('the entries tool stops and lists a timer left running by a closed session', async ($, on) => {
+  world(on, {
+    'entry:old': {
+      id: 'old',
+      sessionId: 's0',
+      repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+      repoName: 'acme-site',
+      note: 'fix login',
+      segments: [{ start: T0 - 80 * MINUTE }],
+      lastSeen: T0 - 20 * MINUTE,
+    },
+  })
+  expect((await lines($)).map(l => [l.minutes, l.state])).toEqual([[60, 'stopped']])
 })
 
 test('a timer left running by a crashed session stops at its last heartbeat', async ($, on) => {
@@ -173,24 +186,9 @@ test('a timer left running by a crashed session stops at its last heartbeat', as
     segments: [{ start: T0 - 60 * MINUTE }],
     lastSeen,
   }
-  const { store } = world(on, geweb, { 'entry:old': crashed })
+  const { store } = world(on, { 'entry:old': crashed })
   await timer($, 'start')
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(lastSeen)
-})
-
-test('book stops and offers a timer left running by a closed session', async ($, on) => {
-  world(on, geweb, {
-    'entry:old': {
-      id: 'old',
-      sessionId: 's0',
-      repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
-      repoName: 'acme-site',
-      note: 'fix login',
-      segments: [{ start: T0 - 80 * MINUTE }],
-      lastSeen: T0 - 20 * MINUTE,
-    },
-  })
-  expect(await timer($, 'book')).toContain('1 slot ready')
 })
 
 test('a timer left paused by a closed session stops on a later heartbeat', async ($, on) => {
@@ -218,21 +216,7 @@ test('ending the session stops its timer', async ($, on) => {
   await timer($, 'start')
   await clock.advance(10 * MINUTE)
   await $.session.end({ reason: 'prompt_input_exit', sessionId: 's1' } as never)
-  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
-  expect((entry as { stoppedAt?: number }).stoppedAt).toBe(T0 + 10 * MINUTE)
-})
-
-test('start finds the customer project linked to the repo', async ($, on) => {
-  world(on)
-  const text = await timer($, 'start fix login')
-  expect(text).toContain('GEWEB project: (Acme) - [ACM01] Sito')
-})
-
-test('an expired GEWEB token still starts the timer and says how to log in', async ($, on) => {
-  world(on, () => ({ ...ok({}), exitCode: 1, stderr: 'error: GET ... returned HTTP 401' }))
-  const text = await timer($, 'start')
-  expect(text).toContain('Timer started')
-  expect(text).toContain('! ms login')
+  expect((entryOf(store) as { stoppedAt?: number }).stoppedAt).toBe(T0 + 10 * MINUTE)
 })
 
 test('pauses are left out of the worked time', async ($, on) => {
@@ -246,29 +230,6 @@ test('pauses are left out of the worked time', async ($, on) => {
   expect(await timer($, 'stop')).toContain('1h 03m')
 })
 
-test('book writes the slot on the live timesheet only after Confirm, and only once', async ($, on) => {
-  const { clock, calls } = world(on)
-  await timer($, 'start fix login')
-  await clock.advance(63 * MINUTE)
-  await timer($, 'stop')
-  expect(await timer($, 'book')).toContain('1 slot ready')
-
-  const writesBefore = calls.filter(c => c.argv[3] === 'POST')
-  expect(writesBefore).toEqual([])
-
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'confirm' })
-  const writes = calls.filter(c => c.argv[3] === 'POST')
-  expect(writes.map(c => [c.argv[4], JSON.parse(c.stdin ?? '{}')])).toEqual([
-    ['api/hr/attivita-temporale/', { descrizione: 'fix login', progetto: 42, data: '2026-10-06', ora: 9 }],
-    ['api/hr/attivita-temporale/900/aggiungi_tempo/', { minuti: 65, data: '2026-10-06' }],
-    ['api/hr/attivita-temporale/900/set_stato/', { stato: 'completata' }],
-  ])
-  await ui.unmount()
-
-  expect(await timer($, 'book')).toContain('Nothing to book')
-})
-
 test('export writes every entry as CSV', async ($, on) => {
   const { clock, files } = world(on)
   await timer($, 'start fix login')
@@ -276,7 +237,7 @@ test('export writes every entry as CSV', async ($, on) => {
   await timer($, 'stop')
   expect(await timer($, 'export out.csv')).toContain('1 entry from 1 session')
   const written = Object.entries(files).find(([path]) => path.endsWith('out.csv'))?.[1]
-  expect(written).toContain('acme-site,(Acme) - [ACM01] Sito,fix login,2026-10-06,09:00,09:20,20,stopped,')
+  expect(written).toContain('acme-site,fix login,2026-10-06,09:00,09:20,20,stopped,')
 })
 
 const BAND = {
@@ -299,8 +260,7 @@ const clearWith = async ($: Engine, on: On, answer: 'keepafterclear' | 'stopafte
   await ui.press({ key: answer })
   expect(await ui.find({ key: 'keepafterclear' })).toBe(undefined)
   await ui.unmount()
-  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
-  return entry as { sessionId: string; stoppedAt?: number }
+  return entryOf(store) as { sessionId: string; stoppedAt?: number }
 }
 
 test('after /clear the band asks, and Keep running carries the timer into the new conversation', async ($, on) => {
@@ -371,48 +331,19 @@ test('a heartbeat in flight never undoes the pause auto mode makes when a turn e
   await clock.advance(30 * SECOND)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
   await clock.advance(SECOND)
-  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
-  expect((entry as { segments: { end?: number }[] }).segments.at(-1)?.end).toBe(T0 + 30 * SECOND)
+  expect((entryOf(store) as { segments: { end?: number }[] }).segments.at(-1)?.end).toBe(T0 + 30 * SECOND)
 })
 
-const unlinked = (installs: { id: number; text: string }[]) => (argv: readonly string[]) => {
-  const path = argv[4] ?? ''
-  if (path === 'api/autocomplete/hr/GitRepo/') return ok({ results: [] })
-  if (path === 'api/autocomplete/hr/Istanza/') return ok({ results: installs })
-  return geweb(argv)
-}
-
-test('a repo installed at a customer but with no project is listed to fix, not booked', async ($, on) => {
-  const { clock, calls } = world(on, unlinked([{ id: 1, text: '(Mastersoft) - [PRS] Presente @ Acme Spa' }]))
-  expect(await timer($, 'start')).toContain('Customer Acme Spa, no project linked')
-  await clock.advance(63 * MINUTE)
-  await timer($, 'stop')
-  expect(await timer($, 'book')).toContain('0 slots ready')
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /Needs a project/ }))?.text).toContain('acme-site (Acme Spa)')
-  expect(posts(calls)).toEqual([])
-  await ui.unmount()
-})
-
-test('a repo with no customer is never booked nor counted', async ($, on) => {
-  const { clock } = world(on, unlinked([]))
-  expect(await timer($, 'start')).toContain('never booked')
-  await clock.advance(63 * MINUTE)
-  await timer($, 'stop')
-  expect(await timer($, 'status')).not.toContain('not booked')
-  expect(await timer($, 'book')).toContain('Nothing to book')
-})
-
-test('Book all shows up and reminds once only from the reminder time', async ($, on) => {
+test('from the reminder time the band says what to book and reminds once', async ($, on) => {
   const { clock, toasts } = world(on)
   await trackAndStop($, clock)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ key: 'book' })).toBe(undefined)
+  expect(await ui.find({ type: 'Text', text: /to book/ })).toBe(undefined)
   await clock.advance(8 * 60 * MINUTE)
   await timer($, 'status')
   await timer($, 'status')
-  expect(await ui.find({ key: 'book' })).toBeDefined()
-  expect(toasts.filter(t => t.includes('ready for GEWEB'))).toEqual(['1 entry ready for GEWEB: /timer book'])
+  expect((await ui.find({ type: 'Text', text: /to book/ }))?.text).toBe('1 to book: ask Claude')
+  expect(toasts.filter(t => t.includes('not booked yet'))).toEqual(['1 timer not booked yet: ask Claude to book them'])
   await ui.unmount()
 })
 
@@ -428,76 +359,40 @@ test('the band note box starts the timer with a note and renames it later', asyn
   await ui.unmount()
 })
 
-test('descriptions and minutes edited in the Book pane are what GEWEB receives, skipped lines are left out', async ($, on) => {
-  const { clock, calls } = world(on)
-  await trackAndStop($, clock)
-  await timer($, 'start second task')
-  await clock.advance(20 * MINUTE)
-  await timer($, 'stop')
-  expect(await timer($, 'book')).toContain('2 slots ready')
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.input({ key: 'desc0', text: 'Login SSO per Acme' })
-  await ui.input({ key: 'min0', text: '90' })
-  await ui.press({ key: 'skip1' })
-  await ui.press({ key: 'confirm' })
-  const bodies = calls.filter(c => c.argv[3] === 'POST').map(c => JSON.parse(c.stdin ?? '{}'))
-  expect(bodies).toEqual([
-    { descrizione: 'Login SSO per Acme', progetto: 42, data: '2026-10-06', ora: 9 },
-    { minuti: 90, data: '2026-10-06' },
-    { stato: 'completata' },
-  ])
-  await ui.unmount()
-  expect(await timer($, 'book')).toContain('1 slot ready')
-})
-
-test('the Today pane lists every timer of the day with its project', async ($, on) => {
+test('the Today pane lists every timer of the day by name, its repo a link to its folder', async ($, on) => {
   const { clock } = world(on)
   await trackAndStop($, clock)
-  await timer($, 'start review')
+  await timer($, 'start')
   await clock.advance(10 * MINUTE)
   expect(await timer($, 'open')).toContain('Timer panel opened')
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /^Today/ }))?.text).toContain('1h 13m in 2 timers')
-  expect((await ui.findAll({ type: 'Text', text: /\(Acme\) - \[ACM01\] Sito/ })).length).toBe(2)
-  expect(await ui.find({ type: 'Button', text: /10:03–now/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', text: /09:00–10:03 1h 03m {2}fix login/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', text: /10:03–now {3}0h 10m {2}acme-site/ })).toBeDefined()
+  const links = await ui.findAll({ type: 'Link' })
+  expect(links.map(l => [l.children, l.props.href])).toEqual([
+    [['acme-site'], 'file:///C:/repos/acme-site'],
+    [['acme-site'], 'file:///C:/repos/acme-site'],
+  ])
   await ui.unmount()
 })
 
-test('the Today pane names a timer with no note by its repo, never by its path', async ($, on) => {
-  world(on, unlinked([{ id: 1, text: '(Mastersoft) - [PRS] Presente @ Acme Spa' }]))
-  await timer($, 'start')
-  await timer($, 'open')
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Button', text: /acme-site/ })).toBeDefined()
-  const where = await ui.find({ type: 'Text', text: /no project/ })
-  expect(where?.children.filter(c => typeof c === 'string').join('')).toBe('Acme Spa, no project ·  · running here')
-  const link = await ui.find({ type: 'Link' })
-  expect(link?.children).toEqual(['acme-site'])
-  expect(link?.props.href).toBe('file:///C:/repos/acme-site')
-  await ui.unmount()
-})
-
-test('a timer in a worktree is named and booked by its branch and linked to the worktree', async ($, on) => {
-  const { clock, calls, store } = world(on, geweb, {}, 'C:/repos/acme-site-login\nfeat/login-sso\n')
+test('a timer in a worktree is named by its branch and linked to the worktree', async ($, on) => {
+  const { clock, store } = world(on, {}, 'C:/repos/acme-site-login\nfeat/login-sso\n')
   await timer($, 'start')
   await clock.advance(63 * MINUTE)
   await timer($, 'stop')
-  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
-  expect((entry as { location?: string }).location).toBe('C:/repos/acme-site-login')
+  expect((entryOf(store) as { location?: string }).location).toBe('C:/repos/acme-site-login')
+  expect((await lines($)).map(l => l.title)).toEqual(['login sso'])
   await timer($, 'open')
-  const today = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await today.find({ type: 'Button', text: /login sso/ })).toBeDefined()
-  await today.unmount()
-  await timer($, 'book')
-  const book = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await book.press({ key: 'confirm' })
-  const create = calls.find(c => c.argv[3] === 'POST' && c.argv[4] === 'api/hr/attivita-temporale/')
-  expect(JSON.parse(create?.stdin ?? '{}').descrizione).toBe('login sso')
-  await book.unmount()
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Button', text: /login sso/ })).toBeDefined()
+  expect((await ui.find({ type: 'Link' }))?.props.href).toBe('file:///C:/repos/acme-site-login')
+  await ui.unmount()
 })
 
 test('a timer outside git falls back to the session folder and the repo name', async ($, on) => {
-  world(on, unlinked([]), {}, null)
+  world(on, {}, null)
   await timer($, 'start')
   await timer($, 'open')
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
@@ -536,7 +431,7 @@ const otherSession = {
 }
 
 test('the All tab shows timers of other sessions but only this session\'s can be selected', async ($, on) => {
-  const { clock } = world(on, geweb, { 'entry:other': otherSession })
+  const { clock } = world(on, { 'entry:other': otherSession })
   await trackAndStop($, clock)
   await timer($, 'open')
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
@@ -559,6 +454,6 @@ test('a timer is deleted only on the second press of Delete', async ($, on) => {
   expect([...store.keys()].filter(k => k.startsWith('entry:'))).toHaveLength(1)
   await ui.press({ key: 'delete' })
   expect([...store.keys()].filter(k => k.startsWith('entry:'))).toEqual([])
-  expect(await timer($, 'book')).toContain('Nothing to book')
+  expect(await lines($)).toEqual([])
   await ui.unmount()
 })

@@ -1,6 +1,9 @@
-import type { Runner } from './geweb'
+import type { ProcessRunInit, ProcessRunResult } from 'claude-code'
 
 const GIT_TIMEOUT_MS = 5_000
+
+/** Runs a host command by argv, as `$.process.run` does. */
+export type Runner = (argv: readonly string[], init: ProcessRunInit) => Promise<ProcessRunResult>
 
 /** The git working tree a session runs in: its own folder (a linked worktree's, not the main one) and its branch. */
 export type Worktree = { root: string; branch: string }

@@ -12,42 +12,28 @@ export type Entry = {
   auto?: boolean
   location?: string
   branch?: string
-  booked?: Record<string, number>
+  /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
+  booked?: Record<string, string | number>
 }
 
-export type Project = { id: number; label: string }
-
-/** What a repo's time books onto: a project, a customer still missing one, or nobody. */
-export type Link =
-  | { kind: 'project'; project: Project }
-  | { kind: 'customer'; customers: string[] }
-  | { kind: 'none' }
-
-export type Draft = {
+/** One entry's time on one day, as the `entries` tool hands it to whoever books it. */
+export type BookingLine = {
   entryId: string
   day: string
-  startHour: number
+  /** When the timer first started that day, HH:mm, Italian time. */
+  start: string
+  /** Whole minutes, the closed time only. */
   minutes: number
-  project: Project
-  descrizione: string
-  isSkipped?: boolean
-}
-
-export type BookView = {
-  kind: 'book'
-  drafts: Draft[]
-  needsProject: string[]
-  ignored: number
-  results: string[]
-  isBusy: boolean
-  isDone: boolean
-}
-
-export type PickView = {
-  kind: 'pick'
-  repoKey: string
-  repoName: string
-  matches: Project[]
+  /** The note, else the branch's words, else the repo's name. */
+  title: string
+  note: string
+  repo: string
+  /** The git remote as `host/path`, when the repo has one. */
+  remote?: string
+  branch?: string
+  folder?: string
+  state: 'running' | 'paused' | 'stopped'
+  booked?: string
 }
 
 export type TodayTab = 'session' | 'all'
@@ -70,13 +56,12 @@ export type TodayRow = {
   note: string
   /** The note, else the branch's words, else the repo's name (its git remote's, else its folder's). */
   name: string
-  where: string
-  /** The repo it ran in, shown when its time books onto no project; `path` is its folder. */
-  repo?: { name: string; path?: string }
+  /** The repo it ran in; `path` is its folder. */
+  repo: { name: string; path?: string }
   isBooked: boolean
 }
 
-export type View = BookView | PickView | TodayView
+export type View = TodayView
 
 export type Band = {
   state: 'idle' | 'running' | 'paused'

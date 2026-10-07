@@ -17,6 +17,16 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 - After `/clear` the band asks whether to keep the timer running or stop it.
   Keep running makes it the new conversation's timer, so it stays in "This
   session" and can be selected there.
+- Two tools for Claude: `mcp__timer__entries` lists the tracked time per timer
+  and day, and `mcp__timer__mark_booked` records a day as booked. Booking on
+  GEWEB is now a request to Claude, which the `ms` skill handles.
+
+### Removed
+
+- Booking on GEWEB from the timer: the Book pane, Book all, `/timer book`,
+  `/timer project` and the GEWEB project lookup. The timer no longer needs the
+  `ms` CLI. The CSV export loses its `project` column; `activity` is now
+  `booked`.
 
 ### Changed
 

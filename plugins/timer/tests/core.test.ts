@@ -1,18 +1,21 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { Entry, Link, Project } from '../types'
+import type { Entry } from '../types'
 import {
+  bookingLines,
   branchLabel,
   canonicalRemote,
   closeStale,
   dayOf,
   fileUrl,
+  markBooked,
   minutesByDay,
+  parseBookingRange,
   parseEntry,
+  parseMark,
   pauseEntry,
-  planBooking,
+  pendingDays,
   resumeEntry,
-  roundToStep,
   startEntry,
   stateOf,
   stopEntry,
@@ -23,8 +26,6 @@ import {
 
 const MINUTE = 60_000
 const T0 = Date.parse('2026-10-06T07:00:00Z')
-const PROJECT: Project = { id: 42, label: '(Acme) - [ACM01] Sito' }
-const LINKED: Link = { kind: 'project', project: PROJECT }
 
 const entry = (over: Partial<Entry> = {}): Entry => ({
   id: 'e1',
@@ -38,11 +39,11 @@ const entry = (over: Partial<Entry> = {}): Entry => ({
 })
 
 describe('canonicalRemote', () => {
-  test('matches GEWEB for https remotes', () => {
+  test('lowercases the host and drops .git for https remotes', () => {
     expect(canonicalRemote('https://GitLab.Sermix.com/mastersoft/acme.git/')).toBe('gitlab.sermix.com/mastersoft/acme')
   })
 
-  test('matches GEWEB for scp-style ssh remotes', () => {
+  test('reads scp-style ssh remotes the same way', () => {
     expect(canonicalRemote('git@gitlab.sermix.com:mastersoft/acme.git')).toBe('gitlab.sermix.com/mastersoft/acme')
   })
 
@@ -88,61 +89,90 @@ describe('midnight', () => {
 
   test('a timer running since yesterday shows today from midnight', () => {
     const running = entry({ note: 'night job', segments: [{ start: Date.parse('2026-10-05T20:00:00Z') }], stoppedAt: undefined })
-    const [row] = todayRows([running], '2026-10-06', T0, () => ({ where: '' }))
+    const [row] = todayRows([running], '2026-10-06', T0)
     expect([row?.from, row?.to, row?.minutes]).toEqual(['00:00', 'now', 9 * 60])
   })
 })
 
-describe('days and rounding', () => {
+describe('days', () => {
   test('days are counted in Europe/Rome', () => {
     expect(dayOf(Date.parse('2026-10-05T22:30:00Z'))).toBe('2026-10-06')
   })
 
-  test('minutes round up to the 5-minute step', () => {
-    expect([roundToStep(0.2), roundToStep(61), roundToStep(65)]).toEqual([0, 65, 65])
+  test('a stopped timer has its unbooked days pending, a running one none', () => {
+    expect(pendingDays(entry()).map(([day]) => day)).toEqual(['2026-10-06'])
+    expect(pendingDays(entry({ booked: { '2026-10-06': '7' } }))).toEqual([])
+    expect(pendingDays(entry({ segments: [{ start: T0 }], stoppedAt: undefined }))).toEqual([])
   })
 })
 
-describe('planBooking', () => {
-  test('drafts a stopped entry rounded up, starting at its first hour in Rome', () => {
-    const { drafts, needsProject } = planBooking([entry()], () => LINKED)
-    expect(needsProject).toEqual([])
-    expect(drafts).toEqual([
-      { entryId: 'e1', day: '2026-10-06', startHour: 9, minutes: 65, project: PROJECT, descrizione: 'fix login' },
+describe('bookingLines', () => {
+  test('lists whole closed minutes per entry and day, oldest first, with the repo details', () => {
+    const later = entry({ id: 'e2', note: '', branch: 'feat/login-sso', location: 'C:/wt', segments: [{ start: T0 + 120 * MINUTE, end: T0 + 150 * MINUTE + 20_000 }] })
+    expect(bookingLines([later, entry()], {})).toEqual([
+      { entryId: 'e1', day: '2026-10-06', start: '09:00', minutes: 63, title: 'fix login', note: 'fix login', repo: 'acme', remote: 'gitlab.sermix.com/mastersoft/acme', state: 'stopped' },
+      { entryId: 'e2', day: '2026-10-06', start: '11:00', minutes: 30, title: 'login sso', note: '', repo: 'acme', remote: 'gitlab.sermix.com/mastersoft/acme', branch: 'feat/login-sso', folder: 'C:/wt', state: 'stopped' },
     ])
   })
 
-  test('leaves out running entries and days already booked', () => {
-    const running = entry({ id: 'e2', segments: [{ start: T0 }], stoppedAt: undefined })
-    const booked = entry({ id: 'e3', booked: { '2026-10-06': 7 } })
-    expect(planBooking([running, booked], () => LINKED).drafts).toEqual([])
+  test('counts an open timer\'s closed time only and says it is open', () => {
+    const open = entry({ segments: [{ start: T0, end: T0 + 20 * MINUTE }, { start: T0 + 30 * MINUTE }], stoppedAt: undefined })
+    expect(bookingLines([open], {}).map(l => [l.minutes, l.state])).toEqual([[20, 'running']])
   })
 
-  test('asks for a project when the repo belongs to a customer without one', () => {
-    const { drafts, needsProject } = planBooking([entry(), entry({ id: 'e4' })], () => ({
-      kind: 'customer',
-      customers: ['Acme', 'Beta'],
-    }))
-    expect(drafts).toEqual([])
-    expect(needsProject).toEqual(['2 entries in acme (Acme, Beta): no project, run /timer project <search> there'])
+  test('leaves out booked days unless asked, and days outside the range', () => {
+    const booked = entry({ booked: { '2026-10-06': 900 } })
+    expect(bookingLines([booked], {})).toEqual([])
+    expect(bookingLines([booked], { includeBooked: true }).map(l => l.booked)).toEqual(['900'])
+    expect(bookingLines([entry()], { from: '2026-10-07' })).toEqual([])
+    expect(bookingLines([entry()], { to: '2026-10-05' })).toEqual([])
   })
 
-  test('ignores entries of repos that belong to no customer', () => {
-    expect(planBooking([entry()], () => ({ kind: 'none' }))).toEqual({ drafts: [], needsProject: [], ignored: 1 })
+  test('gives no remote for a repo known only by its folder', () => {
+    expect(bookingLines([entry({ repoKey: 'path:C:/repos/acme' })], {})[0]?.remote).toBe(undefined)
+  })
+})
+
+describe('markBooked', () => {
+  test('records the reference for a day the timer has time on', () => {
+    expect((markBooked(entry(), '2026-10-06', '900') as Entry).booked).toEqual({ '2026-10-06': '900' })
+  })
+
+  test('refuses a day the timer has no time on', () => {
+    expect(markBooked(entry(), '2026-10-07', '900')).toBe('Timer e1 has no time on 2026-10-07.')
+  })
+})
+
+describe('tool input', () => {
+  test('a booking range takes optional days and includeBooked', () => {
+    expect(parseBookingRange({})).toEqual({})
+    expect(parseBookingRange({ from: '2026-10-01', to: '2026-10-06', includeBooked: true })).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-06',
+      includeBooked: true,
+    })
+    expect(parseBookingRange({ to: '6 Oct' })).toBe('to must be a day, YYYY-MM-DD.')
+    expect(parseBookingRange('all')).toBe('The input must be an object.')
+  })
+
+  test('a mark needs an entry, a day and a reference', () => {
+    expect(parseMark({ entryId: 'e1', day: '2026-10-06', reference: ' 900 ' })).toEqual({ entryId: 'e1', day: '2026-10-06', reference: '900' })
+    expect(parseMark({ entryId: 'e1', day: '2026-10-06' })).toBe('reference must say where the time was booked.')
+    expect(parseMark({ day: '2026-10-06', reference: '900' })).toBe('entryId must be a line’s entryId from the entries tool.')
   })
 })
 
 describe('toCsv', () => {
   test('writes one row per segment and quotes cells that need it', () => {
-    const csv = toCsv([entry({ note: 'login, "SSO"' })], () => PROJECT, T0 + 90 * MINUTE)
+    const csv = toCsv([entry({ note: 'login, "SSO"', booked: { '2026-10-06': '900' } })], T0 + 90 * MINUTE)
     expect(csv).toBe(
-      'entry,session,repo,project,note,day,start,end,minutes,state,activity\r\n' +
-        'e1,s1,acme,(Acme) - [ACM01] Sito,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,\r\n',
+      'entry,session,repo,note,day,start,end,minutes,state,booked\r\n' +
+        'e1,s1,acme,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,900\r\n',
     )
   })
 
   test('defuses notes that a spreadsheet would run as a formula', () => {
-    const csv = toCsv([entry({ note: '=HYPERLINK("x")' })], () => PROJECT, T0)
+    const csv = toCsv([entry({ note: '=HYPERLINK("x")' })], T0)
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
   })
 })
@@ -169,6 +199,10 @@ describe('parseEntry', () => {
   test('accepts an entry this version wrote', () => {
     expect(parseEntry(entry())).toEqual(entry())
   })
+
+  test('accepts the numeric booking ids 0.1.0 wrote', () => {
+    expect(parseEntry(entry({ booked: { '2026-10-06': 900 } }))?.booked).toEqual({ '2026-10-06': 900 })
+  })
 })
 
 describe('branchLabel', () => {
@@ -190,11 +224,6 @@ describe('titleOf', () => {
     expect(titleOf(entry({ note: '', branch: 'feat/login-sso' }))).toBe('login sso')
     expect(titleOf(entry({ note: '', branch: 'main' }))).toBe('acme')
   })
-
-  test('books a timer with no note under its branch', () => {
-    const { drafts } = planBooking([entry({ note: '', branch: 'feat/login-sso' })], () => LINKED)
-    expect(drafts.map(d => d.descrizione)).toEqual(['login sso'])
-  })
 })
 
 describe('fileUrl', () => {
@@ -208,20 +237,21 @@ describe('fileUrl', () => {
 })
 
 describe('todayRows', () => {
-  test('lists the day\'s timers oldest first, with their span, minutes and place', () => {
+  test('lists the day\'s timers oldest first, with their span, minutes and repo', () => {
     const yesterday = entry({ id: 'y', segments: [{ start: T0 - 24 * 60 * MINUTE, end: T0 - 23 * 60 * MINUTE }] })
     const morning = entry({
       id: 'm',
+      location: 'C:/repos/acme',
       segments: [
         { start: T0, end: T0 + 30 * MINUTE },
         { start: T0 + 60 * MINUTE, end: T0 + 90 * MINUTE },
       ],
     })
     const running = entry({ id: 'r', note: '', segments: [{ start: T0 + 120 * MINUTE }], stoppedAt: undefined })
-    const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE, e => ({ where: `at ${e.id}` }))
+    const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE)
     expect(rows).toEqual([
-      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', where: 'at m', isBooked: false },
-      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', where: 'at r', isBooked: false },
+      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
+      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', repo: { name: 'acme' }, isBooked: false },
     ])
   })
 })
