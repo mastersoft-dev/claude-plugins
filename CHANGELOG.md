@@ -8,6 +8,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- `mastersoft:ms` also loads when you ask to book the Claude Code timer's time on
+  GEWEB ("book the timer", "segna le ore del timer").
+
 ## [3.10.0] — 2026-10-07
 
 ### Added
