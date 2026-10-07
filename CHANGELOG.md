@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.10.1] — 2026-10-07
+
 ### Fixed
 
 - `mastersoft:ms` also loads when you ask to book the Claude Code timer's time on
