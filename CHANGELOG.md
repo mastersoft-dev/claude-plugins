@@ -8,6 +8,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `mastersoft:ms` skill for Mastersoft's `ms` CLI (Presente and GEWEB). It reads its
+  instructions from the installed `ms` with `ms skill`, so they match that version,
+  and says how to install `ms` when it's missing. Delete a `~/.claude/skills/ms` left
+  by `ms install-skill`, or Claude Code loads the skill twice.
+
 ### Fixed
 
 - The `cache` statusline segment leaves out the token count right after a

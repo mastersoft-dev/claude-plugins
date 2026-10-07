@@ -20,6 +20,7 @@
 | `/mastersoft:help` | This card. |
 | `/mastersoft:init-rules` | Scaffold `AGENTS.md` (drafted by the native `/init` when the repo has no rules), `.claude/rules/`, `docs/adr/`, `docs/prd/`. |
 | `/mastersoft:investigate` | Read-only root-cause diagnosis + stack-trace triage. |
+| `/mastersoft:ms` | Mastersoft's `ms` CLI for Presente and GEWEB. Loads the instructions from the installed `ms` (`ms skill`), so they match its version; says how to install `ms` when it's missing. |
 | `/mastersoft:promote-patterns` | Triage Claude Code auto-memory entries; route each to repo rules, user-global rules, or leave in auto-memory. |
 | `/mastersoft:recall` | Look back over your own past Claude Code sessions: recap recent ones, or search past sessions for a topic with resume ids. Delegates to the `hindsight` agent. |
 | `/mastersoft:refresh-rules` | Audit + refresh rule files via the `rule-auditor` agent; section-by-section diff gated by `AskUserQuestion`, then a final re-audit pass over edited entries. |
