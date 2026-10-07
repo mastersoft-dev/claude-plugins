@@ -501,7 +501,7 @@ const whereOf = (entry: Entry, link: Link | undefined): Pick<TodayRow, 'where' |
 
 const openToday = async ($: EngineInterface): Promise<string> => {
   const now = await $.clock.now()
-  const count = todayRows(await loadEntries($), dayOf(now), now, e => e.repoName).length
+  const count = todayRows(await loadEntries($), dayOf(now), now, () => ({ where: '' })).length
   await update($, view, () => ({ kind: 'today' as const, tab: 'session' as const, selectedId: null, confirmDeleteId: null }))
   await $.ui.open({
     id: PANE,
