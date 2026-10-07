@@ -129,6 +129,12 @@ describe('closeStale', () => {
     expect(closeStale(running, T0 + 30 * MINUTE)?.segments).toEqual([{ start: T0, end: T0 + 20 * MINUTE }])
     expect(closeStale(running, T0 + 10 * MINUTE)).toBe(undefined)
   })
+
+  test('stops a paused entry at its last heartbeat once it is stale', () => {
+    const paused = entry({ segments: [{ start: T0, end: T0 + 20 * MINUTE }], stoppedAt: undefined, lastSeen: T0 + 25 * MINUTE })
+    expect(closeStale(paused, T0 + 30 * MINUTE)).toEqual({ ...paused, stoppedAt: T0 + 25 * MINUTE })
+    expect(closeStale(paused, T0 + 24 * MINUTE)).toBe(undefined)
+  })
 })
 
 describe('parseEntry', () => {

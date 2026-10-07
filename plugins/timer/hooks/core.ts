@@ -66,12 +66,13 @@ const closeLast = (segments: Entry['segments'], now: number) =>
   segments.map((s, i) => (i === segments.length - 1 && s.end === undefined ? { ...s, end: now } : s))
 
 /**
- * Stops a running entry whose session stopped beating before `staleBefore`
- * (a crash or a killed terminal), at the last moment it was seen alive.
+ * Stops a running or paused entry whose session stopped beating before
+ * `staleBefore` (a closed window, a crash), at the last moment it was seen alive.
  */
 export const closeStale = (entry: Entry, staleBefore: number): Entry | undefined => {
-  if (stateOf(entry) !== 'running') return undefined
-  const lastSeen = entry.lastSeen ?? entry.segments.at(-1)?.start ?? staleBefore
+  if (stateOf(entry) === 'stopped') return undefined
+  const last = entry.segments.at(-1)
+  const lastSeen = Math.max(entry.lastSeen ?? 0, last?.end ?? last?.start ?? staleBefore)
   return lastSeen < staleBefore ? (stopEntry(entry, lastSeen) as Entry) : undefined
 }
 

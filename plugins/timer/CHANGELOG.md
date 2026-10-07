@@ -8,6 +8,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- A timer left open by a session that closed without exiting (a closed window,
+  a crash) is stopped within a few minutes by any other open session, or by the
+  next one to start, paused ones included, at the last moment its session was
+  seen. Before, a paused one stayed open and was never booked.
+
 ## [0.1.0] — 2026-10-07
 
 ### Added

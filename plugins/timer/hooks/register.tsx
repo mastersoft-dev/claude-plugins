@@ -204,7 +204,7 @@ const beat = async ($: EngineInterface) => {
   const state = stateOf(entry) === 'running' ? 'running' : 'paused'
   const worked = formatDuration(workedMs(entry, now))
   const auto = entry.auto === true
-  if (state === 'running') await saveEntry($, { ...entry, lastSeen: now })
+  await saveEntry($, { ...entry, lastSeen: now })
   $.ui.status(`${state === 'running' ? '⏱' : '⏸ paused'} ${worked}${auto ? ' auto' : ''}`)
   await update($, band, () => ({
     state,
@@ -301,8 +301,7 @@ const toggleAuto = async ($: EngineInterface): Promise<string> => {
   return 'Auto mode on: the timer runs only while Claude is working.'
 }
 
-const recoverStale = async ($: EngineInterface): Promise<number> => {
-  const staleBefore = (await $.clock.now()) - STALE_MS
+const recoverStale = async ($: EngineInterface, staleBefore: number): Promise<void> => {
   const own = await read($, activeId)
   let recovered = 0
   for (const entry of await loadEntries($)) {
@@ -311,7 +310,21 @@ const recoverStale = async ($: EngineInterface): Promise<number> => {
     await saveEntry($, closed)
     recovered += 1
   }
-  return recovered
+  if (recovered > 0) $.ui.toast(`Stopped ${plural(recovered, 'timer', 'timers')} left open by a closed session`)
+}
+
+let lastTickAt = 0
+
+/**
+ * Stops the timers of sessions that closed without ending (a closed window, a
+ * crash), judged against this session's previous heartbeat: waking from sleep
+ * stalls every session at once and so stops nothing.
+ */
+const tick = async ($: EngineInterface) => {
+  const previous = lastTickAt
+  lastTickAt = await $.clock.now()
+  await recoverStale($, previous - STALE_MS)
+  await beat($)
 }
 
 const transition = async (
@@ -335,7 +348,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
   if (held !== undefined && stateOf(held) !== 'stopped') {
     return `A timer is already ${stateOf(held)}: ${describe(held, now)}. /timer stop first.`
   }
-  await recoverStale($)
+  await recoverStale($, now - STALE_MS)
   const others = (await loadEntries($)).filter(e => stateOf(e) === 'running')
   const repo = await repoOf($)
   const entry = startEntry(
@@ -619,11 +632,11 @@ export const register: Register = (on, options) => {
         .at(-1)
       if (open !== undefined) await update($, activeId, () => open.id)
     }
-    const recovered = await recoverStale($)
-    if (recovered > 0) $.ui.toast(`Stopped ${plural(recovered, 'timer', 'timers')} left running by a crashed session`)
+    lastTickAt = await $.clock.now()
+    await recoverStale($, lastTickAt - STALE_MS)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
-      beat($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
+      tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
     })
     await beat($)
     return next(e)

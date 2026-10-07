@@ -158,6 +158,35 @@ test('a timer left running by a crashed session stops at its last heartbeat', as
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(lastSeen)
 })
 
+test('a timer left paused by a closed session stops on a later heartbeat', async ($, on) => {
+  const { clock, store } = world(on)
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
+  store.set('entry:old', {
+    id: 'old',
+    sessionId: 's0',
+    repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+    repoName: 'acme-site',
+    note: '',
+    segments: [{ start: T0 - 60 * MINUTE, end: T0 - 5 * MINUTE }],
+    lastSeen: T0,
+  })
+  await clock.advance(MINUTE)
+  expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(undefined)
+  await clock.advance(5 * MINUTE)
+  expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(T0)
+})
+
+test('ending the session stops its timer', async ($, on) => {
+  const { clock, store } = world(on)
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  await timer($, 'start')
+  await clock.advance(10 * MINUTE)
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 's1' } as never)
+  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
+  expect((entry as { stoppedAt?: number }).stoppedAt).toBe(T0 + 10 * MINUTE)
+})
+
 test('start finds the customer project linked to the repo', async ($, on) => {
   world(on)
   const text = await timer($, 'start fix login')
