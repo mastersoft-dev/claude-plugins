@@ -97,6 +97,11 @@ const trackAndStop = async ($: Engine, clock: { advance: (ms: number) => Promise
   await timer($, 'stop')
 }
 
+const startSession = async ($: Engine, on: On) => {
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
+}
+
 const entryOf = (store: Map<string, unknown>) => [...store].find(([key]) => key.startsWith('entry:'))?.[1]
 
 test('bare /timer shows the status', async ($, on) => {
@@ -161,7 +166,7 @@ test('the entries tool refuses a day that is not YYYY-MM-DD', async ($, on) => {
 })
 
 test('the entries tool stops and lists a timer left running by a closed session', async ($, on) => {
-  world(on, {
+  const { clock } = world(on, {
     'entry:old': {
       id: 'old',
       sessionId: 's0',
@@ -172,6 +177,8 @@ test('the entries tool stops and lists a timer left running by a closed session'
       lastSeen: T0 - 20 * MINUTE,
     },
   })
+  await startSession($, on)
+  await clock.advance(MINUTE)
   expect((await lines($)).map(l => [l.minutes, l.state])).toEqual([[60, 'stopped']])
 })
 
@@ -186,15 +193,35 @@ test('a timer left running by a crashed session stops at its last heartbeat', as
     segments: [{ start: T0 - 60 * MINUTE }],
     lastSeen,
   }
-  const { store } = world(on, { 'entry:old': crashed })
+  const { clock, store } = world(on, { 'entry:old': crashed })
+  await startSession($, on)
+  await clock.advance(MINUTE)
   await timer($, 'start')
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(lastSeen)
 })
 
+test("a session started right after waking from sleep leaves the other sessions' timers running", async ($, on) => {
+  const asleep = {
+    id: 'other',
+    sessionId: 's0',
+    repoKey: 'gitlab.sermix.com/mastersoft/acme-site',
+    repoName: 'acme-site',
+    note: '',
+    segments: [{ start: T0 - 60 * MINUTE }],
+    lastSeen: T0 - 20 * MINUTE,
+  }
+  const { clock, store } = world(on, { 'entry:other': asleep })
+  await startSession($, on)
+  expect(await timer($, 'start')).toContain('Also running in another session')
+  await clock.advance(20 * SECOND)
+  store.set('seen:other', T0 + 20 * SECOND)
+  await clock.advance(2 * MINUTE)
+  expect((store.get('entry:other') as { stoppedAt?: number }).stoppedAt).toBe(undefined)
+})
+
 test('a timer left paused by a closed session stops on a later heartbeat', async ($, on) => {
   const { clock, store } = world(on)
-  on('session.start', ($, e) => ({ cwd: e.cwd }))
-  await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
+  await startSession($, on)
   store.set('entry:old', {
     id: 'old',
     sessionId: 's0',
@@ -327,7 +354,7 @@ test('a heartbeat in flight never undoes the pause auto mode makes when a turn e
   await timer($, 'start background job')
   await timer($, 'auto')
   await $.turn.start({ text: 'go', turnId: 't1' })
-  hold.afterKeys = 1
+  hold.afterKeys = 0
   await clock.advance(30 * SECOND)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
   await clock.advance(SECOND)

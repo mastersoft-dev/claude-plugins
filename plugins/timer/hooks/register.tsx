@@ -224,7 +224,15 @@ const toggleAuto = async ($: EngineInterface): Promise<string> => {
   return 'Auto mode on: the timer runs only while Claude is working.'
 }
 
-const recoverStale = async ($: EngineInterface, staleBefore: number): Promise<void> => {
+/**
+ * Stops the timers of sessions that closed without ending (a closed window, a
+ * crash), judged against a heartbeat of this session: waking from sleep stalls
+ * every session at once and so stops nothing, and a session that has not beaten
+ * yet can't tell a crash from a sleep, so it stops nothing either.
+ */
+const recoverStale = async ($: EngineInterface, since: number | undefined): Promise<void> => {
+  if (since === undefined) return
+  const staleBefore = since - STALE_MS
   const own = await read($, activeId)
   let recovered = 0
   for (const entry of await loadEntries($)) {
@@ -237,17 +245,12 @@ const recoverStale = async ($: EngineInterface, staleBefore: number): Promise<vo
   if (recovered > 0) $.ui.toast(`Stopped ${plural(recovered, 'timer', 'timers')} left open by a closed session`)
 }
 
-let lastTickAt = 0
+let lastTickAt: number | undefined
 
-/**
- * Stops the timers of sessions that closed without ending (a closed window, a
- * crash), judged against this session's previous heartbeat: waking from sleep
- * stalls every session at once and so stops nothing.
- */
 const tick = async ($: EngineInterface) => {
   const previous = lastTickAt
   lastTickAt = await $.clock.now()
-  await recoverStale($, previous - STALE_MS)
+  await recoverStale($, previous)
   await beat($)
 }
 
@@ -272,7 +275,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
   if (held !== undefined && stateOf(held) !== 'stopped') {
     return `A timer is already ${stateOf(held)}: ${describe(held, now)}. /timer stop first.`
   }
-  await recoverStale($, now - STALE_MS)
+  await recoverStale($, lastTickAt)
   const others = (await loadEntries($)).filter(e => stateOf(e) === 'running')
   const repo = await repoOf($)
   const worktree = await worktreeOf(runnerOf($))
@@ -468,8 +471,7 @@ export const register: Register = (on, options) => {
         .at(-1)
       if (open !== undefined) await update($, activeId, () => open.id)
     }
-    lastTickAt = await $.clock.now()
-    await recoverStale($, lastTickAt - STALE_MS)
+    lastTickAt = undefined
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
@@ -481,7 +483,7 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: 'mcp__timer__entries' }, async ($, e) => {
     const range = parseBookingRange(e.input)
     if (typeof range === 'string') return { deny: range }
-    await recoverStale($, (await $.clock.now()) - STALE_MS)
+    await recoverStale($, lastTickAt)
     return { result: { lines: bookingLines(await loadEntries($), range) } }
   })
 

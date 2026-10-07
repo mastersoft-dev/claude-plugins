@@ -38,9 +38,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 ### Fixed
 
 - A timer left open by a session that closed without exiting (a closed window,
-  a crash) is stopped within a few minutes by any other open session, or by the
-  next one to start, paused ones included, at the last moment its session was
-  seen. Before, a paused one stayed open and was never booked.
+  a crash) is stopped within a few minutes by any other open session, or a
+  minute after the next one starts, paused ones included, at the last moment
+  its session was seen. Before, a paused one stayed open and was never booked.
+- Starting a session or a timer right after the computer wakes from sleep no
+  longer stops the timers of the other open sessions.
 - The 30-second refresh no longer undoes a pause, a stop or a note made while
   it runs: in auto mode a turn's end could be lost and idle time counted.
 - Time past midnight (Italian time, clock changes included) is booked and
