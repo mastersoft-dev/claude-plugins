@@ -15,10 +15,10 @@ declarations the engine lays in their `.claude-plugin/types/`.
 
 - Suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`
 - Android: `cd plugins/mastersoft/skills/android-testing/scripts && python3 test-daemon.py && python3 test-wedge.py`
-- Manifests: `claude plugin validate --strict .`, `claude plugin validate --strict plugins/mastersoft` and `claude plugin validate --strict plugins/relay`
-- Relay: `claude plugin test plugins/relay`, and `tsc -p plugins/relay` (local only; needs a session that loaded the plugin, see CONTRIBUTING.md)
+- Manifests: `claude plugin validate --strict .`, `claude plugin validate --strict plugins/mastersoft`, `claude plugin validate --strict plugins/relay` and `claude plugin validate --strict plugins/timer`
+- Relay and Timer: `claude plugin test plugins/relay` and `claude plugin test plugins/timer`, and `tsc -p` on each (local only; needs a session that loaded the plugin, see CONTRIBUTING.md)
 - Shell: `shellcheck` on every `.sh` you touch. CI config: `glab ci lint`. Both are local only.
-- The GitLab pipeline runs the suites, the Android tests, the three validates and the relay tests on every MR; push only with everything above green locally.
+- The GitLab pipeline runs the suites, the Android tests, the four validates and the relay and timer tests on every MR; push only with everything above green locally.
 
 ## Conventions
 

@@ -40,8 +40,8 @@ In a `-p --output-format stream-json --verbose` run, the `init` message lists th
 
 ### Test and debug
 
-- Run the suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`. The GitLab pipeline (`.gitlab-ci.yml`) runs them, the Android daemon tests, the three `claude plugin validate --strict` checks and `claude plugin test plugins/relay` on every merge request, without credentials.
-- `claude plugin validate --strict plugins/mastersoft`, `claude plugin validate --strict plugins/relay` and `claude plugin validate --strict .` check the plugin and marketplace manifests and the frontmatter of every skill, agent and command.
+- Run the suites: `for t in plugins/mastersoft/tests/*.e2e.js plugins/mastersoft/tests/*.test.js; do node "$t"; done`. The GitLab pipeline (`.gitlab-ci.yml`) runs them, the Android daemon tests, the four `claude plugin validate --strict` checks and `claude plugin test` on relay and timer on every merge request, without credentials.
+- `claude plugin validate --strict plugins/mastersoft`, `claude plugin validate --strict plugins/relay`, `claude plugin validate --strict plugins/timer` and `claude plugin validate --strict .` check the plugin and marketplace manifests and the frontmatter of every skill, agent and command.
 - In a `scripts/dev.sh` session, the **Errors** tab of `/plugin` lists what failed to load and why.
 - The hooks fail quietly on purpose: `lint-engine` writes `[mastersoft] lint-engine skipped: …` to stderr and exits 0, so the prompt goes on. Start the session with `scripts/dev.sh --debug-file /tmp/ms-debug.log`, or run `/debug` in a running one, trigger the event, and search the log for `[mastersoft]` and the hook's event: it shows which hooks matched, their exit codes and their output.
 - Before cutting or merging skills, `claude --plugin-dir "$MASTERSOFT_DEV_DIR" plugin details mastersoft-dev` shows the always-on tokens each skill and agent adds to every session, and `/skill-doctor` (Claude Code 2.1.252+) shows how often each skill is used. Neither counts the context the hooks inject: `/context` in a session does.
