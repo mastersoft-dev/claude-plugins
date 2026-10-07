@@ -54,6 +54,7 @@ const USAGE =
 const activeId = atom({ plugin: 'timer', key: 'activeId' } as const, null)
 const view = atom({ plugin: 'timer', key: 'view' } as const, null)
 const band = atom({ plugin: 'timer', key: 'band' } as const, null)
+const askAfterClear = atom({ plugin: 'timer', key: 'askAfterClear' } as const, null)
 
 type Repo = { key: string; name: string; root: string }
 
@@ -224,6 +225,19 @@ const fromBand = async ($: EngineInterface, action: () => Promise<string>) => {
   const text = await action()
   await beat($)
   $.ui.toast(text.replace(/\n/g, ' · '))
+}
+
+/**
+ * The band's answer after a /clear: keep the timer, now this conversation's
+ * (a /clear goes on under a new session id), or stop it there.
+ */
+const answerAfterClear = async ($: EngineInterface, isKept: boolean): Promise<string> => {
+  await update($, askAfterClear, () => null)
+  if (!isKept) return transition($, stopEntry, 'stopped')
+  const entry = await loadActive($)
+  if (entry === undefined) return 'No timer in this session: /timer start [note].'
+  await saveEntry($, { ...entry, sessionId: await $.session.id() })
+  return `Timer kept: ${describe(entry, await $.clock.now())}`
 }
 
 let draftNote = ''
@@ -671,14 +685,16 @@ export const register: Register = (on, options) => {
   })
 
   on('session.end', async ($, e, next) => {
-    if (e.reason !== 'clear') {
-      ticker?.cancel()
-      ticker = undefined
-      const entry = await loadActive($)
-      const stopped = entry === undefined ? undefined : stopEntry(entry, await $.clock.now())
-      if (stopped !== undefined && typeof stopped !== 'string') await saveEntry($, stopped)
-      await update($, activeId, () => null)
+    const entry = await loadActive($)
+    if (e.reason === 'clear') {
+      if (entry !== undefined && stateOf(entry) !== 'stopped') await update($, askAfterClear, () => entry.id)
+      return next(e)
     }
+    ticker?.cancel()
+    ticker = undefined
+    const stopped = entry === undefined ? undefined : stopEntry(entry, await $.clock.now())
+    if (stopped !== undefined && typeof stopped !== 'string') await saveEntry($, stopped)
+    await update($, activeId, () => null)
     return next(e)
   })
 
@@ -725,6 +741,17 @@ export const register: Register = (on, options) => {
     const book = info.isBookTime && info.unbooked > 0 && (
       <Button key="book" label={`Book all (${info.unbooked})`} onPress={() => fromBand($, () => prepareBooking($))} />
     )
+
+    const asked = await read($, askAfterClear)
+    if (info.state !== 'idle' && asked !== null && asked === (await read($, activeId))) {
+      return (
+        <Box key="timer-band" width={e.props.bodyColumns} justifyContent="flex-end" gap={1}>
+          <Text>Conversation cleared: keep the timer running?</Text>
+          <Button key="keepafterclear" label="Keep running" onPress={() => fromBand($, () => answerAfterClear($, true))} />
+          <Button key="stopafterclear" label="Stop" onPress={() => fromBand($, () => answerAfterClear($, false))} />
+        </Box>
+      )
+    }
 
     if (info.state === 'idle') {
       return (

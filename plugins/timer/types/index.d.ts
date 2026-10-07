@@ -91,6 +91,12 @@ export type Band = {
 
 declare module 'claude-code' {
   interface PluginState {
-    timer: { activeId: string | null; view: View | null; band: Band | null }
+    timer: {
+      activeId: string | null
+      view: View | null
+      band: Band | null
+      /** The timer the band asks about after a /clear: keep it running or stop it. */
+      askAfterClear: string | null
+    }
   }
 }

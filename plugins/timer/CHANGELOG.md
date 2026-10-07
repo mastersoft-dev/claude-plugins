@@ -14,6 +14,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   (`feat/login-sso` books as "login sso"), and links to its own git worktree
   folder, so parallel tasks run by any orchestrator read apart. Default
   branches, or no git at all, keep the repo's name.
+- After `/clear` the band asks whether to keep the timer running or stop it.
+  Keep running makes it the new conversation's timer, so it stays in "This
+  session" and can be selected there.
 
 ### Changed
 

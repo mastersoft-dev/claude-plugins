@@ -69,7 +69,8 @@ const world = (
   on('store.keys', () => ({ value: [...store.keys()] }))
   const calls: Call[] = []
   const files: Record<string, string> = {}
-  on('session.id', () => ({ value: 's1' }))
+  const session = { id: 's1' }
+  on('session.id', () => ({ value: session.id }))
   on('session.cwd', () => ({ value: 'C:/repos/acme-site' }))
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
   on('process.run', ($, e) => {
@@ -98,7 +99,7 @@ const world = (
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, calls, files, store, claims, toasts, panes }
+  return { clock, calls, files, store, claims, toasts, panes, session }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -278,6 +279,35 @@ const BAND = {
   component: 'AbovePrompt',
   props: { hasSurvey: false, isWorking: false, maxRows: 3, bodyColumns: 100, scroll: { offset: 0, bodyRows: 3 }, view: {} },
 } as const
+
+const clearWith = async ($: Engine, on: On, answer: 'keepafterclear' | 'stopafterclear') => {
+  const { clock, store, session } = world(on)
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  await timer($, 'start fix login')
+  await clock.advance(10 * MINUTE)
+  await $.session.end({ reason: 'clear', sessionId: 's1' } as never)
+  session.id = 's2'
+  await timer($, 'status')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /cleared/ }))?.text).toContain('keep the timer running?')
+  await clock.advance(5 * MINUTE)
+  await ui.press({ key: answer })
+  expect(await ui.find({ key: 'keepafterclear' })).toBe(undefined)
+  await ui.unmount()
+  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
+  return entry as { sessionId: string; stoppedAt?: number }
+}
+
+test('after /clear the band asks, and Keep running carries the timer into the new conversation', async ($, on) => {
+  const entry = await clearWith($, on, 'keepafterclear')
+  expect(entry.stoppedAt).toBe(undefined)
+  expect(entry.sessionId).toBe('s2')
+})
+
+test('after /clear the band asks, and Stop ends the timer there', async ($, on) => {
+  const entry = await clearWith($, on, 'stopafterclear')
+  expect(entry.stoppedAt).toBe(T0 + 15 * MINUTE)
+})
 
 test('the ☰ button opens the panel and a second press closes it', async ($, on) => {
   const { panes } = world(on)
