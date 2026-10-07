@@ -8,8 +8,8 @@ agents. Layout, local development, tests and commit types are in
 
 Claude Code plugin: Markdown skills and agents, Node.js hooks and scripts with no
 dependencies, Python helpers for the Android skill. No package manager.
-`plugins/relay` is a TypeScript hooks module typed by the declarations the engine
-lays in its `.claude-plugin/types/`.
+`plugins/relay` and `plugins/timer` are TypeScript hooks modules typed by the
+declarations the engine lays in their `.claude-plugin/types/`.
 
 ## Build & test
 
@@ -26,7 +26,7 @@ lays in its `.claude-plugin/types/`.
 - One-line Conventional Commit subjects, no body. One concern per commit.
 - Every user-facing commit adds its own line to `CHANGELOG.md` (Keep a Changelog sections) in the same commit. Test-only and CI commits don't.
 - No ADR numbers in code, comments or messages; explain the reason in words.
-- No new hooks in `plugins/mastersoft`: behaviour goes in skills and agents. Fix existing hooks when they break. `plugins/relay` is a hooks module by design and ships as its own opt-in plugin.
+- No new hooks in `plugins/mastersoft`: behaviour goes in skills and agents. Fix existing hooks when they break. `plugins/relay` and `plugins/timer` are hooks modules by design and ship as their own opt-in plugins.
 - Before changing anything that depends on Claude Code behaviour, check the current docs (the `claude-doc` MCP server, `search_docs`) and keep the `file:line` in the MR or audit notes, not in the code.
 - Tests build their fixtures in temp dirs; never depend on other checkouts on the machine.
 

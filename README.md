@@ -1,6 +1,6 @@
 # Mastersoft Claude Plugins
 
-Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. Hooks, agents, skills, and a modular statusline ship as the `mastersoft` plugin; [Relay](#relay) is a second, opt-in plugin.
+Shared [Claude Code](https://claude.com/claude-code) marketplace by Mastersoft. Hooks, agents, skills, and a modular statusline ship as the `mastersoft` plugin; [Relay](#relay) and [Timer](#timer) are opt-in plugins.
 
 ## Install
 
@@ -124,7 +124,7 @@ Env var `CLAUDE_STATUSLINE_ICONS` (default `emoji`):
 /reload-plugins
 ```
 
-The same commands update Relay when it is installed.
+The same commands update Relay and Timer when they are installed.
 
 ## Suppression
 
@@ -146,6 +146,17 @@ Install it once the marketplace is added (team members have it already; see [Ins
 ```text
 /plugin install relay@mastersoft
 /relay [opus|sonnet|codex|opencode|gemini] [focused|full] [local|model]
+```
+
+## Timer
+
+`timer` is a separate, opt-in plugin in the same marketplace. It runs a work timer per session from a row above the prompt (start, pause, stop, an auto mode that counts only the time Claude works) and a panel with the day's timers. It recognises the repo's GEWEB project or customer through the `ms` CLI and books the day on the GEWEB live timesheet in one confirmed batch, after a daily reminder. It needs the `ms` CLI logged in with `ms login`; see [plugins/timer/README.md](plugins/timer/README.md).
+
+Install it once the marketplace is added. The changes are in [plugins/timer/CHANGELOG.md](plugins/timer/CHANGELOG.md).
+
+```text
+/plugin install timer@mastersoft
+/timer [status|start <note>|pause|resume|stop|auto|open|project <search>|book|export <file>]
 ```
 
 ## Contributing

@@ -4,23 +4,27 @@ Thanks for considering a contribution. The repo follows a small set of conventio
 
 ## Layout
 
-The marketplace ships two plugins: `plugins/mastersoft/`, enabled for the organization, and `plugins/relay/`, an opt-in hooks module (see "Relay" below). The mastersoft plugin holds:
+The marketplace ships three plugins: `plugins/mastersoft/`, enabled for the organization, and two opt-in hooks modules, `plugins/relay/` and `plugins/timer/` (see "Relay" and "Timer" below). The mastersoft plugin holds:
 
 - `hooks/` — JS hooks loaded by Claude Code (`hooks.json` declares wiring)
 - `agents/` — Markdown agent definitions
 - `skills/<name>/SKILL.md` — skill entry points, with optional `references/` and `assets/` siblings
 - `scripts/` — installers and helper scripts
 
-The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at both plugins. Each plugin's version lives only in its own `.claude-plugin/plugin.json`.
+The top-level `.claude-plugin/marketplace.json` is the marketplace manifest; it points at every plugin. Each plugin's version lives only in its own `.claude-plugin/plugin.json`.
 
 ### Relay
 
 `plugins/relay/` is a hooks module (`hooks/register.tsx`) with its pure logic in `hooks/digest.ts`. Its name is not locked by managed settings, so `claude --plugin-dir plugins/relay` loads the working copy directly and reloads it on save. `claude plugin test plugins/relay` runs its `*.test.ts(x)` files. `tsc -p plugins/relay` type-checks it against the types the engine lays in `.claude-plugin/types/` (ignored by a `.gitignore` the engine writes there): on a fresh clone that folder does not exist until a session has loaded the plugin, so run `claude --plugin-dir plugins/relay` once first.
 
+### Timer
+
+`plugins/timer/` is a hooks module (`hooks/register.tsx`) with its pure logic in `hooks/core.ts` and its GEWEB calls, through the `ms` CLI, in `hooks/geweb.ts`. Like relay, `claude --plugin-dir plugins/timer` loads the working copy, `claude plugin test plugins/timer` runs `tests/*.test.ts`, and `tsc -p plugins/timer` type-checks it once a session has loaded the plugin.
+
 ## Local development
 
 1. Fork and clone the repo.
-2. Edit content under `plugins/mastersoft/` (for `plugins/relay/`, see "Relay" above).
+2. Edit content under `plugins/mastersoft/` (for `plugins/relay/` and `plugins/timer/`, see "Relay" and "Timer" above).
 3. Start a session on your working copy with `scripts/dev.sh`. Arguments pass through to `claude`, for example `scripts/dev.sh -p "/mastersoft-dev:help"`. Restart it to pick up new edits.
 
 ### Why a renamed copy
@@ -76,7 +80,7 @@ Each plugin is versioned on its own, in its `.claude-plugin/plugin.json`. The ma
 
 Feature and fix MRs don't bump it. A release is a `chore(release): vX.Y.Z` commit inside an MR that bumps `plugin.json`, adds `## [X.Y.Z] — <date>` under `## [Unreleased]` in `CHANGELOG.md`, and, on a minor or major, updates the supported-versions table in `SECURITY.md`. There are no git tags: merging the MR, with a merge commit and no squash, is the release.
 
-Relay follows the same flow with its own files: a `chore(release): relay vX.Y.Z` commit bumps `plugins/relay/.claude-plugin/plugin.json` and adds the heading to `plugins/relay/CHANGELOG.md`. Its user-facing commits add their line there, not to the root `CHANGELOG.md`, which is the mastersoft plugin's.
+Relay follows the same flow with its own files: a `chore(release): relay vX.Y.Z` commit bumps `plugins/relay/.claude-plugin/plugin.json` and adds the heading to `plugins/relay/CHANGELOG.md`. Its user-facing commits add their line there, not to the root `CHANGELOG.md`, which is the mastersoft plugin's. Timer does the same with `chore(release): timer vX.Y.Z` and `plugins/timer/`.
 
 GitLab `master` is mirrored to GitHub `mastersoft-dev/claude-plugins`, which the `mastersoft` marketplace reads, so users get the release with `/plugin marketplace update`. The organization also syncs the plugin from claude.ai, where it loads as `mastersoft@synced` from `~/.claude/plugins/synced/` and follows claude.ai's own schedule.
 
