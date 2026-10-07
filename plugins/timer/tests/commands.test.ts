@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
+const SECOND = 1_000
 const MINUTE = 60_000
 const T0 = Date.parse('2026-10-06T07:00:00Z')
 const REMOTE = 'git@gitlab.sermix.com:mastersoft/acme-site.git'
@@ -66,7 +67,11 @@ const world = (
     store.delete(e.key)
     return { value: undefined }
   })
-  on('store.keys', () => ({ value: [...store.keys()] }))
+  const hold = { afterKeys: -1 }
+  on('store.keys', async () => {
+    if (hold.afterKeys >= 0 && hold.afterKeys-- === 0) await clock.sleep(SECOND)
+    return { value: [...store.keys()] }
+  })
   const calls: Call[] = []
   const files: Record<string, string> = {}
   const session = { id: 's1' }
@@ -99,7 +104,7 @@ const world = (
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, calls, files, store, claims, toasts, panes, session }
+  return { clock, calls, files, store, claims, toasts, panes, session, hold }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -351,6 +356,23 @@ test('auto mode counts only the time Claude is working', async ($, on) => {
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
   await clock.advance(20 * MINUTE)
   expect(await timer($, 'stop')).toContain('0h 10m')
+})
+
+test('a heartbeat in flight never undoes the pause auto mode makes when a turn ends', async ($, on) => {
+  const { clock, store, hold } = world(on)
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: '', turnId: e.turnId }) as never)
+  await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
+  await timer($, 'start background job')
+  await timer($, 'auto')
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  hold.afterKeys = 1
+  await clock.advance(30 * SECOND)
+  await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
+  await clock.advance(SECOND)
+  const [, entry] = [...store].find(([key]) => key.startsWith('entry:')) ?? []
+  expect((entry as { segments: { end?: number }[] }).segments.at(-1)?.end).toBe(T0 + 30 * SECOND)
 })
 
 const unlinked = (installs: { id: number; text: string }[]) => (argv: readonly string[]) => {

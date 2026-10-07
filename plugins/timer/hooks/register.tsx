@@ -34,6 +34,7 @@ const MS_PER_MINUTE = 60_000
 const TICK_MS = 30_000
 const STALE_MS = 5 * TICK_MS
 const ENTRY_PREFIX = 'entry:'
+const SEEN_PREFIX = 'seen:'
 const PROJECT_PREFIX = 'project:'
 const LINK_PREFIX = 'link:'
 const REMINDED_PREFIX = 'reminded:'
@@ -80,7 +81,20 @@ const loadEntries = async ($: EngineInterface): Promise<Entry[]> => {
   return values.map(parseEntry).filter((e): e is Entry => e !== undefined)
 }
 
-const saveEntry = ($: EngineInterface, entry: Entry) => $.store.set(ENTRY_PREFIX + entry.id, entry)
+/** Writes an entry; a stopped one no longer beats, so its heartbeat key goes. */
+const saveEntry = async ($: EngineInterface, entry: Entry) => {
+  await $.store.set(ENTRY_PREFIX + entry.id, entry)
+  if (stateOf(entry) === 'stopped') await $.store.delete(SEEN_PREFIX + entry.id)
+}
+
+/**
+ * When an entry's session was last seen alive. The heartbeat lives under its
+ * own key so that a tick never rewrites the entry a pause or a stop just saved.
+ */
+const lastSeenOf = async ($: EngineInterface, entry: Entry): Promise<Entry> => {
+  const seen = await $.store.get(SEEN_PREFIX + entry.id)
+  return typeof seen === 'number' ? { ...entry, lastSeen: Math.max(entry.lastSeen ?? 0, seen) } : entry
+}
 
 const loadActive = async ($: EngineInterface): Promise<Entry | undefined> => {
   const id = await read($, activeId)
@@ -208,7 +222,7 @@ const beat = async ($: EngineInterface) => {
   const state = stateOf(entry) === 'running' ? 'running' : 'paused'
   const worked = formatDuration(workedMs(entry, now))
   const auto = entry.auto === true
-  await saveEntry($, { ...entry, lastSeen: now })
+  await $.store.set(SEEN_PREFIX + entry.id, now)
   $.ui.status(`${state === 'running' ? '⏱' : '⏸ paused'} ${worked}${auto ? ' auto' : ''}`)
   await update($, band, () => ({
     state,
@@ -322,7 +336,8 @@ const recoverStale = async ($: EngineInterface, staleBefore: number): Promise<vo
   const own = await read($, activeId)
   let recovered = 0
   for (const entry of await loadEntries($)) {
-    const closed = entry.id === own ? undefined : closeStale(entry, staleBefore)
+    if (entry.id === own || stateOf(entry) === 'stopped') continue
+    const closed = closeStale(await lastSeenOf($, entry), staleBefore)
     if (closed === undefined) continue
     await saveEntry($, closed)
     recovered += 1
@@ -564,6 +579,7 @@ const deleteEntry = async ($: EngineInterface, id: string) => {
   const entry = await loadEntry($, id)
   if ((await read($, activeId)) === id) await update($, activeId, () => null)
   await $.store.delete(ENTRY_PREFIX + id)
+  await $.store.delete(SEEN_PREFIX + id)
   await update($, view, v => (v?.kind === 'today' ? { ...v, selectedId: null, confirmDeleteId: null } : v))
   await beat($)
   const activities = Object.values(entry?.booked ?? {}).filter(Boolean)
