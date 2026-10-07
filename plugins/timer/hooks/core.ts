@@ -3,6 +3,8 @@ import type { Draft, Entry, Link, Project, Segment, TodayRow } from '../types'
 export const TIME_ZONE = 'Europe/Rome'
 export const BOOKING_STEP_MINUTES = 5
 const MS_PER_MINUTE = 60_000
+const HOUR_MS = 3_600_000
+const DAY_MS = 24 * HOUR_MS
 const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', ''])
 
 export type EntryState = 'running' | 'paused' | 'stopped'
@@ -29,6 +31,41 @@ export const timeOf = (ms: number): string => timeFormat.format(ms)
 
 /** The hour (0-23) of `ms` in GEWEB's time zone. */
 export const hourOf = (ms: number): number => Number(timeOf(ms).slice(0, 2))
+
+const clockFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+
+/**
+ * The first instant of the day after `ms`'s, in GEWEB's time zone. A day of a
+ * clock change is 23 or 25 hours long, so the guess a day on from this one's
+ * midnight is corrected an hour at a time.
+ */
+export const nextMidnight = (ms: number): number => {
+  const [hours = 0, minutes = 0, seconds = 0] = clockFormat.format(ms).split(':').map(Number)
+  const day = dayOf(ms)
+  let midnight = ms - (ms % 1000) - ((hours * 60 + minutes) * 60 + seconds) * 1000 + DAY_MS
+  while (dayOf(midnight) === day) midnight += HOUR_MS
+  while (dayOf(midnight - HOUR_MS) !== day) midnight -= HOUR_MS
+  return midnight
+}
+
+/** A segment cut at every midnight it spans, so that each piece lies in one day; an open one stays open. */
+export const splitAtMidnight = (segment: Segment, now: number): Segment[] => {
+  const end = segment.end ?? now
+  const pieces: Segment[] = []
+  let start = segment.start
+  for (let cut = nextMidnight(start); cut < end; cut = nextMidnight(cut)) {
+    pieces.push({ start, end: cut })
+    start = cut
+  }
+  pieces.push(segment.end === undefined ? { start } : { start, end })
+  return pieces
+}
 
 export const stateOf = (entry: Entry): EntryState => {
   if (entry.stoppedAt !== undefined) return 'stopped'
@@ -136,12 +173,12 @@ export const canonicalRemote = (url: string): string | null => {
 }
 
 /**
- * Minutes worked per day, each closed segment counted on the day it started
- * (GEWEB refuses a day's time past midnight anyway).
+ * Minutes worked per day, closed segments cut at midnight so that each day
+ * books only its own time (GEWEB refuses a day's time past midnight).
  */
 export const minutesByDay = (entry: Entry): Map<string, { minutes: number; firstStart: number }> => {
   const days = new Map<string, { minutes: number; firstStart: number }>()
-  for (const s of entry.segments) {
+  for (const s of entry.segments.flatMap(closed => (closed.end === undefined ? [] : splitAtMidnight(closed, closed.end)))) {
     if (s.end === undefined) continue
     const day = dayOf(s.start)
     const held = days.get(day) ?? { minutes: 0, firstStart: s.start }
@@ -291,7 +328,10 @@ export const todayRows = (
   whereOf: (entry: Entry) => Pick<TodayRow, 'where' | 'repo'>,
 ): TodayRow[] =>
   entries
-    .map(entry => ({ entry, segments: entry.segments.filter(s => dayOf(s.start) === day) }))
+    .map(entry => ({
+      entry,
+      segments: entry.segments.flatMap(s => splitAtMidnight(s, now)).filter(s => dayOf(s.start) === day),
+    }))
     .filter(({ segments }) => segments.length > 0)
     .map(({ entry, segments }) => {
       const first = Math.min(...segments.map(s => s.start))

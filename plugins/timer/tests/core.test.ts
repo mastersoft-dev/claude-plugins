@@ -7,6 +7,7 @@ import {
   closeStale,
   dayOf,
   fileUrl,
+  minutesByDay,
   parseEntry,
   pauseEntry,
   planBooking,
@@ -69,6 +70,26 @@ describe('timer transitions', () => {
   test('pausing a paused timer is refused', () => {
     const paused = pauseEntry(startEntry({ id: 'e', sessionId: 's', repoKey: 'k', repoName: 'r', note: '' }, T0), T0 + MINUTE) as Entry
     expect(typeof pauseEntry(paused, T0 + 2 * MINUTE)).toBe('string')
+  })
+})
+
+describe('midnight', () => {
+  const minutesOf = (e: Entry) => Object.fromEntries([...minutesByDay(e)].map(([day, { minutes }]) => [day, minutes]))
+
+  test('a segment past midnight counts on each day it ran', () => {
+    const night = entry({ segments: [{ start: Date.parse('2026-10-06T20:00:00Z'), end: Date.parse('2026-10-07T06:00:00Z') }] })
+    expect(minutesOf(night)).toEqual({ '2026-10-06': 120, '2026-10-07': 480 })
+  })
+
+  test('the night the clocks go forward has a 23-hour day', () => {
+    const night = entry({ segments: [{ start: Date.parse('2026-03-28T21:00:00Z'), end: Date.parse('2026-03-29T02:00:00Z') }] })
+    expect(minutesOf(night)).toEqual({ '2026-03-28': 120, '2026-03-29': 180 })
+  })
+
+  test('a timer running since yesterday shows today from midnight', () => {
+    const running = entry({ note: 'night job', segments: [{ start: Date.parse('2026-10-05T20:00:00Z') }], stoppedAt: undefined })
+    const [row] = todayRows([running], '2026-10-06', T0, () => ({ where: '' }))
+    expect([row?.from, row?.to, row?.minutes]).toEqual(['00:00', 'now', 9 * 60])
   })
 })
 

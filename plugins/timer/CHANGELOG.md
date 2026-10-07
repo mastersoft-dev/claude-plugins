@@ -33,6 +33,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   seen. Before, a paused one stayed open and was never booked.
 - The 30-second refresh no longer undoes a pause, a stop or a note made while
   it runs: in auto mode a turn's end could be lost and idle time counted.
+- Time past midnight (Italian time, clock changes included) is booked and
+  shown on the day it ran: before, a night's whole run went on the day it
+  started, which GEWEB refused, and the next morning's panel left it out.
 
 ## [0.1.0] — 2026-10-07
 
