@@ -115,7 +115,7 @@ type Line = {
   agentMinutes?: number
 }
 
-const call = async ($: Engine, tool: 'entries' | 'mark_booked', input: Record<string, unknown>) =>
+const call = async ($: Engine, tool: 'entries' | 'mark_booked' | 'add_entry' | 'edit_entry', input: Record<string, unknown>) =>
   (await $.tool.call({ tool: `mcp__timer__${tool}`, input } as never)) as { result?: unknown; deny?: string }
 
 const lines = async ($: Engine, input: Record<string, unknown> = {}) =>
@@ -143,7 +143,7 @@ test('the session registers the entries and mark_booked tools', async ($, on) =>
   const { tools } = world(on)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: 'C:/repos/acme-site' } as never)
-  expect(tools).toEqual(['entries', 'mark_booked'])
+  expect(tools).toEqual(['entries', 'mark_booked', 'add_entry', 'edit_entry'])
 })
 
 test('the entries tool lists each timer and day with its minutes, start and title', async ($, on) => {
@@ -175,6 +175,40 @@ test('mark_booked takes a day out of the entries tool and the band hint', async 
   expect(await lines($)).toEqual([])
   expect((await lines($, { includeBooked: true })).map(l => l.booked)).toEqual(['900'])
   expect(await timer($, 'status')).not.toContain('not booked')
+})
+
+test('add_entry adds a stopped timer for time worked with no timer running, overlaps named', async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  const added = (await call($, 'add_entry', { day: '2026-10-06', start: '08:00', end: '09:30', note: 'call with Beta', tags: ['meeting'] })) as {
+    result?: { lines: (Line & { overlaps?: unknown[]; tags?: string[] })[] }
+  }
+  expect(added.result?.lines.map(l => [l.start, l.minutes, l.title, l.tags, l.overlaps?.length])).toEqual([['08:00', 90, 'call with Beta', ['meeting'], 1]])
+  expect((await call($, 'add_entry', { day: '2026-10-06', start: '11:00', end: '12:00' })).deny).toContain('still to come')
+})
+
+test('edit_entry moves a timer\'s start and renames it, but keeps a booked day\'s times', async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  const [line] = await lines($)
+  const edited = (await call($, 'edit_entry', { entryId: line?.entryId, day: line?.day, start: '09:30', note: 'fix login SSO' })) as {
+    result?: { lines: Line[] }
+  }
+  expect(edited.result?.lines.map(l => [l.start, l.minutes, l.title])).toEqual([['09:30', 33, 'fix login SSO']])
+  await call($, 'mark_booked', { entryId: line?.entryId, day: line?.day, reference: '900' })
+  expect((await call($, 'edit_entry', { entryId: line?.entryId, day: line?.day, end: '10:00' })).deny).toContain('already booked (900)')
+  expect((await call($, 'edit_entry', { entryId: line?.entryId, day: line?.day, tags: ['review'] })).result).toBeDefined()
+})
+
+test('edit_entry refuses a start still to come and a day the timer has no time on', async ($, on) => {
+  const { clock } = world(on)
+  await timer($, 'start fix login')
+  await clock.advance(10 * MINUTE)
+  await timer($, 'pause')
+  const [line] = await lines($)
+  expect((await call($, 'edit_entry', { entryId: line?.entryId, day: '2026-10-06', start: '09:30' })).deny).toContain('already passed')
+  expect((await call($, 'edit_entry', { entryId: line?.entryId, day: '2026-10-05', note: 'x' })).deny).toContain('no time on 2026-10-05')
+  expect((await call($, 'edit_entry', { entryId: line?.entryId, day: '2026-10-06', note: 'fix login SSO' })).result).toBeDefined()
 })
 
 test('mark_booked refuses an unknown timer, a day with no time and a missing reference', async ($, on) => {

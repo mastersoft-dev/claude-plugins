@@ -32,6 +32,8 @@ export const timeOf = (ms: number): string => timeFormat.format(ms)
 /** The message of a rejection, without the `Error:` prefix. */
 export const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
 const clockFormat = new Intl.DateTimeFormat('en-GB', {
   timeZone: TIME_ZONE,
   hour: '2-digit',
@@ -53,6 +55,31 @@ export const nextMidnight = (ms: number): number => {
   while (dayOf(midnight - HOUR_MS) !== day) midnight -= HOUR_MS
   return midnight
 }
+
+/** A wall-clock time of day, HH:mm. */
+export const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
+
+const isAt = (t: number, day: string, time: string) => dayOf(t) === day && timeOf(t) === time
+
+/**
+ * The instant a wall-clock `time` (HH:mm) on `day` stands for in the timer's
+ * time zone; undefined for a malformed one, a day the calendar lacks, or a
+ * time the clock skipped when it moved forward. Of a time the clock passed
+ * twice, as it moved back, the first.
+ */
+export const instantOf = (day: string, time: string): number | undefined => {
+  if (!DAY.test(day) || !CLOCK.test(time)) return undefined
+  const target = Date.parse(`${day}T${time}:00Z`)
+  if (Number.isNaN(target)) return undefined
+  let t = target
+  for (let i = 0; i < 3; i++) t += target - Date.parse(`${dayOf(t)}T${clockFormat.format(t)}Z`)
+  if (!isAt(t, day, time)) return undefined
+  return isAt(t - HOUR_MS, day, time) ? t - HOUR_MS : t
+}
+
+/** Whether an entry has time, closed or still running, between `dayStart` and `dayEnd`. */
+export const hasTimeIn = (entry: Entry, dayStart: number, dayEnd: number): boolean =>
+  entry.segments.some(s => (s.end ?? Infinity) > dayStart && s.start < dayEnd)
 
 /** A segment cut at every midnight it spans, so that each piece lies in one day; an open one stays open. */
 export const splitAtMidnight = (segment: Segment, now: number): Segment[] => {
@@ -371,8 +398,6 @@ export const bookingLines = (
     .map(({ line }) => line)
 }
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/
-
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 /** The `entries` tool's input, or why it is refused. */
@@ -398,6 +423,108 @@ export const parseMark = (input: unknown): { entryId: string; day: string; refer
   if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
   if (typeof reference !== 'string' || reference.trim() === '') return 'reference must say where the time was booked.'
   return { entryId, day, reference: reference.trim() }
+}
+
+/** What the `add_entry` tool takes: a stretch of one day, Italian time, and what it was. */
+export type NewEntry = { day: string; start: number; end: number; note: string; tags: string[] }
+
+/** What the `edit_entry` tool takes: one timer's day, and what to change of it. */
+export type EntryEdit = { entryId: string; day: string; start?: number; end?: number; note?: string; tags?: string[] }
+
+const optionalText = (value: unknown, name: string): string | undefined | Error =>
+  value === undefined || typeof value === 'string' ? value : new Error(`${name} must be text.`)
+
+const optionalTags = (value: unknown): string[] | undefined | Error => {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every(tag => typeof tag === 'string')) return new Error('tags must be a list of words.')
+  return parseTags(value.join(' '))
+}
+
+const optionalTime = (day: string, value: unknown, name: string): number | undefined | Error => {
+  if (value === undefined) return undefined
+  const instant = typeof value === 'string' ? instantOf(day, value) : undefined
+  return instant ?? new Error(`${name} must be a time of ${day}, HH:mm Italian time.`)
+}
+
+/** The `add_entry` tool's input, or why it is refused. */
+export const parseNewEntry = (input: unknown): NewEntry | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { day, note, tags } = input
+  if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
+  const start = optionalTime(day, input.start, 'start')
+  const end = optionalTime(day, input.end, 'end')
+  const text = optionalText(note, 'note')
+  const labels = optionalTags(tags)
+  for (const value of [start, end, text, labels]) if (value instanceof Error) return value.message
+  if (start === undefined || end === undefined) return 'start and end are both needed, HH:mm Italian time.'
+  if (end <= start) return 'end must come after start; time past midnight goes on the next day.'
+  return { day, start: start as number, end: end as number, note: ((text as string | undefined) ?? '').trim(), tags: (labels as string[] | undefined) ?? [] }
+}
+
+/** The `edit_entry` tool's input, or why it is refused. */
+export const parseEntryEdit = (input: unknown): EntryEdit | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { entryId, day, note, tags } = input
+  if (typeof entryId !== 'string' || entryId === '') return 'entryId must be a line’s entryId from the entries tool.'
+  if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
+  const start = optionalTime(day, input.start, 'start')
+  const end = optionalTime(day, input.end, 'end')
+  const text = optionalText(note, 'note')
+  const labels = optionalTags(tags)
+  for (const value of [start, end, text, labels]) if (value instanceof Error) return value.message
+  if ([start, end, text, labels].every(value => value === undefined)) return 'Say what to change: start, end, note or tags.'
+  if (typeof start === 'number' && typeof end === 'number' && end <= start) return 'end must come after start.'
+  return {
+    entryId,
+    day,
+    ...(start === undefined ? {} : { start: start as number }),
+    ...(end === undefined ? {} : { end: end as number }),
+    ...(text === undefined ? {} : { note: (text as string).trim() }),
+    ...(labels === undefined ? {} : { tags: labels as string[] }),
+  }
+}
+
+/** Segments in order, those that touch or overlap joined into one. */
+const joined = (segments: readonly Segment[]): Segment[] =>
+  [...segments]
+    .sort((a, b) => a.start - b.start)
+    .reduce<Segment[]>((out, s) => {
+      const last = out.at(-1)
+      if (last === undefined || (last.end !== undefined && last.end < s.start)) return [...out, s]
+      const end = last.end === undefined || s.end === undefined ? undefined : Math.max(last.end, s.end)
+      return [...out.slice(0, -1), end === undefined ? { start: last.start } : { start: last.start, end }]
+    }, [])
+
+/**
+ * An entry with its time on `day` (from `dayStart` to `dayEnd`) made to begin
+ * at `start` and to end at `end`, either left as it is when absent: earlier
+ * than its first start, or later than its last end, widens the day's first or
+ * last segment; inside them, cuts the time before or after away. Refused when
+ * the entry has no time that day, when it would have none left, and for the
+ * end of a timer still running.
+ */
+export const reshapeDay = (
+  entry: Entry,
+  day: string,
+  { dayStart, dayEnd, start, end }: { dayStart: number; dayEnd: number; start?: number; end?: number },
+): Entry | string => {
+  const ofDay = entry.segments.filter(s => (s.end ?? Infinity) > dayStart && s.start < dayEnd)
+  const first = ofDay[0]
+  const last = ofDay.at(-1)
+  if (first === undefined || last === undefined) return `Timer ${entry.id} has no time on ${day}.`
+  if (end !== undefined && last.end === undefined) return 'The timer is still running: stop it before changing its end.'
+  let segments = entry.segments
+  if (start !== undefined && start < first.start) segments = segments.map(s => (s === first ? { ...s, start } : s))
+  if (end !== undefined && last.end !== undefined && end > last.end) segments = segments.map(s => (s === last ? { ...s, end } : s))
+  let reshaped: Entry = { ...entry, segments: joined(segments) }
+  if (start !== undefined && start > Math.max(first.start, dayStart)) reshaped = cutRange(reshaped, dayStart, start)
+  if (end !== undefined && end < Math.min(last.end ?? Infinity, dayEnd)) reshaped = cutRange(reshaped, end, dayEnd)
+  if (!hasTimeIn(reshaped, dayStart, dayEnd)) {
+    return `That leaves no time on ${day}: delete the timer in the panel instead.`
+  }
+  const lastEnd = reshaped.segments.at(-1)?.end
+  const isEndMoved = lastEnd !== entry.segments.at(-1)?.end
+  return reshaped.stoppedAt === undefined || lastEnd === undefined || !isEndMoved ? reshaped : { ...reshaped, stoppedAt: lastEnd }
 }
 
 /**

@@ -3,6 +3,7 @@ import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-co
 
 import type { Away, Entry, TodayTab } from '../types'
 import {
+  CLOCK,
   PATH_KEY_PREFIX,
   addAgentRun,
   awayOf,
@@ -15,16 +16,22 @@ import {
   errorText,
   fileUrl,
   formatDuration,
+  hasTimeIn,
+  instantOf,
   isExpired,
   markBooked,
+  nextMidnight,
   parseAgentMs,
   parseBookingRange,
   parseEntry,
+  parseEntryEdit,
   parseMark,
+  parseNewEntry,
   parseTags,
   pauseEntry,
   pendingDays,
   reopenEntry,
+  reshapeDay,
   resumeEntry,
   segmentsWithin,
   startEntry,
@@ -56,7 +63,6 @@ const SPLIT = 'split'
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
 const DEFAULT_RETENTION_DAYS = 90
-const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 const EXPORT_PREFIX = 'timer-export-'
 const EXPORT_SUFFIX = '.csv'
 const TODAY_TITLE = 'Timer'
@@ -64,6 +70,8 @@ const PANEL_CHROME_ROWS = 9
 const PANEL_MAX_ROWS = 30
 const ENTRIES_TOOL = 'entries'
 const MARK_TOOL = 'mark_booked'
+const ADD_TOOL = 'add_entry'
+const EDIT_TOOL = 'edit_entry'
 const ASK_TO_BOOK = 'ask Claude to book them'
 const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file.csv]'
 
@@ -692,6 +700,66 @@ const continueEntry = async ($: EngineInterface, id: string): Promise<string> =>
   return `Continuing: ${describe(reopened, now)}`
 }
 
+/** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
+const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
+  bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents).filter(
+    line => line.entryId === entryId,
+  )
+
+/** Adds a stopped timer for time worked with no timer running, in this session's repo and folder. */
+const addEntry = async ($: EngineInterface, input: unknown) => {
+  const added = parseNewEntry(input)
+  if (typeof added === 'string') return { deny: added }
+  if (added.end > (await $.clock.now())) return { deny: 'end is still to come: add only time already worked.' }
+  const repo = await repoOf($)
+  const worktree = await worktreeOf(runnerOf($))
+  const id = crypto.randomUUID()
+  await saveEntry($, {
+    id,
+    sessionId: await $.session.id(),
+    repoKey: repo.key,
+    repoName: repo.name,
+    note: added.note,
+    ...(added.tags.length === 0 ? {} : { tags: added.tags }),
+    segments: [{ start: added.start, end: added.end }],
+    stoppedAt: added.end,
+    location: worktree?.root ?? repo.root,
+    ...(worktree === undefined ? {} : { branch: worktree.branch }),
+  })
+  await beat($)
+  return { result: { lines: await linesOf($, id, added.day) } }
+}
+
+/** Changes one timer's day: its start or end, Italian time, and its note or tags. */
+const editEntry = async ($: EngineInterface, input: unknown) => {
+  const change = parseEntryEdit(input)
+  if (typeof change === 'string') return { deny: change }
+  const entry = await loadEntry($, change.entryId)
+  if (entry === undefined) return { deny: `No timer ${change.entryId}: list them with the entries tool.` }
+  const isRetimed = change.start !== undefined || change.end !== undefined
+  const booked = entry.booked?.[change.day]
+  if (isRetimed && booked !== undefined) {
+    return { deny: `${change.day} of that timer is already booked (${String(booked)}): change the booking first.` }
+  }
+  const dayStart = instantOf(change.day, '00:00')
+  if (dayStart === undefined || !hasTimeIn(entry, dayStart, nextMidnight(dayStart))) {
+    return { deny: `Timer ${entry.id} has no time on ${change.day}.` }
+  }
+  const now = await $.clock.now()
+  if ((change.start ?? 0) > now || (change.end ?? 0) > now) return { deny: 'start and end must be times already passed.' }
+  const reshaped = isRetimed
+    ? reshapeDay(entry, change.day, { dayStart, dayEnd: nextMidnight(dayStart), start: change.start, end: change.end })
+    : entry
+  if (typeof reshaped === 'string') return { deny: reshaped }
+  await saveEntry($, {
+    ...reshaped,
+    ...(change.note === undefined ? {} : { note: change.note }),
+    ...(change.tags === undefined ? {} : { tags: change.tags }),
+  })
+  await beat($)
+  return { result: { lines: await linesOf($, entry.id, change.day) } }
+}
+
 const closePane = async ($: EngineInterface) => {
   await update($, view, () => null)
   await $.ui.close({ id: PANE })
@@ -701,7 +769,7 @@ let ticker: Timer | undefined
 
 export const register: Register = (on, options) => {
   const configured = String(options.reminderTime ?? '')
-  reminderAt = CLOCK_TIME.test(configured) ? configured : DEFAULT_REMINDER
+  reminderAt = CLOCK.test(configured) ? configured : DEFAULT_REMINDER
   const retention = Number(options.retentionDays)
   retentionDays = Number.isInteger(retention) && retention > 0 ? retention : DEFAULT_RETENTION_DAYS
   countsAgents = options.agentTime === SUMMED
@@ -747,6 +815,41 @@ export const register: Register = (on, options) => {
         additionalProperties: false,
       },
     })
+    await $.tool.register({
+      name: ADD_TOOL,
+      description:
+        'Adds a timer for time the person worked with no timer running (they forgot to start it): one stretch of one day, Italian time, stopped, in this session\'s repo and folder, with a note and tags. Use it only when the person says what they worked on and when. Answers the new timer as the entries tool lists it, overlaps with other timers included.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          day: { type: 'string', description: 'The day, YYYY-MM-DD' },
+          start: { type: 'string', description: 'When the work began, HH:mm Italian time' },
+          end: { type: 'string', description: 'When it ended, HH:mm Italian time, the same day and not later than now' },
+          note: { type: 'string', description: 'What the work was; it names the timer when booked' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'Labels such as review or meeting' },
+        },
+        required: ['day', 'start', 'end'],
+        additionalProperties: false,
+      },
+    })
+    await $.tool.register({
+      name: EDIT_TOOL,
+      description:
+        "Changes one timer's day, as the person asks: when its time that day begins or ends (Italian time; earlier widens it, later cuts the time before or after away), and its note or tags. A day already booked keeps its times. Answers the timer's line for that day as the entries tool lists it.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          entryId: { type: 'string', description: 'The line’s entryId from the entries tool' },
+          day: { type: 'string', description: 'The line’s day, YYYY-MM-DD' },
+          start: { type: 'string', description: 'The new start that day, HH:mm Italian time' },
+          end: { type: 'string', description: 'The new end that day, HH:mm Italian time' },
+          note: { type: 'string', description: 'The new note; empty names the timer after its branch or repo' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'The new tags, replacing the old; empty clears them' },
+        },
+        required: ['entryId', 'day'],
+        additionalProperties: false,
+      },
+    })
     await prune($)
     if ((await read($, activeId)) === null) {
       const sessionId = await $.session.id()
@@ -784,6 +887,10 @@ export const register: Register = (on, options) => {
     await beat($)
     return { result: { entryId: mark.entryId, day: mark.day, booked: mark.reference } }
   })
+
+  on('tool.call', { tool: 'mcp__timer__add_entry' }, ($, e) => addEntry($, e.input))
+
+  on('tool.call', { tool: 'mcp__timer__edit_entry' }, ($, e) => editEntry($, e.input))
 
   on('prompt.edit', async ($, e, next) => {
     const edited = await next(e)

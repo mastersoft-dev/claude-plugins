@@ -10,6 +10,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Two tools for Claude: `mcp__timer__add_entry` adds a timer for time worked
+  with no timer running ("I forgot to start it at 9"), and
+  `mcp__timer__edit_entry` changes a timer's start or end on a day, its note
+  or its tags. A day already booked keeps its times.
 - Tags on a timer (`/timer tag review meeting`, or the Tags box of a timer
   selected in the panel), shown in the panel, listed by the entries tool and
   written to a new last `tags` column of the CSV export.

@@ -12,15 +12,19 @@ import {
   dayMinutes,
   dayOf,
   fileUrl,
+  instantOf,
   isExpired,
   markBooked,
   minutesByDay,
   parseBookingRange,
   parseEntry,
+  parseEntryEdit,
   parseMark,
+  parseNewEntry,
   parseTags,
   pauseEntry,
   pendingDays,
+  reshapeDay,
   resumeEntry,
   segmentsWithin,
   sharedMs,
@@ -374,5 +378,76 @@ describe('parseTags', () => {
     expect(parseTags('  ')).toEqual([])
     expect(parseTags(Array.from({ length: 12 }, (_, i) => `t${i}`).join(' '))).toHaveLength(10)
     expect(parseTags('x'.repeat(40))).toEqual(['x'.repeat(32)])
+  })
+})
+
+describe('instantOf', () => {
+  test('reads a wall-clock time of the day in Italian time, clock changes included', () => {
+    expect(instantOf('2026-10-06', '09:00')).toBe(T0)
+    expect(instantOf('2026-01-15', '09:00')).toBe(Date.parse('2026-01-15T08:00:00Z'))
+    expect(instantOf('2026-03-29', '02:30')).toBe(undefined)
+    expect(instantOf('2026-10-25', '02:30')).toBe(Date.parse('2026-10-25T00:30:00Z'))
+    expect(instantOf('2026-02-31', '09:00')).toBe(undefined)
+    expect(instantOf('2026-10-06', '9:00')).toBe(undefined)
+  })
+})
+
+describe('parseNewEntry and parseEntryEdit', () => {
+  test('take a stretch of one day and refuse one that ends before it starts', () => {
+    expect(parseNewEntry({ day: '2026-10-06', start: '09:00', end: '10:00', note: ' call ', tags: ['#meeting'] })).toEqual({
+      day: '2026-10-06',
+      start: T0,
+      end: T0 + 60 * MINUTE,
+      note: 'call',
+      tags: ['meeting'],
+    })
+    expect(parseNewEntry({ day: '2026-10-06', start: '10:00', end: '09:00' })).toContain('end must come after start')
+    expect(parseNewEntry({ day: '2026-10-06', start: '10:00' })).toContain('start and end are both needed')
+  })
+
+  test('an edit says what to change', () => {
+    expect(parseEntryEdit({ entryId: 'e1', day: '2026-10-06' })).toContain('Say what to change')
+    expect(parseEntryEdit({ entryId: 'e1', day: '2026-10-06', start: '09:30' })).toEqual({ entryId: 'e1', day: '2026-10-06', start: T0 + 30 * MINUTE })
+  })
+})
+
+describe('reshapeDay', () => {
+  const day = { dayStart: Date.parse('2026-10-05T22:00:00Z'), dayEnd: Date.parse('2026-10-06T22:00:00Z') }
+  const two = entry({ segments: [{ start: T0, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 90 * MINUTE }], stoppedAt: T0 + 90 * MINUTE })
+
+  test('an earlier start or a later end widens the first or last segment', () => {
+    const wider = reshapeDay(two, '2026-10-06', { ...day, start: T0 - 15 * MINUTE, end: T0 + 120 * MINUTE }) as Entry
+    expect(wider.segments).toEqual([{ start: T0 - 15 * MINUTE, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 120 * MINUTE }])
+    expect(wider.stoppedAt).toBe(T0 + 120 * MINUTE)
+  })
+
+  test('a later start or an earlier end cuts the time before or after away', () => {
+    const narrower = reshapeDay(two, '2026-10-06', { ...day, start: T0 + 15 * MINUTE, end: T0 + 70 * MINUTE }) as Entry
+    expect(narrower.segments).toEqual([{ start: T0 + 15 * MINUTE, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 70 * MINUTE }])
+    expect(narrower.stoppedAt).toBe(T0 + 70 * MINUTE)
+  })
+
+  test('a later start on a segment from the day before keeps that day\'s part, and touching segments join', () => {
+    const night = entry({ segments: [{ start: day.dayStart - 60 * MINUTE, end: day.dayStart + 60 * MINUTE }], stoppedAt: day.dayStart + 60 * MINUTE })
+    expect((reshapeDay(night, '2026-10-06', { ...day, start: day.dayStart + 30 * MINUTE }) as Entry).segments).toEqual([
+      { start: day.dayStart - 60 * MINUTE, end: day.dayStart },
+      { start: day.dayStart + 30 * MINUTE, end: day.dayStart + 60 * MINUTE },
+    ])
+    const split = entry({ segments: [{ start: day.dayStart - 60 * MINUTE, end: day.dayStart }, { start: day.dayStart + 30 * MINUTE, end: day.dayStart + 60 * MINUTE }] })
+    expect((reshapeDay(split, '2026-10-06', { ...day, start: day.dayStart }) as Entry).segments).toEqual([
+      { start: day.dayStart - 60 * MINUTE, end: day.dayStart + 60 * MINUTE },
+    ])
+  })
+
+  test('a stopped timer keeps its stop when its end is not moved', () => {
+    const late = entry({ segments: [{ start: T0, end: T0 + 30 * MINUTE }], stoppedAt: T0 + 40 * MINUTE })
+    expect((reshapeDay(late, '2026-10-06', { ...day, start: T0 + 10 * MINUTE }) as Entry).stoppedAt).toBe(T0 + 40 * MINUTE)
+  })
+
+  test('refuses a day with no time, one left with none, and the end of a running timer', () => {
+    expect(reshapeDay(two, '2026-10-07', { dayStart: day.dayEnd, dayEnd: day.dayEnd + 24 * 60 * MINUTE, start: day.dayEnd })).toContain('no time on 2026-10-07')
+    expect(reshapeDay(two, '2026-10-06', { ...day, start: T0 + 100 * MINUTE })).toContain('leaves no time')
+    const running = entry({ segments: [{ start: T0 }], stoppedAt: undefined })
+    expect(reshapeDay(running, '2026-10-06', { ...day, end: T0 + 10 * MINUTE })).toContain('still running')
   })
 })
