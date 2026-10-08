@@ -64,12 +64,15 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('session.cwd', () => ({ value: 'C:/repos/acme-site' }))
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
   const orca = { worktree: null as Record<string, unknown> | null }
-  const git = { head }
-  on('process.run', ($, e) =>
-    e.argv[0] === 'orca'
-      ? { value: orcaAnswer(orca.worktree) }
-      : { value: gitAnswer(git.head) },
-  )
+  const git = { head, email: 'caruso@mastersoft.it\n' as string | null }
+  const commands: { argv: readonly string[]; cwd?: string }[] = []
+  on('process.run', ($, e) => {
+    commands.push({ argv: e.argv, ...(e.init?.cwd === undefined ? {} : { cwd: e.init.cwd }) })
+    if (e.argv[0] === 'orca') return { value: orcaAnswer(orca.worktree) }
+    if (e.argv[1] === 'config') return { value: gitAnswer(git.email) }
+    if (e.argv[1] === 'log') return { value: gitAnswer('a1b2c3d\tfix: refresh the SSO token\n9f8e7d6\tfeat: add the SSO login\n') }
+    return { value: gitAnswer(git.head) }
+  })
   on('fs.write', ($, e) => {
     files[e.path] = e.text
     return { value: undefined }
@@ -99,7 +102,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('ui.log', () => ({ value: undefined }))
   on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
   on('prompt.submit', ($, e) => ({ text: e.text }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -170,6 +173,31 @@ test('with roundTo set, the entries tool rounds each line and keeps the exact mi
   const { clock } = world(on)
   await trackAndStop($, clock)
   expect((await lines($)).map(l => [l.minutes, (l as { exactMinutes?: number }).exactMinutes])).toEqual([[60, 63]])
+})
+
+test('with includeCommits, each line lists the person\'s commits in its folder while the timer ran', async ($, on) => {
+  const { clock, commands } = world(on)
+  await trackAndStop($, clock)
+  const [line] = await lines($, { includeCommits: true })
+  expect((line as { commits?: unknown }).commits).toEqual([
+    { hash: 'a1b2c3d', subject: 'fix: refresh the SSO token' },
+    { hash: '9f8e7d6', subject: 'feat: add the SSO login' },
+  ])
+  const log = commands.find(c => c.argv[1] === 'log')
+  expect(log?.cwd).toBe('C:/repos/acme-site')
+  expect(log?.argv).toContain(`--since=@${T0 / 1000}`)
+  expect(log?.argv).toContain(`--until=@${(T0 + 63 * MINUTE) / 1000}`)
+  expect(log?.argv).toContain('--author=caruso@mastersoft.it')
+  expect(log?.argv).toContain('--fixed-strings')
+  expect((await lines($)).map(l => (l as { commits?: unknown }).commits)).toEqual([undefined])
+})
+
+test('with no git user.email, a line\'s commits are null rather than everyone\'s', async ($, on) => {
+  const { clock, git, commands } = world(on)
+  git.email = null
+  await trackAndStop($, clock)
+  expect((await lines($, { includeCommits: true })).map(l => (l as { commits?: unknown }).commits)).toEqual([null])
+  expect(commands.some(c => c.argv[1] === 'log')).toBe(false)
 })
 
 test('mark_booked takes a day out of the entries tool and the band hint', async ($, on) => {

@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The entries tool takes `includeCommits`: each line then lists the commits
+  you made in its folder while the timer ran that day, for Claude to write
+  the booking's description from.
 - The `roundTo` setting (0, off, by default) rounds each timer's minutes of a
   day to the nearest multiple when Claude books them, never below one; the
   entries tool then lists the minutes before rounding as `exactMinutes`.

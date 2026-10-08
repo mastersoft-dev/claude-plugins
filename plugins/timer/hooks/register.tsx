@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
 
-import type { Away, Entry, TodayTab } from '../types'
+import type { Away, BookingLine, Entry, TodayTab } from '../types'
 import {
   CLOCK,
   PATH_KEY_PREFIX,
@@ -12,6 +12,7 @@ import {
   closeStale,
   cutRange,
   dayMinutes,
+  daySpan,
   dayOf,
   errorText,
   fileUrl,
@@ -43,7 +44,7 @@ import {
   todayRows,
   workedMs,
 } from './core'
-import { worktreeOf } from './git'
+import { authorOf, commitsBetween, worktreeOf } from './git'
 import type { Runner } from './git'
 import { orcaTaskOf } from './orca'
 
@@ -702,6 +703,30 @@ const continueEntry = async ($: EngineInterface, id: string): Promise<string> =>
   return `Continuing: ${describe(reopened, now)}`
 }
 
+/**
+ * Adds to each line the person's commits in its folder while its timer ran
+ * that day, null where git can't say (no repository, no user.email). One git
+ * call at a time, and the author asked once per folder.
+ */
+const withCommits = async ($: EngineInterface, entries: readonly Entry[], lines: BookingLine[]): Promise<BookingLine[]> => {
+  const byId = new Map(entries.map(entry => [entry.id, entry]))
+  const authors = new Map<string, string | undefined>()
+  const out: BookingLine[] = []
+  for (const line of lines) {
+    const entry = byId.get(line.entryId)
+    const span = entry === undefined ? undefined : daySpan(entry, line.day)
+    if (line.folder === undefined || span === undefined) {
+      out.push(line)
+      continue
+    }
+    if (!authors.has(line.folder)) authors.set(line.folder, await authorOf(runnerOf($), line.folder))
+    const author = authors.get(line.folder)
+    const commits = author === undefined ? undefined : await commitsBetween(runnerOf($), line.folder, author, span)
+    out.push(commits === undefined ? { ...line, commits: null } : commits.length === 0 ? line : { ...line, commits })
+  }
+  return out
+}
+
 /** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
 const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
   bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents, roundTo).filter(
@@ -793,13 +818,14 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. With includeCommits, each line also lists the person's commits on the local branches of its folder while the timer ran that day (hash and subject, at most twenty; null when git could not say, such as with no user.email), to write the booking's description from. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {
           from: { type: 'string', description: 'First day to list, YYYY-MM-DD' },
           to: { type: 'string', description: 'Last day to list, YYYY-MM-DD' },
           includeBooked: { type: 'boolean', description: 'Also list days already booked' },
+          includeCommits: { type: 'boolean', description: "Also list the person's commits made while each timer ran" },
         },
         additionalProperties: false,
       },
@@ -877,7 +903,9 @@ export const register: Register = (on, options) => {
     const range = parseBookingRange(e.input)
     if (typeof range === 'string') return { deny: range }
     await recoverStale($, lastTickAt)
-    return { result: { lines: bookingLines(await loadEntries($), range, countsAgents, roundTo) } }
+    const entries = await loadEntries($)
+    const found = bookingLines(entries, range, countsAgents, roundTo)
+    return { result: { lines: range.includeCommits === true ? await withCommits($, entries, found) : found } }
   })
 
   on('tool.call', { tool: 'mcp__timer__mark_booked' }, async ($, e) => {

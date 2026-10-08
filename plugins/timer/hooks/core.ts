@@ -311,6 +311,15 @@ export const isExpired = (entry: Entry, now: number, retentionDays: number): boo
   return stoppedAt < now - retentionDays * DAY_MS
 }
 
+/** The span of an entry's closed time on `day`, from its first start to its last end; undefined with none. */
+export const daySpan = (entry: Entry, day: string): { since: number; until: number } | undefined => {
+  const pieces = closedPiecesByDay(entry).get(day) ?? []
+  const first = pieces[0]
+  return first === undefined
+    ? undefined
+    : { since: Math.min(...pieces.map(s => s.start)), until: Math.max(...pieces.map(s => s.end ?? s.start)) }
+}
+
 /**
  * Minutes rounded for booking to the nearest multiple of `step`, never below
  * one step for time worked; a `step` of 0 leaves them whole.
@@ -413,15 +422,20 @@ export const bookingLines = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
+/** What the `entries` tool takes: the days to list, and whether to add booked days and commits. */
+export type BookingRange = { from?: string; to?: string; includeBooked?: boolean; includeCommits?: boolean }
+
 /** The `entries` tool's input, or why it is refused. */
-export const parseBookingRange = (input: unknown): { from?: string; to?: string; includeBooked?: boolean } | string => {
+export const parseBookingRange = (input: unknown): BookingRange | string => {
   if (!isRecord(input)) return 'The input must be an object.'
-  const { from, to, includeBooked } = input
+  const { from, to, includeBooked, includeCommits } = input
   for (const [name, value] of [['from', from], ['to', to]] as const) {
     if (value !== undefined && (typeof value !== 'string' || !DAY.test(value))) return `${name} must be a day, YYYY-MM-DD.`
   }
   if (includeBooked !== undefined && typeof includeBooked !== 'boolean') return 'includeBooked must be true or false.'
+  if (includeCommits !== undefined && typeof includeCommits !== 'boolean') return 'includeCommits must be true or false.'
   return {
+    ...(includeCommits === undefined ? {} : { includeCommits }),
     ...(from === undefined ? {} : { from: from as string }),
     ...(to === undefined ? {} : { to: to as string }),
     ...(includeBooked === undefined ? {} : { includeBooked }),

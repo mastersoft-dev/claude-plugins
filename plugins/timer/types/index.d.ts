@@ -56,6 +56,8 @@ export type BookingLine = {
   booked?: string
   /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
   agentMinutes?: number
+  /** The person's commits in the timer's folder while it ran that day, when asked for; null when git couldn't say. */
+  commits?: { hash: string; subject: string }[] | null
   /** The other timers that ran at the same time that day, with the whole minutes they share with this one. */
   overlaps?: { entryId: string; title: string; minutes: number }[]
 }
