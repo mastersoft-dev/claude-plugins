@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- What Claude's work costs while a timer runs is recorded per day: the
+  entries tool lists it as `costUsd` and the panel shows it beside the repo.
 - The entries tool takes `includeCommits`: each line then lists the commits
   you made in its folder while the timer ran that day, for Claude to write
   the booking's description from.

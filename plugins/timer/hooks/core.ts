@@ -3,6 +3,7 @@ import type { BookingLine, Entry, Segment, TodayRow } from '../types'
 export const TIME_ZONE = 'Europe/Rome'
 export const PATH_KEY_PREFIX = 'path:'
 const MS_PER_MINUTE = 60_000
+const CENTS = 100
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', ''])
@@ -114,10 +115,12 @@ export const addAgentRun = (byDay: Record<string, number>, end: number, duration
   return added
 }
 
-/** The per-day agent time a store value holds; anything malformed reads as none. */
-export const parseAgentMs = (value: unknown): Record<string, number> =>
+/** A per-day amount a store value holds (agent time, cost); anything malformed reads as none. */
+export const parseByDay = (value: unknown): Record<string, number> =>
   typeof value === 'object' && value !== null
-    ? Object.fromEntries(Object.entries(value).filter(([, ms]) => typeof ms === 'number' && Number.isFinite(ms) && ms > 0))
+    ? Object.fromEntries(
+        Object.entries(value).filter(([, amount]) => typeof amount === 'number' && Number.isFinite(amount) && amount > 0),
+      )
     : {}
 
 export const formatDuration = (ms: number): string => {
@@ -385,6 +388,7 @@ export const bookingLines = (
         const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
         const overlaps = overlapsOf(entry, day)
         const rounded = roundMinutes(minutes, roundTo)
+        const costUsd = Math.round((entry.costUsd?.[day] ?? 0) * CENTS) / CENTS
         return {
           firstStart,
           line: {
@@ -405,6 +409,7 @@ export const bookingLines = (
             ...(booked === undefined ? {} : { booked: String(booked) }),
             ...(agentMinutes > 0 ? { agentMinutes } : {}),
             ...(overlaps.length > 0 ? { overlaps } : {}),
+            ...(costUsd > 0 ? { costUsd } : {}),
           },
         }
       }),
@@ -678,6 +683,7 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number, w
           name: titleOf(entry),
           repo: entry.location === undefined ? { name: entry.repoName } : { name: entry.repoName, path: entry.location },
           isBooked: entry.booked?.[day] !== undefined,
+          ...((entry.costUsd?.[day] ?? 0) > 0 ? { costUsd: entry.costUsd?.[day] } : {}),
         },
       }
     })

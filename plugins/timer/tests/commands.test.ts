@@ -102,7 +102,9 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('ui.log', () => ({ value: undefined }))
   on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
   on('prompt.submit', ($, e) => ({ text: e.text }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands }
+  const usage = { usd: 0 }
+  on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -198,6 +200,29 @@ test('with no git user.email, a line\'s commits are null rather than everyone\'s
   await trackAndStop($, clock)
   expect((await lines($, { includeCommits: true })).map(l => (l as { commits?: unknown }).commits)).toEqual([null])
   expect(commands.some(c => c.argv[1] === 'log')).toBe(false)
+})
+
+test('what the session costs while the timer runs is put on it, listed and shown in the panel', async ($, on) => {
+  const { clock, usage } = world(on)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  usage.usd = 0.4
+  await clock.advance(30 * SECOND)
+  await timer($, 'pause')
+  usage.usd = 1.4
+  await clock.advance(30 * SECOND)
+  await timer($, 'resume')
+  usage.usd = 1.65
+  await clock.advance(30 * SECOND)
+  usage.usd = 1.75
+  await timer($, 'stop')
+  usage.usd = 2
+  await clock.advance(30 * SECOND)
+  expect((await lines($)).map(l => (l as { costUsd?: number }).costUsd)).toEqual([0.75])
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /\$0\.75/ })).toBeDefined()
+  await ui.unmount()
 })
 
 test('mark_booked takes a day out of the entries tool and the band hint', async ($, on) => {
@@ -350,6 +375,12 @@ test('the 30-second refresh reads only the open timers, not every stopped one', 
   reads.length = 0
   await clock.advance(2 * MINUTE)
   expect(reads.filter(k => k.startsWith('entry:done'))).toEqual([])
+})
+
+test('a new session drops the agent time and cost of timers no longer kept', async ($, on) => {
+  const { store } = world(on, { 'agents:gone': { '2026-10-06': MINUTE }, 'cost:gone': { '2026-10-06': 1 } })
+  await startSession($, on)
+  expect([...store.keys()].filter(k => k.endsWith(':gone'))).toEqual([])
 })
 
 test('a new session drops heartbeat keys no open timer owns', async ($, on) => {

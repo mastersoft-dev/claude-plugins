@@ -22,7 +22,7 @@ import {
   isExpired,
   markBooked,
   nextMidnight,
-  parseAgentMs,
+  parseByDay,
   parseBookingRange,
   parseEntry,
   parseEntryEdit,
@@ -57,6 +57,7 @@ const UNBOOKED_REFRESH_MS = 10 * TICK_MS
 const ENTRY_PREFIX = 'entry:'
 const SEEN_PREFIX = 'seen:'
 const AGENTS_PREFIX = 'agents:'
+const COST_PREFIX = 'cost:'
 const SUMMED = 'summed'
 const AWAY_MODES = ['ask', 'discard', 'keep'] as const
 const DEFAULT_IDLE_MINUTES = 15
@@ -92,22 +93,37 @@ const runnerOf =
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
-/** Joins an entry with its subagents' time, which lives under its own key. */
-const withAgentMs = async ($: EngineInterface, entry: Entry | undefined, hasAgents: boolean): Promise<Entry | undefined> => {
-  if (entry === undefined || !hasAgents) return entry
-  return { ...entry, agentMs: parseAgentMs(await $.store.get(AGENTS_PREFIX + entry.id)) }
+/** Joins an entry with its subagents' time and its cost, which live under keys of their own. */
+const withByDay = async (
+  $: EngineInterface,
+  entry: Entry | undefined,
+  has: { agents: boolean; cost: boolean },
+): Promise<Entry | undefined> => {
+  if (entry === undefined) return entry
+  return {
+    ...entry,
+    ...(has.agents ? { agentMs: parseByDay(await $.store.get(AGENTS_PREFIX + entry.id)) } : {}),
+    ...(has.cost ? { costUsd: parseByDay(await $.store.get(COST_PREFIX + entry.id)) } : {}),
+  }
 }
 
 const loadEntry = async ($: EngineInterface, id: string): Promise<Entry | undefined> =>
-  withAgentMs($, parseEntry(await $.store.get(ENTRY_PREFIX + id)), true)
+  withByDay($, parseEntry(await $.store.get(ENTRY_PREFIX + id)), { agents: true, cost: true })
+
+const idsUnder = (keys: readonly string[], prefix: string) =>
+  new Set(keys.filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length)))
 
 const loadEntries = async ($: EngineInterface): Promise<Entry[]> => {
   const keys = await $.store.keys()
-  const withAgents = new Set(keys.filter(k => k.startsWith(AGENTS_PREFIX)).map(k => k.slice(AGENTS_PREFIX.length)))
+  const withAgents = idsUnder(keys, AGENTS_PREFIX)
+  const withCost = idsUnder(keys, COST_PREFIX)
   const entries = await Promise.all(
     keys
       .filter(k => k.startsWith(ENTRY_PREFIX))
-      .map(async k => withAgentMs($, parseEntry(await $.store.get(k)), withAgents.has(k.slice(ENTRY_PREFIX.length)))),
+      .map(async k => {
+        const id = k.slice(ENTRY_PREFIX.length)
+        return withByDay($, parseEntry(await $.store.get(k)), { agents: withAgents.has(id), cost: withCost.has(id) })
+      }),
   )
   return entries.filter((e): e is Entry => e !== undefined)
 }
@@ -122,12 +138,12 @@ const ensureSeen = async ($: EngineInterface, entry: Entry) => {
 }
 
 /**
- * Writes an entry, without its agent time. An open one keeps a heartbeat key,
+ * Writes an entry, without its agent time and cost. An open one keeps a heartbeat key,
  * which is how the refresh finds the open entries; a stopped one no longer
  * beats, so its key goes.
  */
 const saveEntry = async ($: EngineInterface, entry: Entry) => {
-  const { agentMs: _, ...stored } = entry
+  const { agentMs: _agentMs, costUsd: _costUsd, ...stored } = entry
   await $.store.set(ENTRY_PREFIX + entry.id, stored)
   invalidateUnbooked()
   if (stateOf(entry) === 'stopped') await $.store.delete(SEEN_PREFIX + entry.id)
@@ -146,6 +162,7 @@ const forgetEntry = async ($: EngineInterface, id: string) => {
   await $.store.delete(ENTRY_PREFIX + id)
   await $.store.delete(SEEN_PREFIX + id)
   await $.store.delete(AGENTS_PREFIX + id)
+  await $.store.delete(COST_PREFIX + id)
 }
 
 /**
@@ -209,8 +226,9 @@ let splitsOnBranch = false
 let roundTo = 0
 
 /**
- * Drops booked timers older than the retention and the reminders of days gone
- * by, and keeps a heartbeat key for exactly the open timers: one for each
+ * Drops booked timers older than the retention, the reminders of days gone by
+ * and the agent time and cost of timers no longer kept, and keeps a heartbeat
+ * key for exactly the open timers: one for each
  * (1.0.0 kept one only for a session's active timer), none left behind by a
  * stop or a delete that raced a refresh. The keys are listed before the
  * entries are read, so a timer started meanwhile keeps its key.
@@ -227,7 +245,11 @@ const prune = async ($: EngineInterface) => {
     }
   }
   const today = dayOf(now)
+  const ids = idsUnder(keys, ENTRY_PREFIX)
   for (const key of keys) {
+    for (const prefix of [AGENTS_PREFIX, COST_PREFIX]) {
+      if (key.startsWith(prefix) && !ids.has(key.slice(prefix.length))) await $.store.delete(key)
+    }
     if (key.startsWith(REMINDED_PREFIX) && key.slice(REMINDED_PREFIX.length) < today) await $.store.delete(key)
     if (key.startsWith(SEEN_PREFIX) && !open.has(key.slice(SEEN_PREFIX.length))) await $.store.delete(key)
   }
@@ -249,9 +271,38 @@ const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => 
 const describe = (entry: Entry, now: number): string =>
   `${formatDuration(workedMs(entry, now, countsAgents))}${titleOf(entry) === entry.repoName ? '' : ` · ${titleOf(entry)}`} (${entry.repoName})`
 
+let lastCostUsd: number | undefined
+let costWrites: Promise<void> = Promise.resolve()
+
+/**
+ * Puts what the session cost since the last mark on the timer running now, by
+ * day: called on every refresh and before every start, pause and stop, so the
+ * cost lands on the timer that ran through it. A cost that went down (a /clear
+ * starts it over) only sets the mark again. One at a time, so no increase is
+ * counted twice.
+ */
+const creditCost = ($: EngineInterface): Promise<void> => {
+  costWrites = costWrites
+    .then(async () => {
+      const usd = (await $.session.usage()).cost?.usd
+      const previous = lastCostUsd
+      lastCostUsd = usd
+      if (usd === undefined || previous === undefined || usd <= previous) return
+      const entry = await loadActive($)
+      if (entry === undefined || stateOf(entry) !== 'running') return
+      const key = COST_PREFIX + entry.id
+      const byDay = parseByDay(await $.store.get(key))
+      const day = dayOf(await $.clock.now())
+      await $.store.set(key, { ...byDay, [day]: (byDay[day] ?? 0) + usd - previous })
+    })
+    .catch((error: unknown) => $.ui.log(`timer: cost not recorded: ${errorText(error)}`, { to: 'debug' }))
+  return costWrites
+}
+
 const beat = async ($: EngineInterface) => {
   const entry = await loadActive($)
   const now = await $.clock.now()
+  await creditCost($)
   const unbooked = await unbookedOf($, now)
   const bookTime = isBookTime(now)
   await remindOnce($, now, unbooked)
@@ -358,7 +409,7 @@ const creditAgentRun = ($: EngineInterface, durationMs: number): Promise<void> =
       const entry = await loadActive($)
       if (entry === undefined || stateOf(entry) !== 'running') return
       const key = AGENTS_PREFIX + entry.id
-      await $.store.set(key, addAgentRun(parseAgentMs(await $.store.get(key)), await $.clock.now(), durationMs))
+      await $.store.set(key, addAgentRun(parseByDay(await $.store.get(key)), await $.clock.now(), durationMs))
     })
     .catch((error: unknown) => $.ui.log(`timer: subagent time not recorded: ${errorText(error)}`, { to: 'debug' }))
   return agentWrites
@@ -496,6 +547,7 @@ const followClaude = async ($: EngineInterface) => {
   const entry = await loadActive($)
   if (entry?.auto !== true) return
   const now = await $.clock.now()
+  await creditCost($)
   const changed = isClaudeWorking ? resumeEntry(entry, now) : pauseEntry(entry, now)
   if (typeof changed === 'string') return
   await saveEntry($, changed)
@@ -548,6 +600,7 @@ const transition = async (
   change: (entry: Entry, now: number) => Entry | string,
   verb: string,
 ): Promise<string> => {
+  await creditCost($)
   const entry = await loadActive($)
   if (entry === undefined) return 'No timer in this session: /timer start [note].'
   const now = await $.clock.now()
@@ -559,6 +612,7 @@ const transition = async (
 }
 
 const start = async ($: EngineInterface, note: string): Promise<string> => {
+  await creditCost($)
   const held = await loadActive($)
   const now = await $.clock.now()
   if (held !== undefined && stateOf(held) !== 'stopped') {
@@ -818,7 +872,7 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. With includeCommits, each line also lists the person's commits on the local branches of its folder while the timer ran that day (hash and subject, at most twenty; null when git could not say, such as with no user.email), to write the booking's description from. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, costUsd (what Claude's work cost while the timer ran that day, US dollars), for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. With includeCommits, each line also lists the person's commits on the local branches of its folder while the timer ran that day (hash and subject, at most twenty; null when git could not say, such as with no user.email), to write the booking's description from. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -1199,6 +1253,7 @@ export const register: Register = (on, options) => {
               )}
               <Text dimColor wrap="truncate-end">
                 {r.repo.path === undefined ? r.repo.name : <Link href={fileUrl(r.repo.path)}>{r.repo.name}</Link>}
+                {r.costUsd === undefined ? '' : ` · $${r.costUsd.toFixed(2)}`}
                 {r.id === own ? ' · running here' : r.sessionId === sessionId ? '' : ' · other session'}
                 {r.isBooked ? ' · booked' : ''}
               </Text>

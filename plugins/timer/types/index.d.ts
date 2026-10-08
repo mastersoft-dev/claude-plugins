@@ -29,6 +29,11 @@ export type Entry = {
    * its own store key and joined on load, never written with the entry.
    */
   agentMs?: Record<string, number>
+  /**
+   * Per day, the US dollars Claude's work cost while the timer ran. Kept under
+   * its own store key and joined on load, never written with the entry.
+   */
+  costUsd?: Record<string, number>
 }
 
 /** One entry's time on one day, as the `entries` tool hands it to whoever books it. */
@@ -56,6 +61,8 @@ export type BookingLine = {
   booked?: string
   /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
   agentMinutes?: number
+  /** What Claude's work cost while the timer ran that day, US dollars to the cent. */
+  costUsd?: number
   /** The person's commits in the timer's folder while it ran that day, when asked for; null when git couldn't say. */
   commits?: { hash: string; subject: string }[] | null
   /** The other timers that ran at the same time that day, with the whole minutes they share with this one. */
@@ -87,6 +94,8 @@ export type TodayRow = {
   /** The repo it ran in; `path` is its folder. */
   repo: { name: string; path?: string }
   isBooked: boolean
+  /** What Claude's work cost while it ran that day, US dollars. */
+  costUsd?: number
 }
 
 export type View = TodayView
