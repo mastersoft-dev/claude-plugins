@@ -306,8 +306,8 @@ describe('todayRows', () => {
     const running = entry({ id: 'r', note: '', segments: [{ start: T0 + 120 * MINUTE }], stoppedAt: undefined })
     const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE)
     expect(rows).toEqual([
-      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', tags: [], name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
-      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', tags: [], name: 'acme', repo: { name: 'acme' }, isBooked: false },
+      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', tags: [], name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false, overlapMinutes: 0 },
+      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', tags: [], name: 'acme', repo: { name: 'acme' }, isBooked: false, overlapMinutes: 0 },
     ])
   })
 })

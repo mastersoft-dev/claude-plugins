@@ -1327,6 +1327,7 @@ export const register: Register = (on, options) => {
                 {r.id === own ? ' · running here' : r.sessionId === sessionId ? '' : ' · other session'}
                 {r.isBooked ? ' · booked' : ''}
               </Text>
+              {r.overlapMinutes > 0 && <Text color="yellow">⚠ {formatDuration(r.overlapMinutes * MS_PER_MINUTE)} alongside other timers</Text>}
             </Box>
           )
         })}

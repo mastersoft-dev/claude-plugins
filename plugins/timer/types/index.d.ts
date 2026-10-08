@@ -96,6 +96,8 @@ export type TodayRow = {
   isBooked: boolean
   /** What Claude's work cost while it ran that day, US dollars. */
   costUsd?: number
+  /** Whole minutes it ran that day alongside other timers, a running one counted to now. */
+  overlapMinutes: number
 }
 
 export type View = TodayView

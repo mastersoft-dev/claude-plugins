@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The panel marks a timer that ran alongside others that day with ⚠ and the
+  time they shared.
 - With `roundTo` set, the panel's To book tab shows each day's minutes as
   they will be booked, with the tracked ones beside them.
 - The daily booking reminder also offers "Book my unbooked timers" in the

@@ -651,16 +651,22 @@ export const fileUrl = (path: string): string => {
 
 /**
  * Every entry with time on `day`, oldest first: from its first start that day
- * to its last end (`now` while it runs), the minutes worked that day, and the
- * repo it ran in.
+ * to its last end (`now` while it runs), the minutes worked that day, the
+ * repo it ran in, and the minutes it ran alongside the other timers that day.
  */
-export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] =>
-  entries
+export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] => {
+  const ofDay = entries
     .map(entry => ({
       entry,
       segments: entry.segments.flatMap(s => splitAtMidnight(s, now)).filter(s => dayOf(s.start) === day),
     }))
     .filter(({ segments }) => segments.length > 0)
+  const closed = new Map(ofDay.map(({ entry, segments }) => [entry.id, segments.map(s => ({ start: s.start, end: s.end ?? now }))]))
+  const sharedWithOthers = (id: string) =>
+    ofDay
+      .filter(({ entry }) => entry.id !== id)
+      .reduce((sum, { entry }) => sum + sharedMs(closed.get(id) ?? [], closed.get(entry.id) ?? []), 0)
+  return ofDay
     .map(({ entry, segments }) => {
       const first = Math.min(...segments.map(s => s.start))
       const isOpen = segments.some(s => s.end === undefined)
@@ -684,11 +690,13 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number, w
           repo: entry.location === undefined ? { name: entry.repoName } : { name: entry.repoName, path: entry.location },
           isBooked: entry.booked?.[day] !== undefined,
           ...((entry.costUsd?.[day] ?? 0) > 0 ? { costUsd: entry.costUsd?.[day] } : {}),
+          overlapMinutes: Math.round(sharedWithOthers(entry.id) / MS_PER_MINUTE),
         },
       }
     })
     .sort((a, b) => a.first - b.first)
     .map(({ row }) => row)
+}
 
 /**
  * The whole minutes worked on `day` by `entries` together. Summed, each

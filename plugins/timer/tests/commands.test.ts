@@ -1015,6 +1015,19 @@ test("today's total counts timers run at once in two sessions once", async ($, o
   await ui.unmount()
 })
 
+test('the panel marks timers that ran alongside others, with the time they shared', async ($, on) => {
+  const { clock } = world(on, { 'entry:other': alongside })
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'taball' })
+  expect((await ui.findAll({ type: 'Text', text: /alongside other timers/ })).map(t => t.text)).toEqual([
+    '⚠ 0h 30m alongside other timers',
+    '⚠ 0h 30m alongside other timers',
+  ])
+  await ui.unmount()
+})
+
 test("with parallel time summed, today's total adds every timer", { options: { parallelTime: 'summed' } }, async ($, on) => {
   const { clock } = world(on, { 'entry:other': alongside })
   await trackAndStop($, clock)
