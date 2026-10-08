@@ -637,6 +637,22 @@ test('the All tab shows timers of other sessions but only this session\'s can be
   await ui.unmount()
 })
 
+test('the To book tab lists the stopped timers of every day not booked yet', async ($, on) => {
+  const yesterday = { ...otherSession, id: 'y', note: 'release notes', segments: [{ start: T0 - DAY, end: T0 - DAY + 45 * MINUTE }], stoppedAt: T0 - DAY + 45 * MINUTE }
+  const booked = { ...yesterday, id: 'b', note: 'call with Beta', booked: { [dayOfT(T0 - DAY)]: 'a1' } }
+  const { clock } = world(on, { 'entry:y': yesterday, 'entry:b': booked })
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ key: 'tabbook' }))?.text).toBe('To book (2)')
+  await ui.press({ key: 'tabbook' })
+  expect((await ui.find({ type: 'Text', text: /^To book/ }))?.text).toContain('1h 48m in 2 days')
+  expect(await ui.find({ type: 'Text', text: /2026-10-05 09:00 0h 45m {2}release notes/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2026-10-06 09:00 1h 03m {2}fix login/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /call with Beta/ })).toBe(undefined)
+  await ui.unmount()
+})
+
 test('a timer is deleted only on the second press of Delete', async ($, on) => {
   const { clock, store } = world(on)
   await trackAndStop($, clock)

@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- A "To book" tab in the timer panel lists every stopped timer's day not
+  booked yet, the days before today included.
 - The entries tool names, on each line, the other timers that ran at the same
   time that day and the minutes they share, so Claude doesn't book the same
   hours twice without asking.

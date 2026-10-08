@@ -791,24 +791,58 @@ export const register: Register = (on, options) => {
     const rows = current.tab === 'all' ? allRows : allRows.filter(r => r.sessionId === sessionId)
     const shown = current.tab === 'all' ? entries : entries.filter(entry => entry.sessionId === sessionId)
     const total = dayMinutes(shown, dayOf(now), now, { withAgents: countsAgents, wallClock: isWallClock })
+    const toBook = bookingLines(entries.filter(entry => stateOf(entry) === 'stopped'), {}, countsAgents)
     const selected = rows.find(r => r.id === current.selectedId && r.sessionId === sessionId)
     const mark = { running: '⏱', paused: '⏸', stopped: '■' } as const
+    const tabs = (
+      <Box gap={1}>
+        <Button
+          key="tabsession"
+          label={`This session (${allRows.filter(r => r.sessionId === sessionId).length})`}
+          variant={current.tab === 'session' ? 'primary' : 'secondary'}
+          onPress={() => selectTab($, 'session')}
+        />
+        <Button
+          key="taball"
+          label={`All (${allRows.length})`}
+          variant={current.tab === 'all' ? 'primary' : 'secondary'}
+          onPress={() => selectTab($, 'all')}
+        />
+        <Button
+          key="tabbook"
+          label={`To book (${toBook.length})`}
+          variant={current.tab === 'book' ? 'primary' : 'secondary'}
+          onPress={() => selectTab($, 'book')}
+        />
+      </Box>
+    )
+    const close = <Button key="close" label="Close" role="dismiss" onPress={() => closePane($)} />
+    if (current.tab === 'book') {
+      return (
+        <Box flexDirection="column">
+          {tabs}
+          <Text bold>
+            To book · {formatDuration(toBook.reduce((sum, l) => sum + l.minutes, 0) * MS_PER_MINUTE)} in{' '}
+            {plural(new Set(toBook.map(l => l.day)).size, 'day', 'days')}
+          </Text>
+          <Text dimColor>{toBook.length === 0 ? 'Every stopped timer is booked.' : `Stopped timers not booked yet: ${ASK_TO_BOOK}.`}</Text>
+          {toBook.map(l => (
+            <Box key={`b${l.entryId}${l.day}`} gap={1}>
+              <Text>
+                {l.day} {l.start} {formatDuration(l.minutes * MS_PER_MINUTE)}  {l.title}
+              </Text>
+              <Text dimColor wrap="truncate-end">
+                {l.folder === undefined ? l.repo : <Link href={fileUrl(l.folder)}>{l.repo}</Link>}
+              </Text>
+            </Box>
+          ))}
+          {close}
+        </Box>
+      )
+    }
     return (
       <Box flexDirection="column">
-        <Box gap={1}>
-          <Button
-            key="tabsession"
-            label={`This session (${allRows.filter(r => r.sessionId === sessionId).length})`}
-            variant={current.tab === 'session' ? 'primary' : 'secondary'}
-            onPress={() => selectTab($, 'session')}
-          />
-          <Button
-            key="taball"
-            label={`All (${allRows.length})`}
-            variant={current.tab === 'all' ? 'primary' : 'secondary'}
-            onPress={() => selectTab($, 'all')}
-          />
-        </Box>
+        {tabs}
         <Text bold>
           Today {dayOf(now)} · {formatDuration(total * MS_PER_MINUTE)} in {plural(rows.length, 'timer', 'timers')}
         </Text>
@@ -873,7 +907,7 @@ export const register: Register = (on, options) => {
             </Box>
           </Box>
         )}
-        <Button key="close" label="Close" role="dismiss" onPress={() => closePane($)} />
+        {close}
       </Box>
     )
   })
