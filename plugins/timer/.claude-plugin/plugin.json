@@ -2,7 +2,7 @@
   "name": "timer",
   "displayName": "Timer",
   "version": "0.1.0",
-  "description": "Work timer per Claude Code session, exported as CSV and booked on the GEWEB live timesheet through the ms CLI",
+  "description": "Work timer per Claude Code session, with tools that let Claude book the time on a timesheet, and a CSV export",
   "author": {
     "name": "Mastersoft"
   },
@@ -11,16 +11,28 @@
   "license": "MIT",
   "keywords": [
     "timer",
-    "timesheet",
-    "geweb"
+    "timesheet"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "reminderTime": {
       "type": "string",
-      "title": "GEWEB booking reminder",
-      "description": "Time of day (HH:mm, Italian time) when the band offers Book all and reminds you to book the day on GEWEB",
+      "title": "Booking reminder",
+      "description": "Time of day (HH:mm, Italian time) from when the band shows the timers still to book and reminds you to ask Claude to book them",
       "default": "17:30"
+    },
+    "retentionDays": {
+      "type": "number",
+      "title": "Keep booked timers for",
+      "description": "Days a booked timer is kept after it stopped; time not yet booked is kept however old",
+      "default": 90
+    },
+    "agentTime": {
+      "type": "string",
+      "title": "Time with subagents",
+      "description": "wall-clock counts the timer's own time; summed adds every subagent's run while the timer runs, so parallel agents each count",
+      "options": ["wall-clock", "summed"],
+      "default": "wall-clock"
     }
   }
 }

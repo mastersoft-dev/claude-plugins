@@ -1,8 +1,11 @@
-import type { Draft, Entry, Link, Project, Segment, TodayRow } from '../types'
+import type { BookingLine, Entry, Segment, TodayRow } from '../types'
 
 export const TIME_ZONE = 'Europe/Rome'
-export const BOOKING_STEP_MINUTES = 5
+export const PATH_KEY_PREFIX = 'path:'
 const MS_PER_MINUTE = 60_000
+const HOUR_MS = 3_600_000
+const DAY_MS = 24 * HOUR_MS
+const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', ''])
 
 export type EntryState = 'running' | 'paused' | 'stopped'
 
@@ -20,22 +23,75 @@ const timeFormat = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23',
 })
 
-/** The calendar day of `ms` in GEWEB's time zone, as YYYY-MM-DD. */
+/** The calendar day of `ms` in the timer's time zone (Italian time), as YYYY-MM-DD. */
 export const dayOf = (ms: number): string => dayFormat.format(ms)
 
-/** The wall-clock time of `ms` in GEWEB's time zone, as HH:mm. */
+/** The wall-clock time of `ms` in the timer's time zone, as HH:mm. */
 export const timeOf = (ms: number): string => timeFormat.format(ms)
 
-/** The hour (0-23) of `ms` in GEWEB's time zone. */
-export const hourOf = (ms: number): number => Number(timeOf(ms).slice(0, 2))
+/** The message of a rejection, without the `Error:` prefix. */
+export const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+const clockFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+
+/**
+ * The first instant of the day after `ms`'s, in the timer's time zone. A day of a
+ * clock change is 23 or 25 hours long, so the guess a day on from this one's
+ * midnight is corrected an hour at a time.
+ */
+export const nextMidnight = (ms: number): number => {
+  const [hours = 0, minutes = 0, seconds = 0] = clockFormat.format(ms).split(':').map(Number)
+  const day = dayOf(ms)
+  let midnight = ms - (ms % 1000) - ((hours * 60 + minutes) * 60 + seconds) * 1000 + DAY_MS
+  while (dayOf(midnight) === day) midnight += HOUR_MS
+  while (dayOf(midnight - HOUR_MS) !== day) midnight -= HOUR_MS
+  return midnight
+}
+
+/** A segment cut at every midnight it spans, so that each piece lies in one day; an open one stays open. */
+export const splitAtMidnight = (segment: Segment, now: number): Segment[] => {
+  const end = segment.end ?? now
+  const pieces: Segment[] = []
+  let start = segment.start
+  for (let cut = nextMidnight(start); cut < end; cut = nextMidnight(cut)) {
+    pieces.push({ start, end: cut })
+    start = cut
+  }
+  pieces.push(segment.end === undefined ? { start } : { start, end })
+  return pieces
+}
 
 export const stateOf = (entry: Entry): EntryState => {
   if (entry.stoppedAt !== undefined) return 'stopped'
   return entry.segments.at(-1)?.end === undefined ? 'running' : 'paused'
 }
 
-export const workedMs = (entry: Entry, now: number): number =>
-  entry.segments.reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0)
+/** The timer's wall-clock time, plus every subagent's run while it ran when `withAgents`. */
+export const workedMs = (entry: Entry, now: number, withAgents = false): number =>
+  entry.segments.reduce((sum, s) => sum + ((s.end ?? now) - s.start), 0) +
+  (withAgents ? Object.values(entry.agentMs ?? {}).reduce((sum, ms) => sum + ms, 0) : 0)
+
+/** Adds a subagent's run that ended at `end` to the per-day agent time, split at midnight. */
+export const addAgentRun = (byDay: Record<string, number>, end: number, durationMs: number): Record<string, number> => {
+  const added = { ...byDay }
+  for (const s of splitAtMidnight({ start: end - Math.max(0, durationMs), end }, end)) {
+    const day = dayOf(s.start)
+    added[day] = (added[day] ?? 0) + ((s.end ?? end) - s.start)
+  }
+  return added
+}
+
+/** The per-day agent time a store value holds; anything malformed reads as none. */
+export const parseAgentMs = (value: unknown): Record<string, number> =>
+  typeof value === 'object' && value !== null
+    ? Object.fromEntries(Object.entries(value).filter(([, ms]) => typeof ms === 'number' && Number.isFinite(ms) && ms > 0))
+    : {}
 
 export const formatDuration = (ms: number): string => {
   const minutes = Math.floor(ms / MS_PER_MINUTE)
@@ -66,12 +122,13 @@ const closeLast = (segments: Entry['segments'], now: number) =>
   segments.map((s, i) => (i === segments.length - 1 && s.end === undefined ? { ...s, end: now } : s))
 
 /**
- * Stops a running entry whose session stopped beating before `staleBefore`
- * (a crash or a killed terminal), at the last moment it was seen alive.
+ * Stops a running or paused entry whose session stopped beating before
+ * `staleBefore` (a closed window, a crash), at the last moment it was seen alive.
  */
 export const closeStale = (entry: Entry, staleBefore: number): Entry | undefined => {
-  if (stateOf(entry) !== 'running') return undefined
-  const lastSeen = entry.lastSeen ?? entry.segments.at(-1)?.start ?? staleBefore
+  if (stateOf(entry) === 'stopped') return undefined
+  const last = entry.segments.at(-1)
+  const lastSeen = Math.max(entry.lastSeen ?? 0, last?.end ?? last?.start ?? staleBefore)
   return lastSeen < staleBefore ? (stopEntry(entry, lastSeen) as Entry) : undefined
 }
 
@@ -100,13 +157,22 @@ export const parseEntry = (value: unknown): Entry | undefined => {
     (e.lastSeen === undefined || isNumber(e.lastSeen)) &&
     (e.auto === undefined || typeof e.auto === 'boolean') &&
     (e.location === undefined || typeof e.location === 'string') &&
-    (e.booked === undefined || (typeof e.booked === 'object' && Object.values(e.booked).every(isNumber)))
+    (e.branch === undefined || typeof e.branch === 'string') &&
+    (e.task === undefined ||
+      (typeof e.task === 'object' &&
+        e.task !== null &&
+        typeof e.task.source === 'string' &&
+        typeof e.task.group === 'string' &&
+        (e.task.title === undefined || typeof e.task.title === 'string') &&
+        (e.task.url === undefined || typeof e.task.url === 'string'))) &&
+    (e.booked === undefined ||
+      (typeof e.booked === 'object' && Object.values(e.booked).every(v => isNumber(v) || typeof v === 'string')))
   return isValid ? e : undefined
 }
 
 /**
- * A git remote in GEWEB's canonical `host/path` form, as
- * `hr.gitrepo_url.canonicalizza_remote_url` stores `GitRepo.remote_url`.
+ * A git remote in its canonical `host/path` form, lowercase host and no
+ * `.git`, the same for its SSH and HTTPS spellings (GEWEB keys repos so).
  */
 export const canonicalRemote = (url: string): string | null => {
   const trimmed = url.trim()
@@ -132,13 +198,10 @@ export const canonicalRemote = (url: string): string | null => {
   return host && path ? `${host}/${path}` : null
 }
 
-/**
- * Minutes worked per day, each closed segment counted on the day it started
- * (GEWEB refuses a day's time past midnight anyway).
- */
-export const minutesByDay = (entry: Entry): Map<string, { minutes: number; firstStart: number }> => {
+/** Minutes worked per day, closed segments cut at midnight so that each day holds only its own time. */
+export const minutesByDay = (entry: Entry, withAgents = false): Map<string, { minutes: number; firstStart: number }> => {
   const days = new Map<string, { minutes: number; firstStart: number }>()
-  for (const s of entry.segments) {
+  for (const s of entry.segments.flatMap(closed => (closed.end === undefined ? [] : splitAtMidnight(closed, closed.end)))) {
     if (s.end === undefined) continue
     const day = dayOf(s.start)
     const held = days.get(day) ?? { minutes: 0, firstStart: s.start }
@@ -147,71 +210,117 @@ export const minutesByDay = (entry: Entry): Map<string, { minutes: number; first
       firstStart: Math.min(held.firstStart, s.start),
     })
   }
+  if (!withAgents) return days
+  for (const [day, ms] of Object.entries(entry.agentMs ?? {})) {
+    const held = days.get(day)
+    if (held !== undefined) days.set(day, { ...held, minutes: held.minutes + ms / MS_PER_MINUTE })
+  }
   return days
 }
 
-/**
- * Rounds to whole minutes, then up to GEWEB's 5-minute step as
- * `aggiungi_tempo` does; under half a minute is nothing to book.
- */
-export const roundToStep = (minutes: number): number =>
-  Math.ceil(Math.round(minutes) / BOOKING_STEP_MINUTES) * BOOKING_STEP_MINUTES
-
-/**
- * The days of a stopped entry still to book: some time to book, and no
- * activity (or claim on one) recorded under `booked`.
- */
+/** The days of a stopped entry still to book: at least a whole minute, and nothing recorded under `booked`. */
 export const pendingDays = (entry: Entry): [string, { minutes: number; firstStart: number }][] =>
   stateOf(entry) === 'stopped'
-    ? [...minutesByDay(entry)].filter(
-        ([day, { minutes }]) => entry.booked?.[day] === undefined && roundToStep(minutes) > 0,
-      )
+    ? [...minutesByDay(entry)].filter(([day, { minutes }]) => entry.booked?.[day] === undefined && Math.round(minutes) > 0)
     : []
 
 /**
- * One draft per pending day of each entry whose repo books onto a project; a
- * line per repo that belongs to a customer but has no project yet; and how
- * many entries belong to nobody and are left alone.
+ * Whether a stopped entry with nothing left to book stopped more than
+ * `retentionDays` before `now`, so it can go. Time not yet booked is kept,
+ * however old.
  */
-export const planBooking = (
-  entries: readonly Entry[],
-  linkOf: (entry: Entry) => Link,
-): { drafts: Draft[]; needsProject: string[]; ignored: number } => {
-  const drafts: Draft[] = []
-  const unlinked = new Map<string, { n: number; customers: string[] }>()
-  let ignored = 0
-  for (const entry of entries) {
-    const pending = pendingDays(entry)
-    if (pending.length === 0) continue
-    const link = linkOf(entry)
-    if (link.kind === 'none') {
-      ignored += 1
-      continue
-    }
-    if (link.kind === 'customer') {
-      const held = unlinked.get(entry.repoName)
-      unlinked.set(entry.repoName, { n: (held?.n ?? 0) + 1, customers: link.customers })
-      continue
-    }
-    for (const [day, { minutes, firstStart }] of pending) {
-      drafts.push({
-        entryId: entry.id,
-        day,
-        startHour: hourOf(firstStart),
-        minutes: roundToStep(minutes),
-        project: link.project,
-        descrizione: entry.note || entry.repoName,
-      })
-    }
-  }
-  const needsProject = [...unlinked].map(
-    ([repo, { n, customers }]) =>
-      `${n} entr${n === 1 ? 'y' : 'ies'} in ${repo} (${customers.join(', ')}): no project, run /timer project <search> there`,
-  )
-  return { drafts: drafts.sort((a, b) => a.day.localeCompare(b.day)), needsProject, ignored }
+export const isExpired = (entry: Entry, now: number, retentionDays: number): boolean => {
+  if (stateOf(entry) !== 'stopped' || pendingDays(entry).length > 0) return false
+  const stoppedAt = entry.stoppedAt ?? entry.segments.at(-1)?.end ?? now
+  return stoppedAt < now - retentionDays * DAY_MS
 }
 
-const CSV_HEADER = ['entry', 'session', 'repo', 'project', 'note', 'day', 'start', 'end', 'minutes', 'state', 'activity']
+/**
+ * One line per entry and day, oldest first, for whoever books the time (Claude,
+ * through the timer's `entries` tool): whole minutes, the closed time only, so
+ * a timer still open counts what it has done so far and says it is open. With
+ * `withAgents` the minutes add the subagents' runs, always listed apart too.
+ */
+export const bookingLines = (
+  entries: readonly Entry[],
+  range: { from?: string; to?: string; includeBooked?: boolean },
+  withAgents = false,
+): BookingLine[] =>
+  entries
+    .flatMap(entry =>
+      [...minutesByDay(entry, withAgents)].map(([day, { minutes, firstStart }]) => {
+        const booked = entry.booked?.[day]
+        const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
+        return {
+          firstStart,
+          line: {
+            entryId: entry.id,
+            day,
+            start: timeOf(firstStart),
+            minutes: Math.round(minutes),
+            title: titleOf(entry),
+            note: entry.note,
+            repo: entry.repoName,
+            ...(entry.repoKey.startsWith(PATH_KEY_PREFIX) ? {} : { remote: entry.repoKey }),
+            ...(entry.branch === undefined ? {} : { branch: entry.branch }),
+            ...(entry.location === undefined ? {} : { folder: entry.location }),
+            ...(entry.task === undefined ? {} : { task: entry.task }),
+            state: stateOf(entry),
+            ...(booked === undefined ? {} : { booked: String(booked) }),
+            ...(agentMinutes > 0 ? { agentMinutes } : {}),
+          },
+        }
+      }),
+    )
+    .filter(
+      ({ line }) =>
+        line.minutes > 0 &&
+        (range.from === undefined || line.day >= range.from) &&
+        (range.to === undefined || line.day <= range.to) &&
+        (range.includeBooked === true || line.booked === undefined),
+    )
+    .sort((a, b) => a.firstStart - b.firstStart)
+    .map(({ line }) => line)
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+/** The `entries` tool's input, or why it is refused. */
+export const parseBookingRange = (input: unknown): { from?: string; to?: string; includeBooked?: boolean } | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { from, to, includeBooked } = input
+  for (const [name, value] of [['from', from], ['to', to]] as const) {
+    if (value !== undefined && (typeof value !== 'string' || !DAY.test(value))) return `${name} must be a day, YYYY-MM-DD.`
+  }
+  if (includeBooked !== undefined && typeof includeBooked !== 'boolean') return 'includeBooked must be true or false.'
+  return {
+    ...(from === undefined ? {} : { from: from as string }),
+    ...(to === undefined ? {} : { to: to as string }),
+    ...(includeBooked === undefined ? {} : { includeBooked }),
+  }
+}
+
+/** The `mark_booked` tool's input, or why it is refused. */
+export const parseMark = (input: unknown): { entryId: string; day: string; reference: string } | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { entryId, day, reference } = input
+  if (typeof entryId !== 'string' || entryId === '') return 'entryId must be a line’s entryId from the entries tool.'
+  if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
+  if (typeof reference !== 'string' || reference.trim() === '') return 'reference must say where the time was booked.'
+  return { entryId, day, reference: reference.trim() }
+}
+
+/**
+ * Records that `day` of an entry was booked, under whatever reference the
+ * booking has (an activity id, say); refused for a day the entry has no time on.
+ */
+export const markBooked = (entry: Entry, day: string, reference: string): Entry | string => {
+  if (!minutesByDay(entry).has(day)) return `Timer ${entry.id} has no time on ${day}.`
+  return { ...entry, booked: { ...entry.booked, [day]: reference } }
+}
+
+const CSV_HEADER = ['entry', 'session', 'repo', 'note', 'day', 'start', 'end', 'minutes', 'state', 'booked']
 
 const FORMULA_LEAD = /^[=+\-@\t\r]/
 
@@ -221,11 +330,7 @@ const csvCell = (value: string | number): string => {
 }
 
 /** Every segment of every entry as one CSV row, oldest first. */
-export const toCsv = (
-  entries: readonly Entry[],
-  projectOf: (entry: Entry) => Project | undefined,
-  now: number,
-): string => {
+export const toCsv = (entries: readonly Entry[], now: number): string => {
   const rows = entries
     .flatMap(entry =>
       entry.segments.map(s => {
@@ -236,14 +341,13 @@ export const toCsv = (
             entry.id,
             entry.sessionId,
             entry.repoName,
-            projectOf(entry)?.label ?? '',
             entry.note,
             day,
             timeOf(s.start),
             s.end === undefined ? '' : timeOf(s.end),
             Math.round(((s.end ?? now) - s.start) / MS_PER_MINUTE),
             stateOf(entry),
-            entry.booked?.[day] ? String(entry.booked[day]) : '',
+            entry.booked?.[day] === undefined ? '' : String(entry.booked[day]),
           ],
         }
       }),
@@ -253,18 +357,43 @@ export const toCsv = (
 }
 
 /**
- * Every entry with time on `day`, oldest first: from its first start that day
- * to its last end (`now` while it runs), the minutes worked that day, and where
- * it books as `whereOf` names it.
+ * A work branch as words for a timer's name (`feat/login-sso` → `login sso`);
+ * undefined for a default branch or a detached HEAD, which name no task.
  */
-export const todayRows = (
-  entries: readonly Entry[],
-  day: string,
-  now: number,
-  whereOf: (entry: Entry) => string,
-): TodayRow[] =>
+export const branchLabel = (branch: string): string | undefined => {
+  if (DEFAULT_BRANCHES.has(branch)) return undefined
+  const words = branch.split('/').at(-1)?.replace(/[-_]+/g, ' ').trim()
+  return words || undefined
+}
+
+/** What a timer is called and booked as: its note, else its branch, else its repo. */
+export const titleOf = (entry: Entry): string =>
+  entry.note ||
+  entry.task?.title ||
+  (entry.branch === undefined ? undefined : branchLabel(entry.branch)) ||
+  entry.repoName
+
+/** A local folder as a `file:` URL, a Windows drive kept as written and every other segment encoded. */
+export const fileUrl = (path: string): string => {
+  const joined = path
+    .replace(/\\/g, '/')
+    .split('/')
+    .map(segment => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
+    .join('/')
+  return `file://${joined.startsWith('/') ? '' : '/'}${joined}`
+}
+
+/**
+ * Every entry with time on `day`, oldest first: from its first start that day
+ * to its last end (`now` while it runs), the minutes worked that day, and the
+ * repo it ran in.
+ */
+export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] =>
   entries
-    .map(entry => ({ entry, segments: entry.segments.filter(s => dayOf(s.start) === day) }))
+    .map(entry => ({
+      entry,
+      segments: entry.segments.flatMap(s => splitAtMidnight(s, now)).filter(s => dayOf(s.start) === day),
+    }))
     .filter(({ segments }) => segments.length > 0)
     .map(({ entry, segments }) => {
       const first = Math.min(...segments.map(s => s.start))
@@ -277,10 +406,15 @@ export const todayRows = (
           sessionId: entry.sessionId,
           from: timeOf(first),
           to: isOpen ? 'now' : timeOf(last),
-          minutes: Math.round(segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) / MS_PER_MINUTE),
+          minutes: Math.round(
+            (segments.reduce((sum, s) => sum + (s.end ?? now) - s.start, 0) +
+              (withAgents ? (entry.agentMs?.[day] ?? 0) : 0)) /
+              MS_PER_MINUTE,
+          ),
           state: stateOf(entry),
           note: entry.note,
-          where: whereOf(entry),
+          name: titleOf(entry),
+          repo: entry.location === undefined ? { name: entry.repoName } : { name: entry.repoName, path: entry.location },
           isBooked: entry.booked?.[day] !== undefined,
         },
       }

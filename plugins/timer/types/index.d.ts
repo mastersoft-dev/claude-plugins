@@ -1,5 +1,12 @@
 export type Segment = { start: number; end?: number }
 
+/**
+ * What an orchestrator says the timer's work is: `group` is the place it runs
+ * in (an Orca worktree), `title` the task's name (its linked issue, or a name
+ * the person gave it) and `url` the issue's link.
+ */
+export type Task = { source: string; group: string; title?: string; url?: string }
+
 export type Entry = {
   id: string
   sessionId: string
@@ -11,42 +18,39 @@ export type Entry = {
   lastSeen?: number
   auto?: boolean
   location?: string
-  booked?: Record<string, number>
+  branch?: string
+  task?: Task
+  /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
+  booked?: Record<string, string | number>
+  /**
+   * Per day, the milliseconds subagents worked while the timer ran. Kept under
+   * its own store key and joined on load, never written with the entry.
+   */
+  agentMs?: Record<string, number>
 }
 
-export type Project = { id: number; label: string }
-
-/** What a repo's time books onto: a project, a customer still missing one, or nobody. */
-export type Link =
-  | { kind: 'project'; project: Project }
-  | { kind: 'customer'; customers: string[] }
-  | { kind: 'none' }
-
-export type Draft = {
+/** One entry's time on one day, as the `entries` tool hands it to whoever books it. */
+export type BookingLine = {
   entryId: string
   day: string
-  startHour: number
+  /** When the timer first started that day, HH:mm, Italian time. */
+  start: string
+  /** Whole minutes, the closed time only. */
   minutes: number
-  project: Project
-  descrizione: string
-  isSkipped?: boolean
-}
-
-export type BookView = {
-  kind: 'book'
-  drafts: Draft[]
-  needsProject: string[]
-  ignored: number
-  results: string[]
-  isBusy: boolean
-  isDone: boolean
-}
-
-export type PickView = {
-  kind: 'pick'
-  repoKey: string
-  repoName: string
-  matches: Project[]
+  /** The note, else the orchestrator's task title, else the branch's words, else the repo's name. */
+  title: string
+  note: string
+  repo: string
+  /** The git remote as `host/path`, when the repo has one. */
+  remote?: string
+  branch?: string
+  folder?: string
+  /** The orchestrator's task, when the timer started under one. */
+  task?: Task
+  state: 'running' | 'paused' | 'stopped'
+  booked?: string
+  /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
+  agentMinutes?: number
 }
 
 export type TodayTab = 'session' | 'all'
@@ -67,17 +71,21 @@ export type TodayRow = {
   minutes: number
   state: 'running' | 'paused' | 'stopped'
   note: string
-  where: string
+  /** The note, else the branch's words, else the repo's name (its git remote's, else its folder's). */
+  name: string
+  /** The repo it ran in; `path` is its folder. */
+  repo: { name: string; path?: string }
   isBooked: boolean
 }
 
-export type View = BookView | PickView | TodayView
+export type View = TodayView
 
 export type Band = {
   state: 'idle' | 'running' | 'paused'
   worked: string
   note: string
-  repoName: string
+  /** What the timer is called while it has no note: its branch's words, else its repo. */
+  defaultTitle: string
   unbooked: number
   auto: boolean
   isBookTime: boolean
@@ -85,6 +93,12 @@ export type Band = {
 
 declare module 'claude-code' {
   interface PluginState {
-    timer: { activeId: string | null; view: View | null; band: Band | null }
+    timer: {
+      activeId: string | null
+      view: View | null
+      band: Band | null
+      /** The timer the band asks about after a /clear: keep it running or stop it. */
+      askAfterClear: string | null
+    }
   }
 }
