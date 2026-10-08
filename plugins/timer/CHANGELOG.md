@@ -8,6 +8,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- The 30-second refresh reads only the open timers, and the count of timers
+  to book at most every five minutes, instead of every timer the store keeps.
+
 ## [1.0.0] — 2026-10-08
 
 ### Added

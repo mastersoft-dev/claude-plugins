@@ -41,7 +41,14 @@ const orcaAnswer = (worktree: Record<string, unknown> | null) => ({
 const world = (on: On, stored: Record<string, unknown> = {}, head: string | null = 'C:/repos/acme-site\nmaster\n') => {
   const clock = mock.clock(on, { now: T0 })
   const store = new Map(Object.entries(stored))
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
+  const reads: string[] = []
+  const hold = { entryReads: -1 }
+  on('store.get', async ($, e) => {
+    reads.push(e.key)
+    const value = store.get(e.key)
+    if (e.key.startsWith('entry:') && hold.entryReads >= 0 && hold.entryReads-- === 0) await clock.sleep(SECOND)
+    return { value }
+  })
   on('store.set', ($, e) => {
     store.set(e.key, JSON.parse(JSON.stringify(e.value)))
     return { value: undefined }
@@ -50,11 +57,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
     store.delete(e.key)
     return { value: undefined }
   })
-  const hold = { afterKeys: -1 }
-  on('store.keys', async () => {
-    if (hold.afterKeys >= 0 && hold.afterKeys-- === 0) await clock.sleep(SECOND)
-    return { value: [...store.keys()] }
-  })
+  on('store.keys', () => ({ value: [...store.keys()] }))
   const files: Record<string, string> = {}
   const session = { id: 's1' }
   on('session.id', () => ({ value: session.id }))
@@ -93,7 +96,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
-  return { clock, files, store, toasts, panes, session, hold, tools, orca }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -255,10 +258,39 @@ test('a timer left paused by a closed session stops on a later heartbeat', async
     segments: [{ start: T0 - 60 * MINUTE, end: T0 - 5 * MINUTE }],
     lastSeen: T0,
   })
+  store.set('seen:old', T0)
   await clock.advance(MINUTE)
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(undefined)
   await clock.advance(5 * MINUTE)
   expect((store.get('entry:old') as { stoppedAt?: number }).stoppedAt).toBe(T0)
+})
+
+test('the 30-second refresh reads only the open timers, not every stopped one', async ($, on) => {
+  const stopped = Object.fromEntries(
+    Array.from({ length: 20 }, (_, i) => [
+      `entry:done${i}`,
+      { ...otherSession, id: `done${i}`, segments: [{ start: T0 - DAY, end: T0 - DAY + MINUTE }], stoppedAt: T0 - DAY + MINUTE },
+    ]),
+  )
+  const { clock, reads } = world(on, stopped)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await clock.advance(30 * SECOND)
+  reads.length = 0
+  await clock.advance(2 * MINUTE)
+  expect(reads.filter(k => k.startsWith('entry:done'))).toEqual([])
+})
+
+test('a new session drops heartbeat keys no open timer owns', async ($, on) => {
+  const { store } = world(on, { 'seen:gone': T0 - DAY, 'entry:other': otherSession, 'seen:other': T0 - DAY })
+  await startSession($, on)
+  expect([...store.keys()].filter(k => k.startsWith('seen:'))).toEqual([])
+})
+
+test('a new session takes up its own open timer that 1.0.0 left with no heartbeat key', async ($, on) => {
+  world(on, { 'entry:mine': { ...otherSession, id: 'mine', sessionId: 's1', segments: [{ start: T0 - 30 * MINUTE, end: T0 - 10 * MINUTE }], stoppedAt: undefined } })
+  await startSession($, on)
+  expect(await timer($, 'status')).toContain('This session: paused')
 })
 
 test('a new session drops booked timers past the retention and past reminders, keeping unbooked time', async ($, on) => {
@@ -449,7 +481,7 @@ test('a heartbeat in flight never undoes the pause auto mode makes when a turn e
   await timer($, 'start background job')
   await timer($, 'auto')
   await $.turn.start({ text: 'go', turnId: 't1' })
-  hold.afterKeys = 0
+  hold.entryReads = 0
   await clock.advance(30 * SECOND)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
   await clock.advance(SECOND)

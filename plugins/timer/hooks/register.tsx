@@ -40,6 +40,7 @@ const PANE = 'timer'
 const MS_PER_MINUTE = 60_000
 const TICK_MS = 30_000
 const STALE_MS = 5 * TICK_MS
+const UNBOOKED_REFRESH_MS = 10 * TICK_MS
 const ENTRY_PREFIX = 'entry:'
 const SEEN_PREFIX = 'seen:'
 const AGENTS_PREFIX = 'agents:'
@@ -92,14 +93,37 @@ const loadEntries = async ($: EngineInterface): Promise<Entry[]> => {
   return entries.filter((e): e is Entry => e !== undefined)
 }
 
-/** Writes an entry, without its agent time; a stopped one no longer beats, so its heartbeat key goes. */
+/**
+ * Gives an open entry a heartbeat key when it has none, so that the refresh
+ * finds it among the open ones; one it already has is never moved back.
+ */
+const ensureSeen = async ($: EngineInterface, entry: Entry) => {
+  if ((await $.store.get(SEEN_PREFIX + entry.id)) !== undefined) return
+  await $.store.set(SEEN_PREFIX + entry.id, Math.max(entry.lastSeen ?? 0, entry.segments.at(-1)?.start ?? 0))
+}
+
+/**
+ * Writes an entry, without its agent time. An open one keeps a heartbeat key,
+ * which is how the refresh finds the open entries; a stopped one no longer
+ * beats, so its key goes.
+ */
 const saveEntry = async ($: EngineInterface, entry: Entry) => {
   const { agentMs: _, ...stored } = entry
   await $.store.set(ENTRY_PREFIX + entry.id, stored)
+  invalidateUnbooked()
   if (stateOf(entry) === 'stopped') await $.store.delete(SEEN_PREFIX + entry.id)
+  else await ensureSeen($, entry)
+}
+
+/** The running and paused entries of every session, found by their heartbeat keys alone. */
+const loadOpenEntries = async ($: EngineInterface): Promise<Entry[]> => {
+  const ids = (await $.store.keys()).filter(k => k.startsWith(SEEN_PREFIX)).map(k => k.slice(SEEN_PREFIX.length))
+  const entries = await Promise.all(ids.map(id => loadEntry($, id)))
+  return entries.filter((e): e is Entry => e !== undefined && stateOf(e) !== 'stopped')
 }
 
 const forgetEntry = async ($: EngineInterface, id: string) => {
+  invalidateUnbooked()
   await $.store.delete(ENTRY_PREFIX + id)
   await $.store.delete(SEEN_PREFIX + id)
   await $.store.delete(AGENTS_PREFIX + id)
@@ -130,30 +154,72 @@ const repoOf = async ($: EngineInterface): Promise<Repo> => {
 /** Stopped timers with a day still to book. */
 const countUnbooked = (entries: readonly Entry[]): number => entries.filter(e => pendingDays(e).length > 0).length
 
+let unbookedCount = 0
+let unbookedAt: number | undefined
+let unbookedVersion = 0
+
+const invalidateUnbooked = () => {
+  unbookedAt = undefined
+  unbookedVersion += 1
+}
+
+/**
+ * The stopped timers still to book, from a read of the whole store at most
+ * every few minutes, or after this session changed one: the band's count
+ * needs no fresher, and the store holds every timer of the retention. A read
+ * overtaken by a change of this session is not kept.
+ */
+const unbookedOf = async ($: EngineInterface, now: number): Promise<number> => {
+  if (unbookedAt !== undefined && now - unbookedAt < UNBOOKED_REFRESH_MS) return unbookedCount
+  const version = unbookedVersion
+  const count = countUnbooked(await loadEntries($))
+  if (version === unbookedVersion) {
+    unbookedCount = count
+    unbookedAt = now
+  }
+  return count
+}
+
 let reminderAt = DEFAULT_REMINDER
 let retentionDays = DEFAULT_RETENTION_DAYS
 let countsAgents = false
 
-/** Drops booked timers older than the retention, and the reminders of days gone by. */
+/**
+ * Drops booked timers older than the retention and the reminders of days gone
+ * by, and keeps a heartbeat key for exactly the open timers: one for each
+ * (1.0.0 kept one only for a session's active timer), none left behind by a
+ * stop or a delete that raced a refresh. The keys are listed before the
+ * entries are read, so a timer started meanwhile keeps its key.
+ */
 const prune = async ($: EngineInterface) => {
   const now = await $.clock.now()
+  const keys = await $.store.keys()
+  const open = new Set<string>()
   for (const entry of await loadEntries($)) {
     if (isExpired(entry, now, retentionDays)) await forgetEntry($, entry.id)
+    else if (stateOf(entry) !== 'stopped') {
+      open.add(entry.id)
+      await ensureSeen($, entry)
+    }
   }
   const today = dayOf(now)
-  for (const key of await $.store.keys()) {
+  for (const key of keys) {
     if (key.startsWith(REMINDED_PREFIX) && key.slice(REMINDED_PREFIX.length) < today) await $.store.delete(key)
+    if (key.startsWith(SEEN_PREFIX) && !open.has(key.slice(SEEN_PREFIX.length))) await $.store.delete(key)
   }
 }
 
 const isBookTime = (now: number) => timeOf(now) >= reminderAt
 
+/** Reminds once a day, from the reminder time, with a fresh count: the band's may be minutes old. */
 const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => {
   if (unbooked === 0 || !isBookTime(now)) return
   const key = REMINDED_PREFIX + dayOf(now)
   if ((await $.store.get(key)) !== undefined) return
+  const fresh = countUnbooked(await loadEntries($))
+  if (fresh === 0) return
   await $.store.set(key, now)
-  $.ui.toast(`${plural(unbooked, 'timer', 'timers')} not booked yet: ${ASK_TO_BOOK}`)
+  $.ui.toast(`${plural(fresh, 'timer', 'timers')} not booked yet: ${ASK_TO_BOOK}`)
 }
 
 const describe = (entry: Entry, now: number): string =>
@@ -162,7 +228,7 @@ const describe = (entry: Entry, now: number): string =>
 const beat = async ($: EngineInterface) => {
   const entry = await loadActive($)
   const now = await $.clock.now()
-  const unbooked = countUnbooked(await loadEntries($))
+  const unbooked = await unbookedOf($, now)
   const bookTime = isBookTime(now)
   await remindOnce($, now, unbooked)
   if (entry === undefined || stateOf(entry) === 'stopped') {
@@ -291,8 +357,8 @@ const recoverStale = async ($: EngineInterface, since: number | undefined): Prom
   const staleBefore = since - STALE_MS
   const own = await read($, activeId)
   let recovered = 0
-  for (const entry of await loadEntries($)) {
-    if (entry.id === own || stateOf(entry) === 'stopped') continue
+  for (const entry of await loadOpenEntries($)) {
+    if (entry.id === own) continue
     const closed = closeStale(await lastSeenOf($, entry), staleBefore)
     if (closed === undefined) continue
     await saveEntry($, closed)
@@ -332,7 +398,7 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
     return `A timer is already ${stateOf(held)}: ${describe(held, now)}. /timer stop first.`
   }
   await recoverStale($, lastTickAt)
-  const others = (await loadEntries($)).filter(e => stateOf(e) === 'running')
+  const others = (await loadOpenEntries($)).filter(e => stateOf(e) === 'running')
   const repo = await repoOf($)
   const [worktree, task] = await Promise.all([worktreeOf(runnerOf($)), orcaTaskOf(runnerOf($))])
   const entry = startEntry(
@@ -519,16 +585,16 @@ export const register: Register = (on, options) => {
         additionalProperties: false,
       },
     })
+    await prune($)
     if ((await read($, activeId)) === null) {
       const sessionId = await $.session.id()
-      const open = (await loadEntries($))
-        .filter(entry => entry.sessionId === sessionId && stateOf(entry) !== 'stopped')
+      const open = (await loadOpenEntries($))
+        .filter(entry => entry.sessionId === sessionId)
         .sort((a, b) => (a.segments[0]?.start ?? 0) - (b.segments[0]?.start ?? 0))
         .at(-1)
       if (open !== undefined) await update($, activeId, () => open.id)
     }
     lastTickAt = undefined
-    await prune($)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
