@@ -1246,7 +1246,7 @@ export const register: Register = (on, options) => {
     const rows = current.tab === 'all' ? allRows : allRows.filter(r => r.sessionId === sessionId)
     const shown = current.tab === 'all' ? entries : entries.filter(entry => entry.sessionId === sessionId)
     const total = dayMinutes(shown, dayOf(now), now, { withAgents: countsAgents, wallClock: isWallClock })
-    const toBook = bookingLines(entries.filter(entry => stateOf(entry) === 'stopped'), {}, countsAgents)
+    const toBook = bookingLines(entries.filter(entry => stateOf(entry) === 'stopped'), {}, countsAgents, roundTo)
     const selected = rows.find(r => r.id === current.selectedId && r.sessionId === sessionId)
     const mark = { running: '⏱', paused: '⏸', stopped: '■' } as const
     const tabs = (
@@ -1279,12 +1279,14 @@ export const register: Register = (on, options) => {
           <Text bold>
             To book · {formatDuration(toBook.reduce((sum, l) => sum + l.minutes, 0) * MS_PER_MINUTE)} in{' '}
             {plural(new Set(toBook.map(l => l.day)).size, 'day', 'days')}
+            {roundTo > 0 ? ` · rounded to ${roundTo} min` : ''}
           </Text>
           <Text dimColor>{toBook.length === 0 ? 'Every stopped timer is booked.' : `Stopped timers not booked yet: ${ASK_TO_BOOK}.`}</Text>
           {toBook.map(l => (
             <Box key={`b${l.entryId}${l.day}`} gap={1}>
               <Text>
-                {l.day} {l.start} {formatDuration(l.minutes * MS_PER_MINUTE)}  {l.title}
+                {l.day} {l.start} {formatDuration(l.minutes * MS_PER_MINUTE)}
+                {l.exactMinutes === undefined ? '' : ` (${formatDuration(l.exactMinutes * MS_PER_MINUTE)} tracked)`}  {l.title}
               </Text>
               <Text dimColor wrap="truncate-end">
                 {l.folder === undefined ? l.repo : <Link href={fileUrl(l.folder)}>{l.repo}</Link>}

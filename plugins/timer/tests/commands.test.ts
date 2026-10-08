@@ -1050,6 +1050,17 @@ test('the To book tab lists the stopped timers of every day not booked yet', asy
   await ui.unmount()
 })
 
+test('with roundTo set, the To book tab shows the minutes as they will be booked', { options: { roundTo: 15 } }, async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'tabbook' })
+  expect((await ui.find({ type: 'Text', text: /^To book/ }))?.text).toContain('1h 00m in 1 day · rounded to 15 min')
+  expect(await ui.find({ type: 'Text', text: /2026-10-06 09:00 1h 00m \(1h 03m tracked\) {2}fix login/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('a timer is deleted only on the second press of Delete', async ($, on) => {
   const { clock, store } = world(on)
   await trackAndStop($, clock)

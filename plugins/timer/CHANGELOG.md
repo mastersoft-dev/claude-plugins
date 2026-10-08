@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- With `roundTo` set, the panel's To book tab shows each day's minutes as
+  they will be booked, with the tracked ones beside them.
 - The daily booking reminder also offers "Book my unbooked timers" in the
   empty prompt box, for Tab to take.
 - The `autoGraceMinutes` setting (0 by default) keeps an auto-mode timer
