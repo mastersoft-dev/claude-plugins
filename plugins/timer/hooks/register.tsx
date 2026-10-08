@@ -77,6 +77,8 @@ const MARK_TOOL = 'mark_booked'
 const ADD_TOOL = 'add_entry'
 const EDIT_TOOL = 'edit_entry'
 const ASK_TO_BOOK = 'ask Claude to book them'
+const BOOK_PROMPT = 'Book my unbooked timers'
+const SUGGESTED_PREFIX = 'suggested:'
 const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file.csv]'
 
 const activeId = atom({ plugin: 'timer', key: 'activeId' } as const, null)
@@ -254,7 +256,9 @@ const prune = async ($: EngineInterface) => {
     for (const prefix of [AGENTS_PREFIX, COST_PREFIX]) {
       if (key.startsWith(prefix) && !ids.has(key.slice(prefix.length))) await $.store.delete(key)
     }
-    if (key.startsWith(REMINDED_PREFIX) && key.slice(REMINDED_PREFIX.length) < today) await $.store.delete(key)
+    for (const prefix of [REMINDED_PREFIX, SUGGESTED_PREFIX]) {
+      if (key.startsWith(prefix) && key.slice(prefix.length) < today) await $.store.delete(key)
+    }
     if (key.startsWith(SEEN_PREFIX) && !open.has(key.slice(SEEN_PREFIX.length))) await $.store.delete(key)
   }
 }
@@ -270,6 +274,23 @@ const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => 
   if (fresh === 0) return
   await $.store.set(key, now)
   $.ui.toast(`${plural(fresh, 'timer', 'timers')} not booked yet: ${ASK_TO_BOOK}`)
+}
+
+/**
+ * From the reminder time, offers the prompt that books the timers in the
+ * empty prompt box, for Tab to take; tried again on each refresh until the
+ * box could show it (it can't while it holds text or a turn runs), then not
+ * again that day.
+ */
+const suggestBooking = async ($: EngineInterface, now: number, unbooked: number) => {
+  if (unbooked === 0 || !isBookTime(now)) return
+  const key = SUGGESTED_PREFIX + dayOf(now)
+  if ((await $.store.get(key)) !== undefined) return
+  const shown = await $.prompt.suggest({ text: BOOK_PROMPT }).catch((error: unknown) => {
+    $.ui.log(`timer: booking prompt not offered: ${errorText(error)}`, { to: 'debug' })
+    return { isShown: false }
+  })
+  if (shown.isShown) await $.store.set(key, now)
 }
 
 const describe = (entry: Entry, now: number): string =>
@@ -310,6 +331,7 @@ const beat = async ($: EngineInterface) => {
   const unbooked = await unbookedOf($, now)
   const bookTime = isBookTime(now)
   await remindOnce($, now, unbooked)
+  await suggestBooking($, now, unbooked)
   if (entry === undefined || stateOf(entry) === 'stopped') {
     $.ui.status(undefined)
     await update($, band, () => ({

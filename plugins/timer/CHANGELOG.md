@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The daily booking reminder also offers "Book my unbooked timers" in the
+  empty prompt box, for Tab to take.
 - The `autoGraceMinutes` setting (0 by default) keeps an auto-mode timer
   running that many minutes after Claude's turn ends, so reading the answer
   and typing the next prompt count, and a turn started within them leaves no

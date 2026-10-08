@@ -102,9 +102,15 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('ui.log', () => ({ value: undefined }))
   on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
   on('prompt.submit', ($, e) => ({ text: e.text }) as never)
+  const suggestions: string[] = []
+  const box = { isFree: true }
+  on('prompt.suggest', ($, e) => {
+    suggestions.push(e.text)
+    return { isShown: box.isFree }
+  })
   const usage = { usd: 0 }
   on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -863,7 +869,7 @@ test('by default a branch change keeps counting on the same timer', async ($, on
 })
 
 test('from the reminder time the band says what to book and reminds once', async ($, on) => {
-  const { clock, toasts } = world(on)
+  const { clock, toasts, suggestions } = world(on)
   await trackAndStop($, clock)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /to book/ })).toBe(undefined)
@@ -872,7 +878,24 @@ test('from the reminder time the band says what to book and reminds once', async
   await timer($, 'status')
   expect((await ui.find({ type: 'Text', text: /to book/ }))?.text).toBe('1 to book: ask Claude')
   expect(toasts.filter(t => t.includes('not booked yet'))).toEqual(['1 timer not booked yet: ask Claude to book them'])
+  expect(suggestions).toEqual(['Book my unbooked timers'])
   await ui.unmount()
+})
+
+test('the booking prompt is offered again on later refreshes until the box can show it', { options: { reminderTime: '10:05' } }, async ($, on) => {
+  const { clock, suggestions, box } = world(on)
+  await startSession($, on)
+  await trackAndStop($, clock)
+  box.isFree = false
+  await clock.advance(5 * MINUTE)
+  const tries = suggestions.length
+  expect(tries).toBeGreaterThan(0)
+  box.isFree = true
+  await clock.advance(MINUTE)
+  const shownAt = suggestions.length
+  expect(shownAt).toBeGreaterThan(tries)
+  await clock.advance(5 * MINUTE)
+  expect(suggestions.length).toBe(shownAt)
 })
 
 test('the band note box starts the timer with a note and renames it later', async ($, on) => {
