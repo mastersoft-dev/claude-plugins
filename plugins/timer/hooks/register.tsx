@@ -1,13 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
 
-import type { Entry, TodayTab } from '../types'
+import type { Away, Entry, TodayTab } from '../types'
 import {
   PATH_KEY_PREFIX,
   addAgentRun,
+  awayOf,
   bookingLines,
   canonicalRemote,
   closeStale,
+  cutRange,
   dayMinutes,
   dayOf,
   errorText,
@@ -23,6 +25,7 @@ import {
   pendingDays,
   reopenEntry,
   resumeEntry,
+  segmentsWithin,
   startEntry,
   stateOf,
   stopEntry,
@@ -46,6 +49,8 @@ const ENTRY_PREFIX = 'entry:'
 const SEEN_PREFIX = 'seen:'
 const AGENTS_PREFIX = 'agents:'
 const SUMMED = 'summed'
+const AWAY_MODES = ['ask', 'discard', 'keep'] as const
+const DEFAULT_IDLE_MINUTES = 15
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
 const DEFAULT_RETENTION_DAYS = 90
@@ -64,6 +69,7 @@ const activeId = atom({ plugin: 'timer', key: 'activeId' } as const, null)
 const view = atom({ plugin: 'timer', key: 'view' } as const, null)
 const band = atom({ plugin: 'timer', key: 'band' } as const, null)
 const askAfterClear = atom({ plugin: 'timer', key: 'askAfterClear' } as const, null)
+const awayAtom = atom({ plugin: 'timer', key: 'away' } as const, null)
 
 type Repo = { key: string; name: string; root: string }
 
@@ -185,6 +191,8 @@ let reminderAt = DEFAULT_REMINDER
 let retentionDays = DEFAULT_RETENTION_DAYS
 let countsAgents = false
 let isWallClock = true
+let awayMode: (typeof AWAY_MODES)[number] = 'ask'
+let idleMs = DEFAULT_IDLE_MINUTES * MS_PER_MINUTE
 
 /**
  * Drops booked timers older than the retention and the reminders of days gone
@@ -263,6 +271,7 @@ const beat = async ($: EngineInterface) => {
 }
 
 const fromBand = async ($: EngineInterface, action: () => Promise<string>) => {
+  await noteActivity($)
   const text = await action()
   await beat($)
   $.ui.toast(text.replace(/\n/g, ' · '))
@@ -327,6 +336,91 @@ const creditAgentRun = ($: EngineInterface, durationMs: number): Promise<void> =
   return agentWrites
 }
 
+/** Saves an entry with the span from `from` to `to` taken out, or forgets it when nothing of it is left. */
+const saveCut = async ($: EngineInterface, entry: Entry, from: number, to: number) => {
+  const cut = cutRange(entry, from, to)
+  if (cut.segments.length > 0) return saveEntry($, cut)
+  if ((await read($, activeId)) === entry.id) await update($, activeId, () => null)
+  await forgetEntry($, entry.id)
+}
+
+const awaySpan = (away: Away, to: number) =>
+  `${timeOf(away.from)}–${timeOf(to)} (${formatDuration(to - away.from)})`
+
+/**
+ * Settles the away time the person is back from: kept as it is, left out of
+ * its timer, or moved out to a stopped timer of its own, in the same place and
+ * with no note, to be renamed in the panel.
+ */
+const settleAway = async ($: EngineInterface, choice: 'keep' | 'discard' | 'split'): Promise<string> => {
+  const away = await read($, awayAtom)
+  await update($, awayAtom, () => null)
+  if (away === null || away.to === null) return 'No away time to settle.'
+  const span = awaySpan(away, away.to)
+  if (choice === 'keep') return `Away time kept: ${span}`
+  const entry = await loadEntry($, away.entryId)
+  if (entry === undefined) return 'That timer is gone.'
+  const part = segmentsWithin(entry, away.from, away.to)
+  const isSplit = choice === 'split' && part.length > 0
+  if (isSplit) {
+    await saveEntry($, {
+      id: crypto.randomUUID(),
+      sessionId: entry.sessionId,
+      repoKey: entry.repoKey,
+      repoName: entry.repoName,
+      note: '',
+      segments: part,
+      stoppedAt: away.to,
+      location: entry.location,
+      branch: entry.branch,
+      task: entry.task,
+    })
+  }
+  await saveCut($, entry, away.from, away.to)
+  return isSplit ? `Away time ${span} moved to a timer of its own: rename it in the panel.` : `Away time left out: ${span}`
+}
+
+let lastActiveAt: number | undefined
+let activityWrites: Promise<void> = Promise.resolve()
+
+/**
+ * Records that the person is at the keyboard (a keystroke, a prompt, a command,
+ * a press), which ends any away time waiting for them: left out at once under
+ * `awayTime: discard`, asked about on the band under `ask`. One at a time, so
+ * a burst of keys ends it once; never rejects, since it runs on every key.
+ */
+const noteActivity = ($: EngineInterface): Promise<void> => {
+  activityWrites = activityWrites
+    .then(async () => {
+      const now = await $.clock.now()
+      lastActiveAt = now
+      const away = await read($, awayAtom)
+      if (away === null || away.to !== null) return
+      await update($, awayAtom, () => (awayMode === 'keep' ? null : { ...away, to: now }))
+      if (awayMode !== 'discard') return
+      $.ui.toast(await settleAway($, 'discard'))
+      await beat($)
+    })
+    .catch((error: unknown) => $.ui.log(`timer: activity not recorded: ${errorText(error)}`, { to: 'debug' }))
+  return activityWrites
+}
+
+/**
+ * Finds away time while the active timer runs: no activity for `idleMinutes`,
+ * or a computer that slept. Under `awayTime: keep` nothing is looked for.
+ */
+const detectAway = async ($: EngineInterface, lastTick: number | undefined, now: number) => {
+  if (awayMode === 'keep' || (await read($, awayAtom)) !== null) return
+  const entry = await loadActive($)
+  const runningSince = entry?.segments.at(-1)?.start
+  if (entry === undefined || stateOf(entry) !== 'running' || runningSince === undefined) return
+  lastActiveAt ??= now
+  const away = awayOf({ now, lastActive: lastActiveAt, lastTick, isClaudeWorking, runningSince, idleMs, sleepMs: STALE_MS })
+  if (away === undefined) return
+  await update($, awayAtom, () => ({ entryId: entry.id, ...away }))
+  if (away.to !== null && awayMode === 'discard') $.ui.toast(await settleAway($, 'discard'))
+}
+
 /** Runs the active auto-mode timer exactly while Claude works on a turn. */
 const followClaude = async ($: EngineInterface) => {
   const entry = await loadActive($)
@@ -375,6 +469,7 @@ const tick = async ($: EngineInterface) => {
   const previous = lastTickAt
   lastTickAt = await $.clock.now()
   await recoverStale($, previous)
+  await detectAway($, previous, lastTickAt)
   await beat($)
 }
 
@@ -495,6 +590,7 @@ const deleteEntry = async ($: EngineInterface, id: string) => {
   const entry = await loadEntry($, id)
   if ((await read($, activeId)) === id) await update($, activeId, () => null)
   await forgetEntry($, id)
+  await update($, awayAtom, away => (away?.entryId === id ? null : away))
   await update($, view, v => (v?.kind === 'today' ? { ...v, selectedId: null, confirmDeleteId: null } : v))
   await beat($)
   const references = Object.values(entry?.booked ?? {}).map(String)
@@ -551,6 +647,9 @@ export const register: Register = (on, options) => {
   retentionDays = Number.isInteger(retention) && retention > 0 ? retention : DEFAULT_RETENTION_DAYS
   countsAgents = options.agentTime === SUMMED
   isWallClock = options.parallelTime !== SUMMED
+  awayMode = AWAY_MODES.find(mode => mode === options.awayTime) ?? 'ask'
+  const idleMinutes = Number(options.idleMinutes)
+  idleMs = (Number.isFinite(idleMinutes) && idleMinutes >= 0 ? idleMinutes : DEFAULT_IDLE_MINUTES) * MS_PER_MINUTE
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -598,6 +697,7 @@ export const register: Register = (on, options) => {
       if (open !== undefined) await update($, activeId, () => open.id)
     }
     lastTickAt = undefined
+    lastActiveAt = await $.clock.now()
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
@@ -625,6 +725,18 @@ export const register: Register = (on, options) => {
     return { result: { entryId: mark.entryId, day: mark.day, booked: mark.reference } }
   })
 
+  on('prompt.edit', async ($, e, next) => {
+    const edited = await next(e)
+    await noteActivity($)
+    return edited
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    const submitted = await next(e)
+    await noteActivity($)
+    return submitted
+  })
+
   on('turn.start', async ($, e, next) => {
     const started = await next(e)
     isClaudeWorking = true
@@ -636,6 +748,7 @@ export const register: Register = (on, options) => {
     const completed = await next(e)
     if (e.agentId === undefined) {
       isClaudeWorking = false
+      lastActiveAt = await $.clock.now()
       await followClaude($)
     } else {
       await creditAgentRun($, e.durationMs)
@@ -651,13 +764,18 @@ export const register: Register = (on, options) => {
     }
     ticker?.cancel()
     ticker = undefined
-    const stopped = entry === undefined ? undefined : stopEntry(entry, await $.clock.now())
+    const now = await $.clock.now()
+    const away = await read($, awayAtom)
+    await update($, awayAtom, () => null)
+    const isAway = entry !== undefined && away?.entryId === entry.id && away.to === null && stateOf(entry) === 'running'
+    const stopped = entry === undefined ? undefined : stopEntry(entry, isAway && away !== null ? away.from : now)
     if (stopped !== undefined && typeof stopped !== 'string') await saveEntry($, stopped)
     await update($, activeId, () => null)
     return next(e)
   })
 
   on('command.run', { command: COMMAND }, async ($, e) => {
+    await noteActivity($)
     const [verb = 'status', ...rest] = e.args.trim().split(/\s+/).filter(Boolean)
     const arg = rest.join(' ')
     const text = await (async () => {
@@ -706,6 +824,18 @@ export const register: Register = (on, options) => {
           <Text>Conversation cleared: keep the timer running?</Text>
           <Button key="keepafterclear" label="Keep running" onPress={() => fromBand($, () => answerAfterClear($, true))} />
           <Button key="stopafterclear" label="Stop" onPress={() => fromBand($, () => answerAfterClear($, false))} />
+        </Box>
+      )
+    }
+
+    const away = await read($, awayAtom)
+    if (awayMode === 'ask' && away !== null && away.to !== null) {
+      return (
+        <Box key="timer-band" width={e.props.bodyColumns} justifyContent="flex-end" gap={1}>
+          <Text>Away {awaySpan(away, away.to)} while the timer ran:</Text>
+          <Button key="awaykeep" label="Keep" onPress={() => fromBand($, () => settleAway($, 'keep'))} />
+          <Button key="awaydiscard" label="Leave out" onPress={() => fromBand($, () => settleAway($, 'discard'))} />
+          <Button key="awaysplit" label="Own timer" onPress={() => fromBand($, () => settleAway($, 'split'))} />
         </Box>
       )
     }

@@ -34,6 +34,19 @@
       "options": ["wall-clock", "summed"],
       "default": "wall-clock"
     },
+    "awayTime": {
+      "type": "string",
+      "title": "Time away",
+      "description": "What happens to the time a running timer counts while you are away (no activity for idleMinutes, or the computer asleep): ask when you are back, discard it, or keep counting it",
+      "options": ["ask", "discard", "keep"],
+      "default": "ask"
+    },
+    "idleMinutes": {
+      "type": "number",
+      "title": "Away after (minutes)",
+      "description": "Minutes with no typing, prompt or press, and Claude not working, after which a running timer counts you away; 0 counts only a sleeping computer",
+      "default": 15
+    },
     "parallelTime": {
       "type": "string",
       "title": "Timers run at once",

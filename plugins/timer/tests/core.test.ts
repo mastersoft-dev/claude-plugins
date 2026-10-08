@@ -3,10 +3,12 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Entry } from '../types'
 import {
   addAgentRun,
+  awayOf,
   bookingLines,
   branchLabel,
   canonicalRemote,
   closeStale,
+  cutRange,
   dayMinutes,
   dayOf,
   fileUrl,
@@ -19,6 +21,7 @@ import {
   pauseEntry,
   pendingDays,
   resumeEntry,
+  segmentsWithin,
   sharedMs,
   startEntry,
   stateOf,
@@ -313,5 +316,53 @@ describe('dayMinutes', () => {
   test('on the wall clock the time timers ran at once counts once, subagents on top when asked', () => {
     expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: false, wallClock: true })).toBe(93)
     expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: true, wallClock: true })).toBe(103)
+  })
+})
+
+describe('cutRange', () => {
+  test('takes the span out of closed segments and keeps an open one open after it', () => {
+    const open = entry({ segments: [{ start: 0, end: 10 }, { start: 20 }], stoppedAt: undefined })
+    expect(cutRange(open, 5, 30).segments).toEqual([{ start: 0, end: 5 }, { start: 30 }])
+    expect(cutRange(open, 12, 18).segments).toEqual([{ start: 0, end: 10 }, { start: 20 }])
+  })
+})
+
+describe('segmentsWithin', () => {
+  test('gives the closed pieces of the segments inside the span', () => {
+    const open = entry({ segments: [{ start: 0, end: 10 }, { start: 20 }], stoppedAt: undefined })
+    expect(segmentsWithin(open, 5, 30)).toEqual([{ start: 5, end: 10 }, { start: 20, end: 30 }])
+  })
+})
+
+describe('awayOf', () => {
+  const presence = {
+    now: T0 + 60 * MINUTE,
+    lastActive: T0 + 40 * MINUTE,
+    lastTick: T0 + 60 * MINUTE - 30_000,
+    isClaudeWorking: false,
+    runningSince: T0,
+    idleMs: 15 * MINUTE,
+    sleepMs: 150_000,
+  }
+
+  test('idle past the threshold is away from the last activity until the person is back', () => {
+    expect(awayOf(presence)).toEqual({ from: T0 + 40 * MINUTE, to: null })
+    expect(awayOf({ ...presence, lastActive: T0 + 50 * MINUTE })).toBe(undefined)
+  })
+
+  test('Claude working is not idle, and idleMs 0 never is', () => {
+    expect(awayOf({ ...presence, isClaudeWorking: true })).toBe(undefined)
+    expect(awayOf({ ...presence, idleMs: 0 })).toBe(undefined)
+  })
+
+  test('a sleep alone ends as the computer wakes, one shorter than the idle threshold is not away', () => {
+    const woke = { ...presence, lastActive: T0 + 59 * MINUTE, lastTick: T0 + 30 * MINUTE, isClaudeWorking: true }
+    expect(awayOf(woke)).toEqual({ from: T0 + 30 * MINUTE, to: T0 + 60 * MINUTE })
+    expect(awayOf({ ...woke, lastTick: T0 + 50 * MINUTE })).toBe(undefined)
+    expect(awayOf({ ...woke, idleMs: 0, lastTick: T0 + 55 * MINUTE })).toEqual({ from: T0 + 55 * MINUTE, to: T0 + 60 * MINUTE })
+  })
+
+  test('nothing before the running segment counts', () => {
+    expect(awayOf({ ...presence, runningSince: T0 + 45 * MINUTE })).toEqual({ from: T0 + 45 * MINUTE, to: null })
   })
 })

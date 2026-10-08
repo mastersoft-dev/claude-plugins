@@ -83,6 +83,12 @@ export type TodayRow = {
 
 export type View = TodayView
 
+/**
+ * Time the person was away while a timer ran: from `from`, until `to` once they
+ * are back (null while they are still away).
+ */
+export type Away = { entryId: string; from: number; to: number | null }
+
 export type Band = {
   state: 'idle' | 'running' | 'paused'
   worked: string
@@ -102,6 +108,8 @@ declare module 'claude-code' {
       band: Band | null
       /** The timer the band asks about after a /clear: keep it running or stop it. */
       askAfterClear: string | null
+      /** The away time the band asks about, or that waits for the person to be back. */
+      away: Away | null
     }
   }
 }

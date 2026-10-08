@@ -121,6 +121,54 @@ export const stopEntry = (entry: Entry, now: number): Entry | string => {
 const closeLast = (segments: Entry['segments'], now: number) =>
   segments.map((s, i) => (i === segments.length - 1 && s.end === undefined ? { ...s, end: now } : s))
 
+/** The entry with the time from `from` to `to` taken out of its segments; an open one stays open from `to`. */
+export const cutRange = (entry: Entry, from: number, to: number): Entry => ({
+  ...entry,
+  segments: entry.segments.flatMap(s => {
+    const end = s.end ?? Infinity
+    if (end <= from || s.start >= to) return [s]
+    const before = s.start < from ? [{ start: s.start, end: from }] : []
+    const after = end > to ? [s.end === undefined ? { start: to } : { start: to, end: s.end }] : []
+    return [...before, ...after]
+  }),
+})
+
+/** The pieces of an entry's segments that lie between `from` and `to`, all closed. */
+export const segmentsWithin = (entry: Entry, from: number, to: number): Segment[] =>
+  entry.segments
+    .map(s => ({ start: Math.max(s.start, from), end: Math.min(s.end ?? to, to) }))
+    .filter(s => s.end > s.start)
+
+/** What the timer knows of the person's presence when its refresh runs. */
+export type Presence = {
+  now: number
+  /** The person's last keystroke, prompt, command or press, or the end of Claude's last turn. */
+  lastActive: number
+  /** The refresh before this one; a long gap since means the computer slept. */
+  lastTick: number | undefined
+  isClaudeWorking: boolean
+  /** When the running timer's open segment began: nothing before it is cut. */
+  runningSince: number
+  /** No activity for this long is away time; 0 never calls idle time away. */
+  idleMs: number
+  /** A gap between refreshes this long means the computer slept. */
+  sleepMs: number
+}
+
+/**
+ * The away time a refresh finds, or undefined. Idle time runs from the last
+ * activity until the person is back (`to` null); a sleep alone ends as the
+ * computer wakes. Claude working is not idle time; nothing before the running
+ * segment counts.
+ */
+export const awayOf = (p: Presence): { from: number; to: number | null } | undefined => {
+  const isIdle = p.idleMs > 0 && !p.isClaudeWorking && p.now - p.lastActive >= p.idleMs
+  const sleptFrom =
+    p.lastTick !== undefined && p.now - p.lastTick >= Math.max(p.sleepMs, p.idleMs) ? p.lastTick : undefined
+  if (isIdle) return { from: Math.max(Math.min(p.lastActive, sleptFrom ?? Infinity), p.runningSince), to: null }
+  return sleptFrom === undefined ? undefined : { from: Math.max(sleptFrom, p.runningSince), to: p.now }
+}
+
 /**
  * Stops a running or paused entry whose session stopped beating before
  * `staleBefore` (a closed window, a crash), at the last moment it was seen alive.

@@ -10,6 +10,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Time away from a running timer, no typing, prompt or press for
+  `idleMinutes` (default 15) while Claude isn't working, or the computer
+  asleep, is noticed. When you're back the band asks whether to keep it,
+  leave it out or move it to a timer of its own; the `awayTime` setting
+  (`ask` by default) can leave it out without asking, or keep counting it as
+  before. A session closed while you're still away stops its timer when you
+  left.
 - A "To book" tab in the timer panel lists every stopped timer's day not
   booked yet, the days before today included.
 - The entries tool names, on each line, the other timers that ran at the same

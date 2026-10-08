@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { On, PromptEditInput, PromptEditResult } from 'claude-code'
 
 const SECOND = 1_000
 const MINUTE = 60_000
@@ -96,6 +96,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
+  on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
   return { clock, files, store, toasts, panes, session, hold, tools, orca, reads }
 }
 
@@ -486,6 +487,130 @@ test('a heartbeat in flight never undoes the pause auto mode makes when a turn e
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
   await clock.advance(SECOND)
   expect((entryOf(store) as { segments: { end?: number }[] }).segments.at(-1)?.end).toBe(T0 + 30 * SECOND)
+})
+
+type PromptEditCall = { edit: (e: PromptEditInput) => Promise<PromptEditResult> }
+
+const typeKey = ($: Engine) =>
+  ($.prompt as unknown as PromptEditCall).edit({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: 'x' })
+
+const awayHalfHour = async ($: Engine, on: On) => {
+  const world_ = world(on)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await world_.clock.advance(10 * MINUTE)
+  await typeKey($)
+  await world_.clock.advance(30 * MINUTE)
+  await typeKey($)
+  return world_
+}
+
+const awayQuestion = /^Away/
+
+test('back from 30 minutes away, the band asks, and Leave out takes the time out of the timer', async ($, on) => {
+  const { clock } = await awayHalfHour($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: awayQuestion }))?.text).toBe('Away 09:10–09:40 (0h 30m) while the timer ran:')
+  await ui.press({ key: 'awaydiscard' })
+  expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
+  await ui.unmount()
+  await clock.advance(5 * MINUTE)
+  expect(await timer($, 'stop')).toContain('0h 15m')
+})
+
+test('Own timer moves the away time to a stopped timer of its own', async ($, on) => {
+  const { clock } = await awayHalfHour($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'awaysplit' })
+  await ui.unmount()
+  await clock.advance(5 * MINUTE)
+  await timer($, 'stop')
+  expect((await lines($)).map(l => [l.start, l.minutes, l.title])).toEqual([
+    ['09:00', 15, 'fix login'],
+    ['09:10', 30, 'acme-site'],
+  ])
+})
+
+test('leaving out the whole time of a timer deletes it', async ($, on) => {
+  const { clock } = world(on)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await clock.advance(20 * MINUTE)
+  await timer($, 'stop')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: awayQuestion }))?.text).toBe('Away 09:00–09:20 (0h 20m) while the timer ran:')
+  await ui.press({ key: 'awaydiscard' })
+  await ui.unmount()
+  expect(await lines($, { includeBooked: true })).toEqual([])
+})
+
+test('Keep leaves the away time in the timer', async ($, on) => {
+  const { clock } = await awayHalfHour($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'awaykeep' })
+  await ui.unmount()
+  await clock.advance(5 * MINUTE)
+  expect(await timer($, 'stop')).toContain('0h 45m')
+})
+
+test('with away time discarded, coming back leaves it out at once and says so', { options: { awayTime: 'discard' } }, async ($, on) => {
+  const { clock, toasts } = await awayHalfHour($, on)
+  expect(toasts).toContain('Away time left out: 09:10–09:40 (0h 30m)')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
+  await ui.unmount()
+  await clock.advance(5 * MINUTE)
+  expect(await timer($, 'stop')).toContain('0h 15m')
+})
+
+test('with away time kept, nothing is asked and the timer counts it', { options: { awayTime: 'keep' } }, async ($, on) => {
+  const { clock } = await awayHalfHour($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
+  await ui.unmount()
+  await clock.advance(5 * MINUTE)
+  expect(await timer($, 'stop')).toContain('0h 45m')
+})
+
+test('a session closed while the person is still away stops its timer when they left', async ($, on) => {
+  const { clock, store } = world(on)
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await clock.advance(10 * MINUTE)
+  await typeKey($)
+  await clock.advance(30 * MINUTE)
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 's1' } as never)
+  expect((entryOf(store) as { segments: { end?: number }[] }).segments).toEqual([{ start: T0, end: T0 + 10 * MINUTE }])
+})
+
+test('Claude working on a long turn is not time away', async ($, on) => {
+  const { clock } = world(on)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: '', turnId: e.turnId }) as never)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(30 * MINUTE)
+  await $.turn.complete({ turnId: 't1', answer: '', durationMs: 0, isAborted: false, reason: 'end_turn', category: null, explanation: null, text: '' } as never)
+  await clock.advance(10 * MINUTE)
+  await typeKey($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
+  await ui.unmount()
+  expect(await timer($, 'stop')).toContain('0h 40m')
+})
+
+test('with idleMinutes 0 an hour with no activity is not time away', { options: { idleMinutes: 0 } }, async ($, on) => {
+  const { clock } = world(on)
+  await startSession($, on)
+  await timer($, 'start fix login')
+  await clock.advance(60 * MINUTE)
+  await typeKey($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
+  await ui.unmount()
+  expect(await timer($, 'stop')).toContain('1h 00m')
 })
 
 test('from the reminder time the band says what to book and reminds once', async ($, on) => {
