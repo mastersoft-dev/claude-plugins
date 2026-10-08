@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- The entries tool names, on each line, the other timers that ran at the same
+  time that day and the minutes they share, so Claude doesn't book the same
+  hours twice without asking.
+
 ### Changed
 
 - The 30-second refresh reads only the open timers, and the count of timers

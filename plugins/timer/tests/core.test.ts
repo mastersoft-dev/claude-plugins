@@ -18,6 +18,7 @@ import {
   pauseEntry,
   pendingDays,
   resumeEntry,
+  sharedMs,
   startEntry,
   stateOf,
   stopEntry,
@@ -132,6 +133,24 @@ describe('bookingLines', () => {
 
   test('gives no remote for a repo known only by its folder', () => {
     expect(bookingLines([entry({ repoKey: 'path:C:/repos/acme' })], {})[0]?.remote).toBe(undefined)
+  })
+
+  test('names the timers that ran at the same time, with the minutes shared', () => {
+    const parallel = entry({ id: 'e2', note: 'review', segments: [{ start: T0 + 43 * MINUTE, end: T0 + 90 * MINUTE }] })
+    const after = entry({ id: 'e3', note: 'docs', segments: [{ start: T0 + 90 * MINUTE, end: T0 + 100 * MINUTE }] })
+    expect(bookingLines([entry(), parallel, after], {}).map(l => [l.entryId, l.overlaps])).toEqual([
+      ['e1', [{ entryId: 'e2', title: 'review', minutes: 20 }]],
+      ['e2', [{ entryId: 'e1', title: 'fix login', minutes: 20 }]],
+      ['e3', undefined],
+    ])
+  })
+})
+
+describe('sharedMs', () => {
+  test('adds up every stretch two lists of segments run at once', () => {
+    const a = [{ start: 0, end: 10 }, { start: 20, end: 30 }]
+    expect(sharedMs(a, [{ start: 5, end: 25 }])).toBe(10)
+    expect(sharedMs(a, [{ start: 10, end: 20 }])).toBe(0)
   })
 })
 

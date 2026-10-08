@@ -10,7 +10,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 - **Panel** (`/timer open` or ☰): today's timers for this session or for all sessions, with editable notes. You can continue or delete a timer from there.
 - **Names from git**: a timer with no note is named after its branch (`feat/login-sso` → "login sso") and links to its worktree folder; on a default branch it keeps the repo's name.
 - **Orca**: in a worktree managed by Orca, a timer with no note is named after the worktree's linked issue (`#131 SSO login`), else a name you gave the worktree, and the entries tool hands Claude the worktree as the timer's `task`, so its timers can be booked together. It asks `orca worktree current --json` once per timer; outside Orca nothing changes.
-- **Booking by Claude**: the plugin gives Claude two tools. `mcp__timer__entries` lists the time per timer and day (minutes, the subagents' share of them, start, title, repo, git remote, branch, folder, state); `mcp__timer__mark_booked` records a day as booked so it is not offered again. From the reminder time (default 17:30, Italian time) the band shows how many timers wait to be booked.
+- **Booking by Claude**: the plugin gives Claude two tools. `mcp__timer__entries` lists the time per timer and day (minutes, the subagents' share of them, start, title, repo, git remote, branch, folder, state, and the other timers that ran at the same time); `mcp__timer__mark_booked` records a day as booked so it is not offered again. From the reminder time (default 17:30, Italian time) the band shows how many timers wait to be booked.
 - **Export**: `/timer export [file.csv]` writes every session's time as CSV.
 
 ## Booking on GEWEB

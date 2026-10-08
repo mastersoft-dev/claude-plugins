@@ -235,22 +235,59 @@ export const isExpired = (entry: Entry, now: number, retentionDays: number): boo
   return stoppedAt < now - retentionDays * DAY_MS
 }
 
+/** An entry's closed time cut at midnight, the pieces of each day apart. */
+const closedPiecesByDay = (entry: Entry): Map<string, Segment[]> => {
+  const days = new Map<string, Segment[]>()
+  for (const s of entry.segments.flatMap(closed => (closed.end === undefined ? [] : splitAtMidnight(closed, closed.end)))) {
+    const day = dayOf(s.start)
+    days.set(day, [...(days.get(day) ?? []), s])
+  }
+  return days
+}
+
+/** The milliseconds two lists of closed segments run at the same time. */
+export const sharedMs = (a: readonly Segment[], b: readonly Segment[]): number =>
+  a.reduce(
+    (sum, x) =>
+      sum + b.reduce((inner, y) => inner + Math.max(0, Math.min(x.end ?? x.start, y.end ?? y.start) - Math.max(x.start, y.start)), 0),
+    0,
+  )
+
 /**
  * One line per entry and day, oldest first, for whoever books the time (Claude,
  * through the timer's `entries` tool): whole minutes, the closed time only, so
  * a timer still open counts what it has done so far and says it is open. With
  * `withAgents` the minutes add the subagents' runs, always listed apart too.
+ * A line names the other timers that ran at the same time that day, so the
+ * same hours are not booked twice unseen.
  */
 export const bookingLines = (
   entries: readonly Entry[],
   range: { from?: string; to?: string; includeBooked?: boolean },
   withAgents = false,
-): BookingLine[] =>
-  entries
+): BookingLine[] => {
+  const pieces = new Map(entries.map(entry => [entry.id, closedPiecesByDay(entry)]))
+  const onDay = new Map<string, Entry[]>()
+  for (const entry of entries) {
+    for (const day of pieces.get(entry.id)?.keys() ?? []) onDay.set(day, [...(onDay.get(day) ?? []), entry])
+  }
+  const overlapsOf = (entry: Entry, day: string) =>
+    (onDay.get(day) ?? [])
+      .filter(other => other.id !== entry.id)
+      .map(other => ({
+        entryId: other.id,
+        title: titleOf(other),
+        minutes: Math.round(
+          sharedMs(pieces.get(entry.id)?.get(day) ?? [], pieces.get(other.id)?.get(day) ?? []) / MS_PER_MINUTE,
+        ),
+      }))
+      .filter(overlap => overlap.minutes > 0)
+  return entries
     .flatMap(entry =>
       [...minutesByDay(entry, withAgents)].map(([day, { minutes, firstStart }]) => {
         const booked = entry.booked?.[day]
         const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
+        const overlaps = overlapsOf(entry, day)
         return {
           firstStart,
           line: {
@@ -268,6 +305,7 @@ export const bookingLines = (
             state: stateOf(entry),
             ...(booked === undefined ? {} : { booked: String(booked) }),
             ...(agentMinutes > 0 ? { agentMinutes } : {}),
+            ...(overlaps.length > 0 ? { overlaps } : {}),
           },
         }
       }),
@@ -281,6 +319,7 @@ export const bookingLines = (
     )
     .sort((a, b) => a.firstStart - b.firstStart)
     .map(({ line }) => line)
+}
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 

@@ -51,6 +51,8 @@ export type BookingLine = {
   booked?: string
   /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
   agentMinutes?: number
+  /** The other timers that ran at the same time that day, with the whole minutes they share with this one. */
+  overlaps?: { entryId: string; title: string; minutes: number }[]
 }
 
 export type TodayTab = 'session' | 'all'
