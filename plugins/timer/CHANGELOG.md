@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-10-08
+
 ### Added
 
 - A timer started without a note is named and booked after its git branch

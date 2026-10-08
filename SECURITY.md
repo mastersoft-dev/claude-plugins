@@ -22,11 +22,12 @@ Only the latest minor release line of each plugin receives security fixes. Older
 | mastersoft | 3.10.x | yes |
 | mastersoft | < 3.10 | no |
 | relay | 0.1.x | yes |
-| timer | 0.1.x | yes |
+| timer | 1.0.x | yes |
+| timer | < 1.0 | no |
 
 ## Scope
 
-This repository ships hooks, agents, skills, and a statusline that run inside Claude Code on the user's machine. Relay also starts other agent CLIs through herdr or Orca, sends them a prompt built from the session, and writes to the clipboard. Timer runs the `ms` CLI to read GEWEB projects and, after the user confirms, write timesheet activities with the user's own token. Reports we care about include:
+This repository ships hooks, agents, skills, and a statusline that run inside Claude Code on the user's machine. Relay also starts other agent CLIs through herdr or Orca, sends them a prompt built from the session, and writes to the clipboard. Timer runs `git` and `orca` to name each timer after its branch or worktree, and gives Claude tools that list the tracked time and mark days as booked. Reports we care about include:
 
 - arbitrary code execution via a malicious workspace
 - secret exfiltration from `~/.claude/` or the user's environment

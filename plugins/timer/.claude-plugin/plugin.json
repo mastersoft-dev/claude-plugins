@@ -1,7 +1,7 @@
 {
   "name": "timer",
   "displayName": "Timer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Work timer per Claude Code session, with tools that let Claude book the time on a timesheet, and a CSV export",
   "author": {
     "name": "Mastersoft"
