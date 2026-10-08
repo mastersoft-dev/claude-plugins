@@ -20,9 +20,9 @@ const MESSAGES: SessionMessage[] = [
   },
 ]
 
-type Recorded = { argv: string[][]; reads: number; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
+type Recorded = { argv: string[][]; envs: Record<string, string>[]; reads: number; commands: string[]; fills: string[]; forks: number; copies: number; closes: number; toasts: string[] }
 
-type SessionOptions = { lastAssistant: string; transcriptBytes?: number; tailFails?: boolean; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
+type SessionOptions = { lastAssistant: string; transcriptBytes?: number; tailFails?: boolean; windows?: boolean; env?: Record<string, string>; fillRefused?: boolean; notPlaced?: boolean; agentStartFails?: boolean }
 
 type TestClock = { advance: (ms: number) => Promise<void>; settle: () => Promise<void> }
 
@@ -35,9 +35,9 @@ function transcript(lastAssistant: string): string {
 }
 
 function fakeSession(on: On, options: SessionOptions) {
-  const recorded: Recorded = { argv: [], reads: 0, commands: [], fills: [], forks: 0, copies: 0, closes: 0, toasts: [] }
+  const recorded: Recorded = { argv: [], envs: [], reads: 0, commands: [], fills: [], forks: 0, copies: 0, closes: 0, toasts: [] }
   const clock = mock.clock(on, { now: NOW })
-  mock.env(on, { HOME: '/home/u', ...options.env })
+  mock.env(on, options.windows === true ? { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\u', ...options.env } : { HOME: '/home/u', ...options.env })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('command.run', (_$, e) => {
@@ -81,8 +81,9 @@ function fakeSession(on: On, options: SessionOptions) {
   })
   on('process.run', (_$, e) => {
     recorded.argv.push([...e.argv])
-    if (e.argv[0] === 'tail') return { value: options.tailFails === true ? ran(1, 'tail: read error') : ran(0, `t":"cut mid-line"}\n${transcript(options.lastAssistant)}`) }
-    if (e.argv[0] === 'which') return { value: ran(e.argv[1] === 'codex' ? 0 : 1, '') }
+    recorded.envs.push({ ...e.init?.env })
+    if (e.argv[0] === 'tail' || e.argv[0] === 'powershell') return { value: options.tailFails === true ? ran(1, 'tail: read error') : ran(0, `t":"cut mid-line"}\n${transcript(options.lastAssistant)}`) }
+    if (e.argv[0] === 'which' || e.argv[0] === 'where') return { value: ran(e.argv[1] === 'codex' ? 0 : 1, '') }
     if (e.argv[0] === 'herdr' && e.argv[1] === 'pane' && e.argv[2] === 'split') return { value: ran(0, '{"result":{"pane":{"pane_id":"w1:p9"}}}') }
     if (e.argv[0] === 'herdr' && e.argv[2] === 'start' && options.agentStartFails === true) return { value: ran(1, 'agent did not start') }
     if (e.argv[0] === 'herdr') return { value: ran(0, '{}') }
@@ -115,6 +116,16 @@ test('/relay on a cold session opens the pane with local summary preselected and
     expect(JSON.stringify(await ui.drawn())).toContain('Codex')
     await ui.unmount()
   }
+})
+
+test('on Windows /relay looks up the agent CLIs with where instead of which', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, windows: true })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  const lookups = recorded.argv.filter(argv => argv[0] === 'which' || argv[0] === 'where')
+  expect(lookups.map(argv => argv[0])).toEqual(['where', 'where', 'where'])
+  expect(JSON.stringify(await ui.drawn())).toContain('Codex')
 })
 
 test('a cold session with a large context raises the band', async ($, on) => {
@@ -234,6 +245,17 @@ test('a transcript over the engine read limit is read from its tail, never whole
 
   expect(recorded.reads).toBe(0)
   expect(recorded.argv.find(argv => argv[0] === 'tail')).toEqual(['tail', '-c', String(READ_LIMIT_BYTES), TRANSCRIPT])
+  expect(await ui.find({ type: 'Text', text: /Cache cold · idle 2h 14m · 148k/ })).toBeDefined()
+})
+
+test('on Windows a transcript over the read limit is tailed by PowerShell under USERPROFILE', async ($, on) => {
+  const { clock, recorded } = fakeSession(on, { lastAssistant: COLD_AT, windows: true, transcriptBytes: READ_LIMIT_BYTES + 1 })
+  await runRelayCommand($, clock, '')
+  const ui = await mountPane($)
+
+  const at = recorded.argv.findIndex(argv => argv[0] === 'powershell')
+  expect(recorded.argv.some(argv => argv[0] === 'tail')).toBe(false)
+  expect(recorded.envs[at]).toEqual({ RELAY_TAIL_PATH: 'C:\\Users\\u/.claude/projects/-repo/abc.jsonl' })
   expect(await ui.find({ type: 'Text', text: /Cache cold · idle 2h 14m · 148k/ })).toBeDefined()
 })
 

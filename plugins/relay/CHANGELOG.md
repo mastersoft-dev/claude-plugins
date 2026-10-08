@@ -8,6 +8,14 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- On Windows `/relay` finds the installed agent CLIs with `where`, as `which`
+  does not exist there.
+- On Windows `/relay` finds the transcript under `USERPROFILE` when `HOME` is
+  unset, and reads the tail of one over 4 MiB with PowerShell, as `tail` does
+  not exist there.
+
 ## [0.1.1] — 2026-10-06
 
 ### Changed

@@ -8,6 +8,11 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- The `mastersoft:ms` skill's frontmatter is valid YAML, so strict validation
+  passes and Claude Code keeps its description and allowed tools.
+
 ## [3.10.1] — 2026-10-07
 
 ### Fixed
