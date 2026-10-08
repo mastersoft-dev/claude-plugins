@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The `branchChange` setting (`keep` by default) can be set to `split`: when
+  a running timer's worktree moves to another branch, the timer stops and a
+  new one, named after the new branch, starts, so each branch is booked apart.
 - Time away from a running timer, no typing, prompt or press for
   `idleMinutes` (default 15) while Claude isn't working, or the computer
   asleep, is noticed. When you're back the band asks whether to keep it,

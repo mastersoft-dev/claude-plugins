@@ -41,6 +41,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
 | `awayTime` | `ask` | What happens to the time a running timer counts while you're away: `ask` when you're back (keep it, leave it out, or move it to a timer of its own), `discard` it, or `keep` counting it |
 | `idleMinutes` | `15` | Minutes with no typing, prompt or press, and Claude not working, before you count as away; `0` counts only a sleeping computer |
+| `branchChange` | `keep` | When a running timer's worktree moves to another branch (checked at each prompt and at the end of Claude's turn): `keep` counting on the same timer, or `split`, which stops it and starts a timer named after the new branch |
 | `parallelTime` | `wall-clock` | How today's totals in `/timer status` and the panel count timers that ran at the same time in several sessions: `wall-clock` counts that time once, `summed` adds every timer's own time. Booking always lists each timer's own minutes, with the timers it overlapped |
 
 ## Development

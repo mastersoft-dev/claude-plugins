@@ -51,6 +51,7 @@ const AGENTS_PREFIX = 'agents:'
 const SUMMED = 'summed'
 const AWAY_MODES = ['ask', 'discard', 'keep'] as const
 const DEFAULT_IDLE_MINUTES = 15
+const SPLIT = 'split'
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
 const DEFAULT_RETENTION_DAYS = 90
@@ -193,6 +194,7 @@ let countsAgents = false
 let isWallClock = true
 let awayMode: (typeof AWAY_MODES)[number] = 'ask'
 let idleMs = DEFAULT_IDLE_MINUTES * MS_PER_MINUTE
+let splitsOnBranch = false
 
 /**
  * Drops booked timers older than the retention and the reminders of days gone
@@ -419,6 +421,46 @@ const detectAway = async ($: EngineInterface, lastTick: number | undefined, now:
   if (away === undefined) return
   await update($, awayAtom, () => ({ entryId: entry.id, ...away }))
   if (away.to !== null && awayMode === 'discard') $.ui.toast(await settleAway($, 'discard'))
+}
+
+let branchChecks: Promise<void> = Promise.resolve()
+
+/**
+ * Under `branchChange: split`, stops the running timer when its worktree has
+ * moved to another branch and starts one for the new branch, with no note, so
+ * each branch's time is booked apart. One check at a time; never rejects.
+ */
+const followBranch = ($: EngineInterface): Promise<void> => {
+  if (!splitsOnBranch) return branchChecks
+  branchChecks = branchChecks
+    .then(async () => {
+      const entry = await loadActive($)
+      if (entry === undefined || stateOf(entry) !== 'running' || entry.branch === undefined) return
+      const worktree = await worktreeOf(runnerOf($))
+      if (worktree === undefined || worktree.root !== entry.location || worktree.branch === entry.branch) return
+      const now = await $.clock.now()
+      await saveEntry($, stopEntry(entry, now) as Entry)
+      const fresh = startEntry(
+        {
+          id: crypto.randomUUID(),
+          sessionId: entry.sessionId,
+          repoKey: entry.repoKey,
+          repoName: entry.repoName,
+          note: '',
+          location: worktree.root,
+          branch: worktree.branch,
+          ...(entry.task === undefined ? {} : { task: entry.task }),
+          ...(entry.auto === undefined ? {} : { auto: entry.auto }),
+        },
+        now,
+      )
+      await saveEntry($, { ...fresh, lastSeen: now })
+      await update($, activeId, () => fresh.id)
+      $.ui.toast(`Now on ${worktree.branch}: a new timer runs for it`)
+      await beat($)
+    })
+    .catch((error: unknown) => $.ui.log(`timer: branch not followed: ${errorText(error)}`, { to: 'debug' }))
+  return branchChecks
 }
 
 /** Runs the active auto-mode timer exactly while Claude works on a turn. */
@@ -648,6 +690,7 @@ export const register: Register = (on, options) => {
   countsAgents = options.agentTime === SUMMED
   isWallClock = options.parallelTime !== SUMMED
   awayMode = AWAY_MODES.find(mode => mode === options.awayTime) ?? 'ask'
+  splitsOnBranch = options.branchChange === SPLIT
   const idleMinutes = Number(options.idleMinutes)
   idleMs = (Number.isFinite(idleMinutes) && idleMinutes >= 0 ? idleMinutes : DEFAULT_IDLE_MINUTES) * MS_PER_MINUTE
 
@@ -734,6 +777,7 @@ export const register: Register = (on, options) => {
   on('prompt.submit', async ($, e, next) => {
     const submitted = await next(e)
     await noteActivity($)
+    await followBranch($)
     return submitted
   })
 
@@ -749,6 +793,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined) {
       isClaudeWorking = false
       lastActiveAt = await $.clock.now()
+      await followBranch($)
       await followClaude($)
     } else {
       await creditAgentRun($, e.durationMs)

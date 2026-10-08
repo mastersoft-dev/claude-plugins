@@ -64,10 +64,11 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('session.cwd', () => ({ value: 'C:/repos/acme-site' }))
   on('session.repo', () => ({ value: { root: 'C:/repos/acme-site', remote: REMOTE, internal: false, name: null } }))
   const orca = { worktree: null as Record<string, unknown> | null }
+  const git = { head }
   on('process.run', ($, e) =>
     e.argv[0] === 'orca'
       ? { value: orcaAnswer(orca.worktree) }
-      : { value: gitAnswer(head) },
+      : { value: gitAnswer(git.head) },
   )
   on('fs.write', ($, e) => {
     files[e.path] = e.text
@@ -97,7 +98,8 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
   on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads }
+  on('prompt.submit', ($, e) => ({ text: e.text }) as never)
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -611,6 +613,31 @@ test('with idleMinutes 0 an hour with no activity is not time away', { options: 
   expect(await ui.find({ type: 'Text', text: awayQuestion })).toBe(undefined)
   await ui.unmount()
   expect(await timer($, 'stop')).toContain('1h 00m')
+})
+
+const switchBranchMidway = async ($: Engine, on: On) => {
+  const { clock, git, toasts } = world(on)
+  await timer($, 'start fix login')
+  await clock.advance(20 * MINUTE)
+  git.head = 'C:/repos/acme-site\nfeat/login-sso\n'
+  await $.prompt.submit({ text: 'go on' } as never)
+  await clock.advance(10 * MINUTE)
+  await timer($, 'stop')
+  return toasts
+}
+
+test('with branchChange split, moving to another branch starts a timer for it', { options: { branchChange: 'split' } }, async ($, on) => {
+  const toasts = await switchBranchMidway($, on)
+  expect(toasts).toContain('Now on feat/login-sso: a new timer runs for it')
+  expect((await lines($)).map(l => [l.minutes, l.title])).toEqual([
+    [20, 'fix login'],
+    [10, 'login sso'],
+  ])
+})
+
+test('by default a branch change keeps counting on the same timer', async ($, on) => {
+  await switchBranchMidway($, on)
+  expect((await lines($)).map(l => [l.minutes, l.title])).toEqual([[30, 'fix login']])
 })
 
 test('from the reminder time the band says what to book and reminds once', async ($, on) => {
