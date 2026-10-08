@@ -38,6 +38,17 @@ const AGENT_NAME_SUFFIX = 6
 const FORK_TIMEOUT_MS = 120_000
 const GIT_NOT_A_REPO_EXIT = 128
 const READ_LIMIT_BYTES = 4 * 1024 * 1024
+const WINDOWS_OS = 'Windows_NT'
+const TAIL_PATH_ENV = 'RELAY_TAIL_PATH'
+const POWERSHELL_TAIL = [
+  `$f = [IO.File]::Open($env:${TAIL_PATH_ENV}, 'Open', 'Read', 'ReadWrite')`,
+  `$f.Seek(-${READ_LIMIT_BYTES}, 'End') | Out-Null`,
+  `$b = New-Object byte[] ${READ_LIMIT_BYTES}`,
+  '$n = 0',
+  `while ($n -lt $b.Length) { $r = $f.Read($b, $n, $b.Length - $n); if ($r -eq 0) { break }; $n += $r }`,
+  '$f.Close()',
+  '[Console]::OpenStandardOutput().Write($b, 0, $n)',
+].join('; ')
 const CLAUDE_PREFIX = 'claude:'
 const CURRENT_NOTE = 'this session, current model'
 const FAILED_PREFIX = 'Failed:'
@@ -91,8 +102,13 @@ async function detectLauncher($: Engine): Promise<Launcher> {
   return 'none'
 }
 
+async function isWindows($: Engine): Promise<boolean> {
+  return (await $.env.get('OS')) === WINDOWS_OS
+}
+
 async function isInstalled($: Engine, cli: string): Promise<boolean> {
-  const found = await $.process.run(['which', cli], { timeoutMs: RUN_TIMEOUT_MS })
+  const lookup = (await isWindows($)) ? 'where' : 'which'
+  const found = await $.process.run([lookup, cli], { timeoutMs: RUN_TIMEOUT_MS })
   return found.exitCode === 0
 }
 
@@ -100,8 +116,8 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-async function runChecked($: Engine, argv: readonly string[], timeoutMs = RUN_TIMEOUT_MS): Promise<string> {
-  const ran = await $.process.run(argv, { timeoutMs })
+async function runChecked($: Engine, argv: readonly string[], timeoutMs = RUN_TIMEOUT_MS, env?: Record<string, string>): Promise<string> {
+  const ran = await $.process.run(argv, { timeoutMs, env })
   if (ran.exitCode !== 0) {
     const detail = clip(ran.stderr.trim() || ran.stdout.trim(), ERROR_CHARS)
     throw new Error(`${argv.slice(0, 3).join(' ')} exited with ${ran.exitCode}: ${detail}`)
@@ -189,7 +205,7 @@ async function launchInOrca($: Engine, cli: string, prompt: string, cwd: string)
 async function resolveTranscript($: Engine): Promise<string | null> {
   const known = await read($, knownTranscript)
   if (known !== null && (await $.fs.exists(known))) return known
-  const home = await $.env.get('HOME')
+  const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
   const configDir = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? (home === undefined ? null : `${home}/.claude`)
   if (configDir === null) return null
   const id = await $.session.id()
@@ -203,6 +219,9 @@ async function resolveTranscript($: Engine): Promise<string | null> {
 async function transcriptTail($: Engine, path: string): Promise<string> {
   const { size } = await $.fs.stat(path)
   if (size <= READ_LIMIT_BYTES) return $.fs.read(path)
+  if (await isWindows($)) {
+    return runChecked($, ['powershell', '-NoProfile', '-NonInteractive', '-Command', POWERSHELL_TAIL], RUN_TIMEOUT_MS, { [TAIL_PATH_ENV]: path })
+  }
   return runChecked($, ['tail', '-c', String(READ_LIMIT_BYTES), path])
 }
 
