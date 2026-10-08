@@ -112,6 +112,11 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
     suggestions.push(e.text)
     return { isShown: box.isFree }
   })
+  const copied: string[] = []
+  on('ui.copy', ($, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } } as never
+  })
   const played: boolean[] = []
   on('audio.play', ($, e) => {
     played.push(e.shouldLoop)
@@ -119,7 +124,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   const usage = { usd: 0 }
   on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted, played }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted, played, copied }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -1263,6 +1268,19 @@ test('the Week tab draws each day against the daily target, with what waits to b
   expect((await ui.find({ type: 'Text', text: /^Mon 10-05/ }))?.text).toBe(`Mon 10-05 ${'█'.repeat(10)}${'░'.repeat(10)}  2h 00m`)
   expect((await ui.findAll({ type: 'Text', text: /to book$/ })).map(t => t.text)).toEqual(['1 timer to book', '1 timer to book'])
   expect(await ui.find({ type: 'Text', text: /3h 03m {2}acme-site/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('Copy list puts the To book lines on the clipboard, tab-separated', async ($, on) => {
+  const { clock, copied, toasts } = world(on)
+  await trackAndStop($, clock)
+  await timer($, 'tag review')
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'tabbook' })
+  await ui.press({ key: 'copybook' })
+  expect(copied).toEqual(['2026-10-06\t09:00\t63\tfix login\tacme-site\t'])
+  expect(toasts.at(-1)).toBe('Copied 1 line.')
   await ui.unmount()
 })
 

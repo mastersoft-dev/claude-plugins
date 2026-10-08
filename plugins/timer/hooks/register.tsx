@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
+import type { EngineInterface, ProcessRunInit, Register, RenderSurface, Timer } from 'claude-code'
 
 import type { Away, BookingLine, Entry, TodayTab } from '../types'
 import type { EntryEdit, NewEntry } from './core'
@@ -953,6 +953,19 @@ const withSummary = async ($: EngineInterface, entries: readonly Entry[], lines:
   return summary === undefined ? lines : lines.map(line => (own.has(line.entryId) ? { ...line, summary } : line))
 }
 
+/**
+ * Puts the To book lines on the clipboard of the surface the person pressed
+ * on, one per line and tab-separated (day, start, minutes, title, repo, tags),
+ * to paste into a spreadsheet or a timesheet by hand.
+ */
+const copyLines = async ($: EngineInterface, lines: readonly BookingLine[], surface: RenderSurface): Promise<string> => {
+  const text = lines
+    .map(l => [l.day, l.start, String(l.minutes), l.title, l.repo, (l.tags ?? []).join(' ')].join('\t'))
+    .join('\n')
+  const copied = await $.ui.copy({ text, surface })
+  return copied.isCopied ? `Copied ${plural(lines.length, 'line', 'lines')}.` : `Nothing copied: ${copied.reason}.`
+}
+
 /** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
 const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
   bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents, roundTo).filter(
@@ -1602,6 +1615,9 @@ export const register: Register = (on, options) => {
             {plural(new Set(toBook.map(l => l.day)).size, 'day', 'days')}
             {roundTo > 0 ? ` · rounded to ${roundTo} min` : ''}
           </Text>
+          {toBook.length > 0 && e.surface !== 'mobile' && (
+            <Button key="copybook" label="Copy list" hotkey="c" onPress={() => fromBand($, () => copyLines($, toBook, e.surface))} />
+          )}
           <Text dimColor>
             {toBook.length === 0
               ? 'Every stopped timer is booked.'
