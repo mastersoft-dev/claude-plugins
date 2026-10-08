@@ -44,6 +44,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
+| `sound` | `off` | `on` plays a short chime at the daily booking reminder and when the band asks about time away, where Claude Code has a player (macOS; a Windows or Linux terminal has none) |
 | `tellClaude` | `on` | `on` adds one line beside each prompt you send on this session's timer and the timers waiting to be booked; `off` leaves prompts as typed |
 | `autoStart` | `off` | Starts a timer with no note by itself: `session` when a session starts with none open, `prompt` at any prompt sent with none open (after a stop too). `off` starts timers only when you ask |
 | `autoGraceMinutes` | `0` | In auto mode, minutes the timer keeps running after Claude's turn ends (reading the answer, typing the next prompt); a turn started within them leaves no gap. `0` pauses it as the turn ends |

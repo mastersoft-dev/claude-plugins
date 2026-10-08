@@ -112,9 +112,14 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
     suggestions.push(e.text)
     return { isShown: box.isFree }
   })
+  const played: boolean[] = []
+  on('audio.play', ($, e) => {
+    played.push(e.shouldLoop)
+    return { value: undefined }
+  })
   const usage = { usd: 0 }
   on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted, played }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -834,6 +839,19 @@ test('back from 30 minutes away, the band asks, and Leave out takes the time out
   await ui.unmount()
   await clock.advance(5 * MINUTE)
   expect(await timer($, 'stop')).toContain('0h 15m')
+})
+
+test('with sound on, the band\'s away question and the booking reminder chime', { options: { sound: 'on', reminderTime: '09:45' } }, async ($, on) => {
+  const { clock, played } = await awayHalfHour($, on)
+  expect(played).toEqual([false])
+  await clock.advance(5 * MINUTE)
+  await timer($, 'stop')
+  expect(played).toEqual([false, false])
+})
+
+test('by default the timer stays silent', async ($, on) => {
+  const { played } = await awayHalfHour($, on)
+  expect(played).toEqual([])
 })
 
 test('Own timer moves the away time to a stopped timer of its own', async ($, on) => {

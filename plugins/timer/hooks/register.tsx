@@ -86,6 +86,7 @@ const EDIT_TOOL = 'edit_entry'
 const ASK_TO_BOOK = 'ask Claude to book them'
 const BOOK_PROMPT = 'Book my unbooked timers'
 const SUMMARY_TIMEOUT_MS = 60_000
+const CHIME = 'sounds/chime.wav'
 const SUMMARY_CHARS = 400
 const SUMMARY_REQUEST =
   'For a timesheet entry, describe the work done in this conversation in one or two plain sentences, in the language the person writes in: what was built, fixed or reviewed, and for what. No preamble, no lists, no markdown.'
@@ -241,6 +242,7 @@ let roundTo = 0
 let autoStartOn: (typeof AUTO_STARTS)[number] = 'off'
 let graceMs = 0
 let tellsClaude = true
+let hasSound = false
 let targetMinutes = DEFAULT_TARGET_HOURS * 60
 let turnEndedAt: number | undefined
 
@@ -278,6 +280,18 @@ const prune = async ($: EngineInterface) => {
 
 const isBookTime = (now: number) => timeOf(now) >= reminderAt
 
+/**
+ * Plays the timer's chime when the person's `sound` setting is on; where the
+ * engine has no player (a Windows or Linux terminal) it plays nothing, and a
+ * clip that can't play only logs it.
+ */
+const chime = async ($: EngineInterface) => {
+  if (!hasSound) return
+  await $.audio
+    .play({ asset: CHIME })
+    .catch((error: unknown) => $.ui.log(`timer: chime not played: ${errorText(error)}`, { to: 'debug' }))
+}
+
 /** Reminds once a day, from the reminder time, with a fresh count: the band's may be minutes old. */
 const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => {
   if (unbooked === 0 || !isBookTime(now)) return
@@ -287,6 +301,7 @@ const remindOnce = async ($: EngineInterface, now: number, unbooked: number) => 
   if (fresh === 0) return
   await $.store.set(key, now)
   $.ui.toast(`${plural(fresh, 'timer', 'timers')} not booked yet: ${ASK_TO_BOOK}`)
+  await chime($)
 }
 
 /**
@@ -553,6 +568,7 @@ const noteActivity = ($: EngineInterface): Promise<void> => {
       const away = await read($, awayAtom)
       if (away === null || away.to !== null) return
       await update($, awayAtom, () => (awayMode === 'keep' ? null : { ...away, to: now }))
+      if (awayMode === 'ask') await chime($)
       if (awayMode !== 'discard') return
       $.ui.toast(await settleAway($, 'discard'))
       await beat($)
@@ -574,6 +590,7 @@ const detectAway = async ($: EngineInterface, lastTick: number | undefined, now:
   const away = awayOf({ now, lastActive: lastActiveAt, lastTick, isClaudeWorking, runningSince, idleMs, sleepMs: STALE_MS })
   if (away === undefined) return
   await update($, awayAtom, () => ({ entryId: entry.id, ...away }))
+  if (away.to !== null && awayMode === 'ask') await chime($)
   if (away.to !== null && awayMode === 'discard') $.ui.toast(await settleAway($, 'discard'))
 }
 
@@ -1080,6 +1097,7 @@ export const register: Register = (on, options) => {
   splitsOnBranch = options.branchChange === SPLIT
   autoStartOn = AUTO_STARTS.find(mode => mode === options.autoStart) ?? 'off'
   tellsClaude = options.tellClaude !== 'off'
+  hasSound = options.sound === 'on'
   const target = Number(options.targetHours)
   targetMinutes = (Number.isFinite(target) && target >= 0 && target <= MAX_TARGET_HOURS ? target : DEFAULT_TARGET_HOURS) * 60
   const step = Number(options.roundTo)

@@ -34,6 +34,13 @@
       "options": ["wall-clock", "summed"],
       "default": "wall-clock"
     },
+    "sound": {
+      "type": "string",
+      "title": "Chime",
+      "description": "on plays a short chime at the daily booking reminder and when the band asks about time away, where Claude Code has a player (macOS; a Windows or Linux terminal has none); off stays silent",
+      "options": ["off", "on"],
+      "default": "off"
+    },
     "tellClaude": {
       "type": "string",
       "title": "Tell Claude about the timer",

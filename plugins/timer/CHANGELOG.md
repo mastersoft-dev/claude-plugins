@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The `sound` setting (`off` by default) plays a short chime at the daily
+  booking reminder and when the band asks about time away.
 - One-key shortcuts while the band or the panel has the focus (ctrl+x tab, or
   a click): on the band `s` start, `p` pause or resume, `x` stop, `a` auto,
   `o` the panel, `k`/`l`/`t` for the away question; in the panel `1`-`4` the
