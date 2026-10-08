@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The `autoStart` setting (`off` by default) can start a timer by itself:
+  `session` when a session starts with none open, `prompt` at any prompt sent
+  with none open.
 - What Claude's work costs while a timer runs is recorded per day: the
   entries tool lists it as `costUsd` and the panel shows it beside the repo.
 - The entries tool takes `includeCommits`: each line then lists the commits

@@ -42,6 +42,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
+| `autoStart` | `off` | Starts a timer with no note by itself: `session` when a session starts with none open, `prompt` at any prompt sent with none open (after a stop too). `off` starts timers only when you ask |
 | `awayTime` | `ask` | What happens to the time a running timer counts while you're away: `ask` when you're back (keep it, leave it out, or move it to a timer of its own), `discard` it, or `keep` counting it |
 | `idleMinutes` | `15` | Minutes with no typing, prompt or press, and Claude not working, before you count as away; `0` counts only a sleeping computer |
 | `branchChange` | `keep` | When a running timer's worktree moves to another branch (checked at each prompt and at the end of Claude's turn): `keep` counting on the same timer, or `split`, which stops it and starts a timer named after the new branch |

@@ -62,6 +62,7 @@ const SUMMED = 'summed'
 const AWAY_MODES = ['ask', 'discard', 'keep'] as const
 const DEFAULT_IDLE_MINUTES = 15
 const SPLIT = 'split'
+const AUTO_STARTS = ['off', 'session', 'prompt'] as const
 const MAX_ROUND_TO = 60
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
@@ -224,6 +225,7 @@ let awayMode: (typeof AWAY_MODES)[number] = 'ask'
 let idleMs = DEFAULT_IDLE_MINUTES * MS_PER_MINUTE
 let splitsOnBranch = false
 let roundTo = 0
+let autoStartOn: (typeof AUTO_STARTS)[number] = 'off'
 
 /**
  * Drops booked timers older than the retention, the reminders of days gone by
@@ -641,6 +643,21 @@ const start = async ($: EngineInterface, note: string): Promise<string> => {
   return [`Timer started in ${repo.name}.`, ...overlap].join('\n')
 }
 
+/**
+ * Starts a timer with no note when this session has none open, for the
+ * person's `autoStart` setting: as the session starts, or at each prompt.
+ */
+const autoStart = async ($: EngineInterface) => {
+  try {
+    const held = await loadActive($)
+    if (held !== undefined && stateOf(held) !== 'stopped') return
+    $.ui.toast(`${(await start($, '')).split('\n')[0]} (autoStart)`)
+    await beat($)
+  } catch (error: unknown) {
+    $.ui.log(`timer: autoStart failed: ${errorText(error)}`, { to: 'debug' })
+  }
+}
+
 const status = async ($: EngineInterface): Promise<string> => {
   const now = await $.clock.now()
   const entries = await loadEntries($)
@@ -857,6 +874,7 @@ export const register: Register = (on, options) => {
   isWallClock = options.parallelTime !== SUMMED
   awayMode = AWAY_MODES.find(mode => mode === options.awayTime) ?? 'ask'
   splitsOnBranch = options.branchChange === SPLIT
+  autoStartOn = AUTO_STARTS.find(mode => mode === options.autoStart) ?? 'off'
   const step = Number(options.roundTo)
   roundTo = Number.isInteger(step) && step > 0 && step <= MAX_ROUND_TO ? step : 0
   const idleMinutes = Number(options.idleMinutes)
@@ -945,6 +963,7 @@ export const register: Register = (on, options) => {
     }
     lastTickAt = undefined
     lastActiveAt = await $.clock.now()
+    if (autoStartOn === 'session') await autoStart($)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       tick($).catch((error: unknown) => $.ui.log(`timer: status refresh failed: ${errorText(error)}`, { to: 'debug' }))
@@ -988,6 +1007,7 @@ export const register: Register = (on, options) => {
     const submitted = await next(e)
     await noteActivity($)
     await followBranch($)
+    if (autoStartOn === 'prompt' && !e.text.trimStart().startsWith('/')) await autoStart($)
     return submitted
   })
 

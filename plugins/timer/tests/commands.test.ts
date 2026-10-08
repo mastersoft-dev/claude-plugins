@@ -466,6 +466,39 @@ test('with agent time summed, every subagent run adds to the minutes', { options
   expect(await timer($, 'status')).toContain('1h 43m')
 })
 
+test('with autoStart session, a session starts with a timer running', { options: { autoStart: 'session' } }, async ($, on) => {
+  const { toasts } = world(on)
+  await startSession($, on)
+  expect(await timer($, 'status')).toContain('This session: running')
+  expect(toasts).toContain('Timer started in acme-site. (autoStart)')
+})
+
+test('with autoStart prompt, a prompt sent with no timer open starts one', { options: { autoStart: 'prompt' } }, async ($, on) => {
+  const { clock } = world(on)
+  await startSession($, on)
+  expect(await timer($, 'status')).toContain('No timer in this session.')
+  await $.prompt.submit({ text: 'go' } as never)
+  expect(await timer($, 'status')).toContain('This session: running')
+  await clock.advance(5 * MINUTE)
+  await timer($, 'stop')
+  await $.prompt.submit({ text: 'and now the docs' } as never)
+  expect(await timer($, 'status')).toContain('This session: running 0h 00m')
+})
+
+test('with autoStart prompt, a slash command starts nothing, so /timer start keeps its note', { options: { autoStart: 'prompt' } }, async ($, on) => {
+  world(on)
+  await startSession($, on)
+  await $.prompt.submit({ text: '/timer start fix login' } as never)
+  expect(await timer($, 'status')).toContain('No timer in this session.')
+})
+
+test('by default no timer starts by itself', async ($, on) => {
+  world(on)
+  await startSession($, on)
+  await $.prompt.submit({ text: 'go' } as never)
+  expect(await timer($, 'status')).toContain('No timer in this session.')
+})
+
 test('ending the session stops its timer', async ($, on) => {
   const { clock, store } = world(on)
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))

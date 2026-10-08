@@ -34,6 +34,13 @@
       "options": ["wall-clock", "summed"],
       "default": "wall-clock"
     },
+    "autoStart": {
+      "type": "string",
+      "title": "Start a timer by itself",
+      "description": "off starts timers only when you ask; session starts one, with no note, when a session starts with none open; prompt starts one at any prompt sent with none open, a stopped one included",
+      "options": ["off", "session", "prompt"],
+      "default": "off"
+    },
     "awayTime": {
       "type": "string",
       "title": "Time away",
