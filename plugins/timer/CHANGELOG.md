@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Typing `/timer ` offers its subcommands, and `/timer tag ` the tags already
+  in use.
 - Copy list (`c`) in the To book tab puts its lines on the clipboard,
   tab-separated, to paste into a spreadsheet or a timesheet by hand.
 - The `sound` setting (`off` by default) plays a short chime at the daily

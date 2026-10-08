@@ -91,6 +91,18 @@ const SUMMARY_CHARS = 400
 const SUMMARY_REQUEST =
   'For a timesheet entry, describe the work done in this conversation in one or two plain sentences, in the language the person writes in: what was built, fixed or reviewed, and for what. No preamble, no lists, no markdown.'
 const SUGGESTED_PREFIX = 'suggested:'
+const VERBS = [
+  { text: 'status', description: "this session's timer and today's total" },
+  { text: 'start', description: 'start a timer, with an optional note' },
+  { text: 'pause', description: 'pause the running timer' },
+  { text: 'resume', description: 'resume the paused timer' },
+  { text: 'stop', description: 'stop the timer' },
+  { text: 'auto', description: 'run only while Claude works' },
+  { text: 'tag', description: 'label the timer, e.g. review meeting' },
+  { text: 'open', description: 'the panel' },
+  { text: 'export', description: 'every timer as CSV' },
+] as const
+const TAG_ARGS = /^\/timer\s+tag\s+(\S+\s+)*$/
 const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file.csv]'
 
 const activeId = atom({ plugin: 'timer', key: 'activeId' } as const, null)
@@ -966,6 +978,18 @@ const copyLines = async ($: EngineInterface, lines: readonly BookingLine[], surf
   return copied.isCopied ? `Copied ${plural(lines.length, 'line', 'lines')}.` : `Nothing copied: ${copied.reason}.`
 }
 
+/**
+ * The typeahead rows for `/timer`: its subcommands after `/timer `, and the
+ * tags already in use after `/timer tag `, matching what was typed so far.
+ */
+const completions = async ($: EngineInterface, before: string, token: string) => {
+  if (/^\/timer\s+$/.test(before)) return VERBS.filter(verb => verb.text.startsWith(token)).map(verb => ({ ...verb }))
+  if (!TAG_ARGS.test(before)) return []
+  const typed = token.replace(/^#+/, '')
+  const tags = new Set((await loadEntries($)).flatMap(entry => entry.tags ?? []))
+  return [...tags].filter(tag => tag.startsWith(typed) && tag !== typed).map(tag => ({ text: tag, description: 'a tag in use' }))
+}
+
 /** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
 const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
   bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents, roundTo).filter(
@@ -1294,6 +1318,12 @@ export const register: Register = (on, options) => {
     await update($, activeId, () => null)
     return next(e)
   })
+
+  on('prompt.autocomplete', async ($, e, next) => {
+    const found = await next(e)
+    const mine = await completions($, e.text.slice(0, e.start), e.token)
+    return mine.length === 0 ? found : { suggestions: [...found.suggestions, ...mine] }
+  }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'clear' }, async ($, e, next) => {
     const cleared = await next(e)

@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On, PromptEditInput, PromptEditResult } from 'claude-code'
+import type { On, PromptAutocompleteInput, PromptAutocompleteResult, PromptEditInput, PromptEditResult } from 'claude-code'
 
 const SECOND = 1_000
 const MINUTE = 60_000
@@ -158,6 +158,26 @@ const startSession = async ($: Engine, on: On) => {
 }
 
 const entryOf = (store: Map<string, unknown>) => [...store].find(([key]) => key.startsWith('entry:'))?.[1]
+
+type AutocompleteCall = { autocomplete: (e: PromptAutocompleteInput) => Promise<PromptAutocompleteResult> }
+
+const complete = async ($: Engine, text: string) => {
+  const token = text.split(/\s/).at(-1) ?? ''
+  const found = await ($.prompt as unknown as AutocompleteCall).autocomplete({ text, cursor: text.length, token, start: text.length - token.length })
+  return found.suggestions.map(s => s.text)
+}
+
+test('typing /timer offers its subcommands, and /timer tag the tags in use', async ($, on) => {
+  world(on)
+  on('prompt.autocomplete', () => ({ suggestions: [] }))
+  await timer($, 'start fix login')
+  await timer($, 'tag review release')
+  expect(await complete($, '/timer pa')).toEqual(['pause'])
+  expect(await complete($, '/timer s')).toEqual(['status', 'start', 'stop'])
+  expect(await complete($, '/timer tag re')).toEqual(['review', 'release'])
+  expect(await complete($, '/timer tag review #rel')).toEqual(['release'])
+  expect(await complete($, '/other pa')).toEqual([])
+})
 
 test('bare /timer shows the status', async ($, on) => {
   world(on)
