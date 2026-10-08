@@ -24,6 +24,7 @@ import {
   parseTags,
   pauseEntry,
   pendingDays,
+  recentDays,
   reshapeDay,
   resumeEntry,
   roundMinutes,
@@ -460,5 +461,19 @@ describe('roundMinutes', () => {
     expect(roundMinutes(4, 15)).toBe(15)
     expect(roundMinutes(0.2, 15)).toBe(0)
     expect(roundMinutes(52.6, 0)).toBe(53)
+  })
+})
+
+describe('recentDays', () => {
+  test('gives the day and the six before it, the clock change included', () => {
+    expect(recentDays(Date.parse('2026-10-26T06:00:00Z'))).toEqual([
+      '2026-10-26',
+      '2026-10-25',
+      '2026-10-24',
+      '2026-10-23',
+      '2026-10-22',
+      '2026-10-21',
+      '2026-10-20',
+    ])
   })
 })

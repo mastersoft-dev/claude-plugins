@@ -78,6 +78,14 @@ export const instantOf = (day: string, time: string): number | undefined => {
   return isAt(t - HOUR_MS, day, time) ? t - HOUR_MS : t
 }
 
+const RECENT_DAYS = 7
+
+/** The day of `now` and the six before it, newest first, as the panel's Add form offers them. */
+export const recentDays = (now: number): string[] => {
+  const noon = instantOf(dayOf(now), '12:00') ?? now
+  return Array.from({ length: RECENT_DAYS }, (_, i) => dayOf(noon - i * DAY_MS))
+}
+
 /** Whether an entry has time, closed or still running, between `dayStart` and `dayEnd`. */
 export const hasTimeIn = (entry: Entry, dayStart: number, dayEnd: number): boolean =>
   entry.segments.some(s => (s.end ?? Infinity) > dayStart && s.start < dayEnd)

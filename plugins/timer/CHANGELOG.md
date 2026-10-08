@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The panel's "+ Add time" form adds time worked with no timer running: a
+  day of the last week, from, to, note and tags.
 - A timer selected in the panel has From and To boxes that move its start
   and end today.
 - The panel marks a timer that ran alongside others that day with ⚠ and the

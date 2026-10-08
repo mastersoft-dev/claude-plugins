@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
 
 import type { Away, BookingLine, Entry, TodayTab } from '../types'
-import type { EntryEdit } from './core'
+import type { EntryEdit, NewEntry } from './core'
 import {
   CLOCK,
   PATH_KEY_PREFIX,
@@ -32,6 +32,7 @@ import {
   parseTags,
   pauseEntry,
   pendingDays,
+  recentDays,
   reopenEntry,
   reshapeDay,
   resumeEntry,
@@ -732,7 +733,13 @@ const exportCsv = async ($: EngineInterface, path: string): Promise<string> => {
 const openToday = async ($: EngineInterface): Promise<string> => {
   const now = await $.clock.now()
   const count = todayRows(await loadEntries($), dayOf(now), now).length
-  await update($, view, () => ({ kind: 'today' as const, tab: 'session' as const, selectedId: null, confirmDeleteId: null }))
+  await update($, view, () => ({
+    kind: 'today' as const,
+    tab: 'session' as const,
+    selectedId: null,
+    confirmDeleteId: null,
+    isAdding: false,
+  }))
   await $.ui.open({
     id: PANE,
     title: TODAY_TITLE,
@@ -849,16 +856,17 @@ const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
     line => line.entryId === entryId,
   )
 
-/** Adds a stopped timer for time worked with no timer running, in this session's repo and folder. */
-const addEntry = async ($: EngineInterface, input: unknown) => {
-  const added = parseNewEntry(input)
-  if (typeof added === 'string') return { deny: added }
-  if (added.end > (await $.clock.now())) return { deny: 'end is still to come: add only time already worked.' }
+/**
+ * Adds a stopped timer for time worked with no timer running, in this
+ * session's repo and folder, for the add tool and the panel alike: the timer
+ * as saved, or why it is refused.
+ */
+const addTimer = async ($: EngineInterface, added: NewEntry): Promise<Entry | string> => {
+  if (added.end > (await $.clock.now())) return 'end is still to come: add only time already worked.'
   const repo = await repoOf($)
   const worktree = await worktreeOf(runnerOf($))
-  const id = crypto.randomUUID()
-  await saveEntry($, {
-    id,
+  const entry: Entry = {
+    id: crypto.randomUUID(),
     sessionId: await $.session.id(),
     repoKey: repo.key,
     repoName: repo.name,
@@ -868,9 +876,52 @@ const addEntry = async ($: EngineInterface, input: unknown) => {
     stoppedAt: added.end,
     location: worktree?.root ?? repo.root,
     ...(worktree === undefined ? {} : { branch: worktree.branch }),
-  })
+  }
+  await saveEntry($, entry)
   await beat($)
-  return { result: { lines: await linesOf($, id, added.day) } }
+  return entry
+}
+
+const addEntry = async ($: EngineInterface, input: unknown) => {
+  const added = parseNewEntry(input)
+  if (typeof added === 'string') return { deny: added }
+  const saved = await addTimer($, added)
+  if (typeof saved === 'string') return { deny: saved }
+  return { result: { lines: await linesOf($, saved.id, added.day) } }
+}
+
+type AddDraft = { day: string; from: string; to: string; note: string; tags: string }
+
+const EMPTY_DRAFT: AddDraft = { day: '', from: '', to: '', note: '', tags: '' }
+
+let addDraft = EMPTY_DRAFT
+
+const setDraft = (field: keyof AddDraft, value: string) => {
+  addDraft = { ...addDraft, [field]: value }
+}
+
+/** Opens or closes the panel's Add form, which starts empty each time. */
+const toggleAdding = async ($: EngineInterface) => {
+  addDraft = EMPTY_DRAFT
+  await update($, view, v => (v?.kind === 'today' ? { ...v, isAdding: !v.isAdding, selectedId: null } : v))
+}
+
+/** Adds the time the panel's Add form holds, and closes the form once it is added. */
+const addFromPanel = async ($: EngineInterface): Promise<string> => {
+  const now = await $.clock.now()
+  const added = parseNewEntry({
+    day: addDraft.day || dayOf(now),
+    start: addDraft.from.trim(),
+    end: addDraft.to.trim(),
+    note: addDraft.note,
+    tags: parseTags(addDraft.tags),
+  })
+  if (typeof added === 'string') return added
+  const saved = await addTimer($, added)
+  if (typeof saved === 'string') return saved
+  addDraft = EMPTY_DRAFT
+  await update($, view, v => (v?.kind === 'today' ? { ...v, isAdding: false } : v))
+  return `Added ${timeOf(added.start)}–${timeOf(added.end)} on ${added.day}: ${titleOf(saved)}`
 }
 
 /**
@@ -1257,6 +1308,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Link, Text } = $.ui.resolve(e)
     const Input = e.surface === 'mobile' ? undefined : $.ui.resolve(e).Input
+    const Select = e.surface === 'mobile' ? undefined : $.ui.resolve(e).Select
     const current = await read($, view)
     if (current === null) return <Text dimColor>Nothing to show.</Text>
 
@@ -1416,6 +1468,66 @@ export const register: Register = (on, options) => {
                 label={current.confirmDeleteId === selected.id ? 'Press again to delete' : 'Delete'}
                 onPress={() => deleteEntry($, selected.id)}
               />
+            </Box>
+          </Box>
+        )}
+        {Input !== undefined && Select !== undefined && !current.isAdding && (
+          <Button key="addtime" label="+ Add time" onPress={() => toggleAdding($)} />
+        )}
+        {Input !== undefined && Select !== undefined && current.isAdding && (
+          <Box key="adding" flexDirection="column" borderStyle="round" paddingX={1}>
+            <Text bold>Add time worked with no timer running</Text>
+            <Select
+              key="addday"
+              label="Day"
+              value={addDraft.day || dayOf(now)}
+              options={recentDays(now).map((day, i) => ({
+                value: day,
+                label: i === 0 ? `today, ${day}` : i === 1 ? `yesterday, ${day}` : day,
+              }))}
+              onSelect={(value: string) => setDraft('day', value)}
+            />
+            <Box gap={1}>
+              <Input
+                key="addfrom"
+                label="From"
+                value={addDraft.from}
+                placeholder="HH:mm"
+                submitLabel="Set"
+                onInput={(value: string) => setDraft('from', value)}
+                onSubmit={(value: string) => setDraft('from', value)}
+              />
+              <Input
+                key="addto"
+                label="To"
+                value={addDraft.to}
+                placeholder="HH:mm"
+                submitLabel="Set"
+                onInput={(value: string) => setDraft('to', value)}
+                onSubmit={(value: string) => setDraft('to', value)}
+              />
+            </Box>
+            <Input
+              key="addnote"
+              label="Note"
+              value={addDraft.note}
+              placeholder="what was it?"
+              submitLabel="Set"
+              onInput={(value: string) => setDraft('note', value)}
+              onSubmit={(value: string) => setDraft('note', value)}
+            />
+            <Input
+              key="addtags"
+              label="Tags"
+              value={addDraft.tags}
+              placeholder="meeting"
+              submitLabel="Set"
+              onInput={(value: string) => setDraft('tags', value)}
+              onSubmit={(value: string) => setDraft('tags', value)}
+            />
+            <Box gap={1}>
+              <Button key="addsave" label="Add" variant="primary" onPress={() => fromBand($, () => addFromPanel($))} />
+              <Button key="addcancel" label="Cancel" onPress={() => toggleAdding($)} />
             </Box>
           </Box>
         )}

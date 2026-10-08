@@ -77,6 +77,8 @@ export type TodayView = {
   tab: TodayTab
   selectedId: string | null
   confirmDeleteId: string | null
+  /** Whether the form that adds time worked with no timer running is open. */
+  isAdding: boolean
 }
 
 /** One timer of the day as the Today pane lists it. */
