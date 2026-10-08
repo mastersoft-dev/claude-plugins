@@ -71,8 +71,8 @@ export type BookingLine = {
   overlaps?: { entryId: string; title: string; minutes: number }[]
 }
 
-/** The panel's tabs: today's timers of this session, today's of every session, and every day still to book. */
-export type TodayTab = 'session' | 'all' | 'book'
+/** The panel's tabs: today's timers of this session, today's of every session, every day still to book, and the week. */
+export type TodayTab = 'session' | 'all' | 'book' | 'week'
 
 export type TodayView = {
   kind: 'today'

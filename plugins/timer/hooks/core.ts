@@ -79,11 +79,53 @@ export const instantOf = (day: string, time: string): number | undefined => {
 }
 
 const RECENT_DAYS = 7
+const BAR_CELLS = 20
+
+const weekdayFormat = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, weekday: 'short' })
 
 /** The day of `now` and the six before it, newest first, as the panel's Add form offers them. */
 export const recentDays = (now: number): string[] => {
   const noon = instantOf(dayOf(now), '12:00') ?? now
   return Array.from({ length: RECENT_DAYS }, (_, i) => dayOf(noon - i * DAY_MS))
+}
+
+/** One day of the Week tab. */
+export type WeekDay = { day: string; weekday: string; minutes: number; toBook: number }
+
+/** What the Week tab shows: the last seven days, newest first, and the time by repo and by tag. */
+export type Week = { days: WeekDay[]; byRepo: { name: string; minutes: number }[]; byTag: { name: string; minutes: number }[] }
+
+const ranked = (totals: Map<string, number>) =>
+  [...totals].map(([name, minutes]) => ({ name, minutes })).filter(t => t.minutes > 0).sort((a, b) => b.minutes - a.minutes)
+
+/**
+ * The last seven days for the Week tab: each day's minutes (counted as the
+ * day totals are), how many stopped timers still wait to be booked that day,
+ * and every timer's own minutes added up by repo and by tag.
+ */
+export const weekOf = (entries: readonly Entry[], now: number, options: { withAgents: boolean; wallClock: boolean }): Week => {
+  const byRepo = new Map<string, number>()
+  const byTag = new Map<string, number>()
+  const days = recentDays(now).map(day => {
+    for (const row of todayRows(entries, day, now, options.withAgents)) {
+      byRepo.set(row.repo.name, (byRepo.get(row.repo.name) ?? 0) + row.minutes)
+      for (const tag of row.tags) byTag.set(tag, (byTag.get(tag) ?? 0) + row.minutes)
+    }
+    return {
+      day,
+      weekday: weekdayFormat.format(instantOf(day, '12:00') ?? now),
+      minutes: dayMinutes(entries, day, now, options),
+      toBook: entries.filter(entry => pendingDays(entry).some(([pending]) => pending === day)).length,
+    }
+  })
+  return { days, byRepo: ranked(byRepo), byTag: ranked(byTag) }
+}
+
+/** A bar of `minutes` against `targetMinutes`, full at the target and `+` past it; against a day's 8h with no target. */
+export const barOf = (minutes: number, targetMinutes: number): string => {
+  const scale = targetMinutes > 0 ? targetMinutes : 8 * 60
+  const filled = Math.min(BAR_CELLS, Math.round((minutes / scale) * BAR_CELLS))
+  return `${'█'.repeat(filled)}${'░'.repeat(BAR_CELLS - filled)}${minutes > scale ? '+' : ' '}`
 }
 
 /** Whether an entry has time, closed or still running, between `dayStart` and `dayEnd`. */

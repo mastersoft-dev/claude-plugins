@@ -4,6 +4,7 @@ import type { Entry } from '../types'
 import {
   addAgentRun,
   awayOf,
+  barOf,
   bookingLines,
   branchLabel,
   canonicalRemote,
@@ -36,6 +37,7 @@ import {
   titleOf,
   toCsv,
   todayRows,
+  weekOf,
 } from '../hooks/core'
 
 const MINUTE = 60_000
@@ -475,5 +477,24 @@ describe('recentDays', () => {
       '2026-10-21',
       '2026-10-20',
     ])
+  })
+})
+
+describe('weekOf and barOf', () => {
+  test('lists the last seven days with their minutes and what waits to be booked, and the time by repo and tag', () => {
+    const yesterday = entry({ id: 'y', tags: ['review'], segments: [{ start: T0 - 24 * 60 * MINUTE, end: T0 - 23 * 60 * MINUTE }], stoppedAt: T0 - 23 * 60 * MINUTE })
+    const week = weekOf([entry(), yesterday], T0 + 120 * MINUTE, { withAgents: false, wallClock: true })
+    expect(week.days.slice(0, 3)).toEqual([
+      { day: '2026-10-06', weekday: 'Tue', minutes: 63, toBook: 1 },
+      { day: '2026-10-05', weekday: 'Mon', minutes: 60, toBook: 1 },
+      { day: '2026-10-04', weekday: 'Sun', minutes: 0, toBook: 0 },
+    ])
+    expect(week.byRepo).toEqual([{ name: 'acme', minutes: 123 }])
+    expect(week.byTag).toEqual([{ name: 'review', minutes: 60 }])
+  })
+
+  test('draws a bar full at the target and marks time past it', () => {
+    expect(barOf(240, 480)).toBe(`${'█'.repeat(10)}${'░'.repeat(10)} `)
+    expect(barOf(600, 480)).toBe(`${'█'.repeat(20)}+`)
   })
 })

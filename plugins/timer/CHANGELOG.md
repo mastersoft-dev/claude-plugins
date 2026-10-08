@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- A Week tab in the panel: a bar for each of the last seven days against the
+  `targetHours` setting (8 by default), the days with timers still to book,
+  and the week's time by repo and by tag.
 - The entries tool takes `includeSummary`: the lines of this session's timers
   then carry what the session did, written from its own transcript by one
   extra model call, for the booking's description.

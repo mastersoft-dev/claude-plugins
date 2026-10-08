@@ -80,6 +80,12 @@
       "description": "Rounds each timer's minutes of a day to the nearest multiple of this many minutes (a whole number up to 60) when Claude books them, never below one multiple; 0 books whole minutes. The panel and the export keep the time as tracked",
       "default": 0
     },
+    "targetHours": {
+      "type": "number",
+      "title": "Daily target (hours)",
+      "description": "The hours a working day aims at, a whole or decimal number up to 24: the panel's Week tab draws each day's bar against it. 0 draws them against 8 hours with no target shown",
+      "default": 8
+    },
     "parallelTime": {
       "type": "string",
       "title": "Timers run at once",

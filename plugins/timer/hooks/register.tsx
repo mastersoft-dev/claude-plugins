@@ -8,6 +8,7 @@ import {
   PATH_KEY_PREFIX,
   addAgentRun,
   awayOf,
+  barOf,
   bookingLines,
   canonicalRemote,
   closeStale,
@@ -44,6 +45,7 @@ import {
   titleOf,
   toCsv,
   todayRows,
+  weekOf,
   workedMs,
 } from './core'
 import { authorOf, commitsBetween, worktreeOf } from './git'
@@ -65,6 +67,8 @@ const SUMMED = 'summed'
 const AWAY_MODES = ['ask', 'discard', 'keep'] as const
 const DEFAULT_IDLE_MINUTES = 15
 const SPLIT = 'split'
+const DEFAULT_TARGET_HOURS = 8
+const MAX_TARGET_HOURS = 24
 const AUTO_STARTS = ['off', 'session', 'prompt'] as const
 const MAX_ROUND_TO = 60
 const REMINDED_PREFIX = 'reminded:'
@@ -237,6 +241,7 @@ let roundTo = 0
 let autoStartOn: (typeof AUTO_STARTS)[number] = 'off'
 let graceMs = 0
 let tellsClaude = true
+let targetMinutes = DEFAULT_TARGET_HOURS * 60
 let turnEndedAt: number | undefined
 
 /**
@@ -1075,6 +1080,8 @@ export const register: Register = (on, options) => {
   splitsOnBranch = options.branchChange === SPLIT
   autoStartOn = AUTO_STARTS.find(mode => mode === options.autoStart) ?? 'off'
   tellsClaude = options.tellClaude !== 'off'
+  const target = Number(options.targetHours)
+  targetMinutes = (Number.isFinite(target) && target >= 0 && target <= MAX_TARGET_HOURS ? target : DEFAULT_TARGET_HOURS) * 60
   const step = Number(options.roundTo)
   roundTo = Number.isInteger(step) && step > 0 && step <= MAX_ROUND_TO ? step : 0
   const grace = Number(options.autoGraceMinutes)
@@ -1517,9 +1524,52 @@ export const register: Register = (on, options) => {
           variant={current.tab === 'book' ? 'primary' : 'secondary'}
           onPress={() => selectTab($, 'book')}
         />
+        <Button
+          key="tabweek"
+          label="Week"
+          variant={current.tab === 'week' ? 'primary' : 'secondary'}
+          onPress={() => selectTab($, 'week')}
+        />
       </Box>
     )
     const close = <Button key="close" label="Close" role="dismiss" onPress={() => closePane($)} />
+    if (current.tab === 'week') {
+      const week = weekOf(entries, now, { withAgents: countsAgents, wallClock: isWallClock })
+      const weekTotal = week.days.reduce((sum, d) => sum + d.minutes, 0)
+      return (
+        <Box flexDirection="column">
+          {tabs}
+          <Text bold>
+            Last 7 days · {formatDuration(weekTotal * MS_PER_MINUTE)}
+            {targetMinutes > 0 ? ` · target ${formatDuration(targetMinutes * MS_PER_MINUTE)} a day` : ''}
+          </Text>
+          {week.days.map(d => (
+            <Box key={`w${d.day}`} gap={1}>
+              <Text>
+                {d.weekday} {d.day.slice(5)} {barOf(d.minutes, targetMinutes)} {formatDuration(d.minutes * MS_PER_MINUTE)}
+              </Text>
+              {d.toBook > 0 && <Text color="yellow">{plural(d.toBook, 'timer', 'timers')} to book</Text>}
+            </Box>
+          ))}
+          {week.byRepo.length > 0 && <Text bold>By repo</Text>}
+          {week.byRepo.map(r => (
+            <Text key={`r${r.name}`}>
+              {formatDuration(r.minutes * MS_PER_MINUTE)}  {r.name}
+            </Text>
+          ))}
+          {week.byTag.length > 0 && <Text bold>By tag</Text>}
+          {week.byTag.map(t => (
+            <Text key={`g${t.name}`}>
+              {formatDuration(t.minutes * MS_PER_MINUTE)}  #{t.name}
+            </Text>
+          ))}
+          {(week.byRepo.length > 0 || week.byTag.length > 0) && (
+            <Text dimColor>By repo and tag add up each timer's own time, so time two timers shared counts in both.</Text>
+          )}
+          {close}
+        </Box>
+      )
+    }
     if (current.tab === 'book') {
       return (
         <Box flexDirection="column">

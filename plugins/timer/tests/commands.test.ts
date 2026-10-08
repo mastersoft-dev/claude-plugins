@@ -1220,6 +1220,20 @@ test('the Add form takes an earlier day and says why it refuses a stretch', asyn
   await ui.unmount()
 })
 
+test('the Week tab draws each day against the daily target, with what waits to be booked and the time by repo', { options: { targetHours: 4 } }, async ($, on) => {
+  const yesterday = { ...otherSession, id: 'y', note: 'release notes', segments: [{ start: T0 - DAY, end: T0 - DAY + 120 * MINUTE }], stoppedAt: T0 - DAY + 120 * MINUTE }
+  const { clock } = world(on, { 'entry:y': yesterday })
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'tabweek' })
+  expect((await ui.find({ type: 'Text', text: /^Last 7 days/ }))?.text).toBe('Last 7 days · 3h 03m · target 4h 00m a day')
+  expect((await ui.find({ type: 'Text', text: /^Mon 10-05/ }))?.text).toBe(`Mon 10-05 ${'█'.repeat(10)}${'░'.repeat(10)}  2h 00m`)
+  expect((await ui.findAll({ type: 'Text', text: /to book$/ })).map(t => t.text)).toEqual(['1 timer to book', '1 timer to book'])
+  expect(await ui.find({ type: 'Text', text: /3h 03m {2}acme-site/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('a timer is deleted only on the second press of Delete', async ($, on) => {
   const { clock, store } = world(on)
   await trackAndStop($, clock)
