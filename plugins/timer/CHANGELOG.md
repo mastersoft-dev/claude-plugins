@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- A timer selected in the panel has From and To boxes that move its start
+  and end today.
 - The panel marks a timer that ran alongside others that day with ⚠ and the
   time they shared.
 - With `roundTo` set, the panel's To book tab shows each day's minutes as

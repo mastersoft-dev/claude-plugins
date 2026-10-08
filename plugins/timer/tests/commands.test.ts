@@ -1074,6 +1074,23 @@ test('with roundTo set, the To book tab shows the minutes as they will be booked
   await ui.unmount()
 })
 
+test('the From and To boxes move a selected timer\'s start and end today', async ($, on) => {
+  const { clock, toasts } = world(on)
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const [row] = await ui.findAll({ type: 'Button', text: /fix login/ })
+  await ui.press({ key: row?.key ?? '' })
+  await ui.input({ key: 'selfrom', text: '09:30' })
+  expect(await ui.find({ type: 'Button', text: /09:30–10:03 0h 33m {2}fix login/ })).toBeDefined()
+  await ui.input({ key: 'selto', text: '10:00' })
+  expect(await ui.find({ type: 'Button', text: /09:30–10:00 0h 30m {2}fix login/ })).toBeDefined()
+  expect(toasts).toContain('Timer now 09:30–10:00, 0h 30m')
+  await ui.input({ key: 'selto', text: '11:00' })
+  expect(toasts.at(-1)).toContain('already passed')
+  await ui.unmount()
+})
+
 test('a timer is deleted only on the second press of Delete', async ($, on) => {
   const { clock, store } = world(on)
   await trackAndStop($, clock)

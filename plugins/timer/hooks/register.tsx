@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ProcessRunInit, Register, Timer } from 'claude-code'
 
 import type { Away, BookingLine, Entry, TodayTab } from '../types'
+import type { EntryEdit } from './core'
 import {
   CLOCK,
   PATH_KEY_PREFIX,
@@ -872,34 +873,56 @@ const addEntry = async ($: EngineInterface, input: unknown) => {
   return { result: { lines: await linesOf($, id, added.day) } }
 }
 
-/** Changes one timer's day: its start or end, Italian time, and its note or tags. */
-const editEntry = async ($: EngineInterface, input: unknown) => {
-  const change = parseEntryEdit(input)
-  if (typeof change === 'string') return { deny: change }
+/**
+ * Changes one timer's day, its start or end (Italian time) and its note or
+ * tags, for the edit tool and the panel alike: the timer as saved, or why the
+ * change is refused.
+ */
+const applyEdit = async ($: EngineInterface, change: EntryEdit): Promise<Entry | string> => {
   const entry = await loadEntry($, change.entryId)
-  if (entry === undefined) return { deny: `No timer ${change.entryId}: list them with the entries tool.` }
+  if (entry === undefined) return `No timer ${change.entryId}: list them with the entries tool.`
   const isRetimed = change.start !== undefined || change.end !== undefined
   const booked = entry.booked?.[change.day]
   if (isRetimed && booked !== undefined) {
-    return { deny: `${change.day} of that timer is already booked (${String(booked)}): change the booking first.` }
+    return `${change.day} of that timer is already booked (${String(booked)}): change the booking first.`
   }
   const dayStart = instantOf(change.day, '00:00')
   if (dayStart === undefined || !hasTimeIn(entry, dayStart, nextMidnight(dayStart))) {
-    return { deny: `Timer ${entry.id} has no time on ${change.day}.` }
+    return `Timer ${entry.id} has no time on ${change.day}.`
   }
   const now = await $.clock.now()
-  if ((change.start ?? 0) > now || (change.end ?? 0) > now) return { deny: 'start and end must be times already passed.' }
+  if ((change.start ?? 0) > now || (change.end ?? 0) > now) return 'start and end must be times already passed.'
   const reshaped = isRetimed
     ? reshapeDay(entry, change.day, { dayStart, dayEnd: nextMidnight(dayStart), start: change.start, end: change.end })
     : entry
-  if (typeof reshaped === 'string') return { deny: reshaped }
-  await saveEntry($, {
+  if (typeof reshaped === 'string') return reshaped
+  const edited = {
     ...reshaped,
     ...(change.note === undefined ? {} : { note: change.note }),
     ...(change.tags === undefined ? {} : { tags: change.tags }),
-  })
+  }
+  await saveEntry($, edited)
   await beat($)
-  return { result: { lines: await linesOf($, entry.id, change.day) } }
+  return edited
+}
+
+const editEntry = async ($: EngineInterface, input: unknown) => {
+  const change = parseEntryEdit(input)
+  if (typeof change === 'string') return { deny: change }
+  const edited = await applyEdit($, change)
+  if (typeof edited === 'string') return { deny: edited }
+  return { result: { lines: await linesOf($, edited.id, change.day) } }
+}
+
+/** Moves a timer's start or end today, from the From and To boxes of the panel. */
+const retimeToday = async ($: EngineInterface, entryId: string, edge: 'start' | 'end', time: string): Promise<string> => {
+  const now = await $.clock.now()
+  const change = parseEntryEdit({ entryId, day: dayOf(now), [edge]: time.trim() })
+  if (typeof change === 'string') return change
+  const edited = await applyEdit($, change)
+  if (typeof edited === 'string') return edited
+  const [row] = todayRows([edited], dayOf(now), now)
+  return row === undefined ? 'Timer changed.' : `Timer now ${row.from}–${row.to}, ${formatDuration(row.minutes * MS_PER_MINUTE)}`
 }
 
 const closePane = async ($: EngineInterface) => {
@@ -1306,7 +1329,7 @@ export const register: Register = (on, options) => {
         {rows.length === 0 && (
           <Text dimColor>{current.tab === 'all' ? 'No timer today yet.' : 'No timer in this session today: see All.'}</Text>
         )}
-        {rows.length > 0 && <Text dimColor>Select a timer of this session to change its note or tags, continue or delete it.</Text>}
+        {rows.length > 0 && <Text dimColor>Select a timer of this session to change its note, tags or times, continue or delete it.</Text>}
         {rows.map(r => {
           const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.name}${r.tags.map(tag => ` #${tag}`).join('')}`
           return (
@@ -1352,6 +1375,26 @@ export const register: Register = (on, options) => {
                 submitLabel="Set tags"
                 onSubmit={(value: string) => fromBand($, () => setTags($, selected.id, value))}
               />
+            )}
+            {Input !== undefined && (
+              <Box gap={1}>
+                <Input
+                  key="selfrom"
+                  label="From"
+                  value={selected.from}
+                  placeholder="HH:mm"
+                  submitLabel="Move start"
+                  onSubmit={(value: string) => fromBand($, () => retimeToday($, selected.id, 'start', value))}
+                />
+                <Input
+                  key="selto"
+                  label="To"
+                  value={selected.to === 'now' ? '' : selected.to}
+                  placeholder={selected.to === 'now' ? 'running' : 'HH:mm'}
+                  submitLabel="Move end"
+                  onSubmit={(value: string) => fromBand($, () => retimeToday($, selected.id, 'end', value))}
+                />
+              </Box>
             )}
             <Box gap={1}>
               {!(selected.id === own && selected.state === 'running') && (
