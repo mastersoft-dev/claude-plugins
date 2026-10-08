@@ -737,6 +737,7 @@ const openToday = async ($: EngineInterface): Promise<string> => {
     kind: 'today' as const,
     tab: 'session' as const,
     selectedId: null,
+    selectedDay: null,
     confirmDeleteId: null,
     isAdding: false,
   }))
@@ -759,15 +760,16 @@ const toggleToday = async ($: EngineInterface) => {
 
 const selectTab = ($: EngineInterface, tab: TodayTab) =>
   update($, view, current =>
-    current?.kind === 'today' ? { ...current, tab, selectedId: null, confirmDeleteId: null } : current,
+    current?.kind === 'today' ? { ...current, tab, selectedId: null, selectedDay: null, confirmDeleteId: null } : current,
   )
 
-const selectRow = ($: EngineInterface, id: string) =>
-  update($, view, current =>
-    current?.kind === 'today'
-      ? { ...current, selectedId: current.selectedId === id ? null : id, confirmDeleteId: null }
-      : current,
-  )
+/** Selects a row to edit, or unselects it when it is the one selected; `day` names a To book row's day. */
+const selectRow = ($: EngineInterface, id: string, day: string | null = null) =>
+  update($, view, current => {
+    if (current?.kind !== 'today') return current
+    const isSelected = current.selectedId === id && current.selectedDay === day
+    return { ...current, selectedId: isSelected ? null : id, selectedDay: isSelected ? null : day, confirmDeleteId: null }
+  })
 
 /**
  * Deletes a timer of the day once its Delete was pressed twice. Its time is
@@ -781,10 +783,15 @@ const deleteEntry = async ($: EngineInterface, id: string) => {
     return
   }
   const entry = await loadEntry($, id)
-  if ((await read($, activeId)) === id) await update($, activeId, () => null)
+  const own = await read($, activeId)
+  if (entry !== undefined && stateOf(entry) !== 'stopped' && entry.id !== own && entry.sessionId !== (await $.session.id())) {
+    $.ui.toast('That timer is open in another session: stop it there first.')
+    return
+  }
+  if (own === id) await update($, activeId, () => null)
   await forgetEntry($, id)
   await update($, awayAtom, away => (away?.entryId === id ? null : away))
-  await update($, view, v => (v?.kind === 'today' ? { ...v, selectedId: null, confirmDeleteId: null } : v))
+  await update($, view, v => (v?.kind === 'today' ? { ...v, selectedId: null, selectedDay: null, confirmDeleteId: null } : v))
   await beat($)
   const references = Object.values(entry?.booked ?? {}).map(String)
   $.ui.toast(
@@ -965,14 +972,14 @@ const editEntry = async ($: EngineInterface, input: unknown) => {
   return { result: { lines: await linesOf($, edited.id, change.day) } }
 }
 
-/** Moves a timer's start or end today, from the From and To boxes of the panel. */
-const retimeToday = async ($: EngineInterface, entryId: string, edge: 'start' | 'end', time: string): Promise<string> => {
+/** Moves a timer's start or end on `day`, from the From and To boxes of the panel. */
+const retime = async ($: EngineInterface, entryId: string, day: string, edge: 'start' | 'end', time: string): Promise<string> => {
   const now = await $.clock.now()
-  const change = parseEntryEdit({ entryId, day: dayOf(now), [edge]: time.trim() })
+  const change = parseEntryEdit({ entryId, day, [edge]: time.trim() })
   if (typeof change === 'string') return change
   const edited = await applyEdit($, change)
   if (typeof edited === 'string') return edited
-  const [row] = todayRows([edited], dayOf(now), now)
+  const [row] = todayRows([edited], day, now)
   return row === undefined ? 'Timer changed.' : `Timer now ${row.from}–${row.to}, ${formatDuration(row.minutes * MS_PER_MINUTE)}`
 }
 
@@ -1322,8 +1329,89 @@ export const register: Register = (on, options) => {
     const shown = current.tab === 'all' ? entries : entries.filter(entry => entry.sessionId === sessionId)
     const total = dayMinutes(shown, dayOf(now), now, { withAgents: countsAgents, wallClock: isWallClock })
     const toBook = bookingLines(entries.filter(entry => stateOf(entry) === 'stopped'), {}, countsAgents, roundTo)
-    const selected = rows.find(r => r.id === current.selectedId && r.sessionId === sessionId)
+    const selected = current.selectedDay === null ? rows.find(r => r.id === current.selectedId) : undefined
     const mark = { running: '⏱', paused: '⏸', stopped: '■' } as const
+    const editor = (target: {
+      id: string
+      day: string
+      note: string
+      tags: readonly string[]
+      from: string
+      to: string | null
+      state: 'running' | 'paused' | 'stopped'
+      sessionId: string
+    }) => {
+      const isRunningHere = target.id === own && target.state === 'running'
+      const isElsewhere = target.state !== 'stopped' && target.id !== own && target.sessionId !== sessionId
+      return (
+        <Box key="selected" flexDirection="column" borderStyle="round" paddingX={1}>
+          {Input !== undefined && (
+            <Input
+              key="selnote"
+              label="Note"
+              value={target.note}
+              placeholder="(no note)"
+              submitLabel="Set note"
+              onSubmit={(value: string) => fromBand($, () => setNote($, target.id, value))}
+            />
+          )}
+          {Input !== undefined && (
+            <Input
+              key="seltags"
+              label="Tags"
+              value={target.tags.join(' ')}
+              placeholder="review meeting"
+              submitLabel="Set tags"
+              onSubmit={(value: string) => fromBand($, () => setTags($, target.id, value))}
+            />
+          )}
+          {Input !== undefined && (
+            <Box gap={1}>
+              <Input
+                key="selfrom"
+                label="From"
+                value={target.from}
+                placeholder="HH:mm"
+                submitLabel="Move start"
+                onSubmit={(value: string) => fromBand($, () => retime($, target.id, target.day, 'start', value))}
+              />
+              <Input
+                key="selto"
+                label="To"
+                value={target.to ?? ''}
+                placeholder={target.to === null ? 'running' : 'HH:mm'}
+                submitLabel="Move end"
+                onSubmit={(value: string) => fromBand($, () => retime($, target.id, target.day, 'end', value))}
+              />
+            </Box>
+          )}
+          {isElsewhere && <Text dimColor>Open in another session: pause, stop or delete it there.</Text>}
+          <Box gap={1}>
+            {!isRunningHere && !isElsewhere && (
+              <Button
+                key="continue"
+                label="Continue this timer"
+                variant="primary"
+                onPress={() => fromBand($, () => continueEntry($, target.id))}
+              />
+            )}
+            {isRunningHere && (
+              <Button key="pausesel" label="Pause" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
+            )}
+            {target.id === own && target.state !== 'stopped' && (
+              <Button key="stopsel" label="Stop" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
+            )}
+            {!isElsewhere && (
+              <Button
+                key="delete"
+                label={current.confirmDeleteId === target.id ? 'Press again to delete' : 'Delete'}
+                onPress={() => deleteEntry($, target.id)}
+              />
+            )}
+          </Box>
+        </Box>
+      )
+    }
     const tabs = (
       <Box gap={1}>
         <Button
@@ -1356,18 +1444,45 @@ export const register: Register = (on, options) => {
             {plural(new Set(toBook.map(l => l.day)).size, 'day', 'days')}
             {roundTo > 0 ? ` · rounded to ${roundTo} min` : ''}
           </Text>
-          <Text dimColor>{toBook.length === 0 ? 'Every stopped timer is booked.' : `Stopped timers not booked yet: ${ASK_TO_BOOK}.`}</Text>
-          {toBook.map(l => (
-            <Box key={`b${l.entryId}${l.day}`} gap={1}>
-              <Text>
-                {l.day} {l.start} {formatDuration(l.minutes * MS_PER_MINUTE)}
-                {l.exactMinutes === undefined ? '' : ` (${formatDuration(l.exactMinutes * MS_PER_MINUTE)} tracked)`}  {l.title}
-              </Text>
-              <Text dimColor wrap="truncate-end">
-                {l.folder === undefined ? l.repo : <Link href={fileUrl(l.folder)}>{l.repo}</Link>}
-              </Text>
-            </Box>
-          ))}
+          <Text dimColor>
+            {toBook.length === 0
+              ? 'Every stopped timer is booked.'
+              : `Stopped timers not booked yet: ${ASK_TO_BOOK}. Select one to change it.`}
+          </Text>
+          {toBook.map(l => {
+            const exact = l.exactMinutes === undefined ? '' : ` (${formatDuration(l.exactMinutes * MS_PER_MINUTE)} tracked)`
+            const isSelected = l.entryId === current.selectedId && l.day === current.selectedDay
+            return (
+              <Box key={`b${l.entryId}${l.day}`} gap={1}>
+                <Button
+                  key={`book${l.entryId}${l.day}`}
+                  label={`${l.day} ${l.start} ${formatDuration(l.minutes * MS_PER_MINUTE)}${exact}  ${l.title}${(l.tags ?? []).map(tag => ` #${tag}`).join('')}`}
+                  variant={isSelected ? 'primary' : 'secondary'}
+                  onPress={() => selectRow($, l.entryId, l.day)}
+                />
+                <Text dimColor wrap="truncate-end">
+                  {l.folder === undefined ? l.repo : <Link href={fileUrl(l.folder)}>{l.repo}</Link>}
+                </Text>
+              </Box>
+            )
+          })}
+          {(() => {
+            const line = toBook.find(l => l.entryId === current.selectedId && l.day === current.selectedDay)
+            const entry = line === undefined ? undefined : entries.find(candidate => candidate.id === line.entryId)
+            const span = line === undefined || entry === undefined ? undefined : daySpan(entry, line.day)
+            return line === undefined || entry === undefined || span === undefined
+              ? null
+              : editor({
+                  id: entry.id,
+                  day: line.day,
+                  note: entry.note,
+                  tags: entry.tags ?? [],
+                  from: timeOf(span.since),
+                  to: timeOf(span.until),
+                  state: stateOf(entry),
+                  sessionId: entry.sessionId,
+                })
+          })()}
           {close}
         </Box>
       )
@@ -1381,21 +1496,17 @@ export const register: Register = (on, options) => {
         {rows.length === 0 && (
           <Text dimColor>{current.tab === 'all' ? 'No timer today yet.' : 'No timer in this session today: see All.'}</Text>
         )}
-        {rows.length > 0 && <Text dimColor>Select a timer of this session to change its note, tags or times, continue or delete it.</Text>}
+        {rows.length > 0 && <Text dimColor>Select a timer to change its note, tags or times, continue or delete it.</Text>}
         {rows.map(r => {
           const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.name}${r.tags.map(tag => ` #${tag}`).join('')}`
           return (
             <Box key={`t${r.id}`} gap={1}>
-              {r.sessionId === sessionId ? (
-                <Button
-                  key={`row${r.id}`}
-                  label={summary}
-                  variant={r.id === current.selectedId ? 'primary' : 'secondary'}
-                  onPress={() => selectRow($, r.id)}
-                />
-              ) : (
-                <Text dimColor>  {summary}  </Text>
-              )}
+              <Button
+                key={`row${r.id}`}
+                label={summary}
+                variant={r.id === current.selectedId ? 'primary' : 'secondary'}
+                onPress={() => selectRow($, r.id)}
+              />
               <Text dimColor wrap="truncate-end">
                 {r.repo.path === undefined ? r.repo.name : <Link href={fileUrl(r.repo.path)}>{r.repo.name}</Link>}
                 {r.costUsd === undefined ? '' : ` · $${r.costUsd.toFixed(2)}`}
@@ -1406,71 +1517,17 @@ export const register: Register = (on, options) => {
             </Box>
           )
         })}
-        {selected !== undefined && (
-          <Box key="selected" flexDirection="column" borderStyle="round" paddingX={1}>
-            {Input !== undefined && (
-              <Input
-                key="selnote"
-                label="Note"
-                value={selected.note}
-                placeholder="(no note)"
-                submitLabel="Set note"
-                onSubmit={(value: string) => fromBand($, () => setNote($, selected.id, value))}
-              />
-            )}
-            {Input !== undefined && (
-              <Input
-                key="seltags"
-                label="Tags"
-                value={selected.tags.join(' ')}
-                placeholder="review meeting"
-                submitLabel="Set tags"
-                onSubmit={(value: string) => fromBand($, () => setTags($, selected.id, value))}
-              />
-            )}
-            {Input !== undefined && (
-              <Box gap={1}>
-                <Input
-                  key="selfrom"
-                  label="From"
-                  value={selected.from}
-                  placeholder="HH:mm"
-                  submitLabel="Move start"
-                  onSubmit={(value: string) => fromBand($, () => retimeToday($, selected.id, 'start', value))}
-                />
-                <Input
-                  key="selto"
-                  label="To"
-                  value={selected.to === 'now' ? '' : selected.to}
-                  placeholder={selected.to === 'now' ? 'running' : 'HH:mm'}
-                  submitLabel="Move end"
-                  onSubmit={(value: string) => fromBand($, () => retimeToday($, selected.id, 'end', value))}
-                />
-              </Box>
-            )}
-            <Box gap={1}>
-              {!(selected.id === own && selected.state === 'running') && (
-                <Button
-                  key="continue"
-                  label="Continue this timer"
-                  variant="primary"
-                  onPress={() => fromBand($, () => continueEntry($, selected.id))}
-                />
-              )}
-              {selected.id === own && selected.state === 'running' && (
-                <Button key="pausesel" label="Pause" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
-              )}
-              {selected.id === own && selected.state !== 'stopped' && (
-                <Button key="stopsel" label="Stop" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
-              )}
-              <Button
-                key="delete"
-                label={current.confirmDeleteId === selected.id ? 'Press again to delete' : 'Delete'}
-                onPress={() => deleteEntry($, selected.id)}
-              />
-            </Box>
-          </Box>
-        )}
+        {selected !== undefined &&
+          editor({
+            id: selected.id,
+            day: dayOf(now),
+            note: selected.note,
+            tags: selected.tags,
+            from: selected.from,
+            to: selected.to === 'now' ? null : selected.to,
+            state: selected.state,
+            sessionId: selected.sessionId,
+          })}
         {Input !== undefined && Select !== undefined && !current.isAdding && (
           <Button key="addtime" label="+ Add time" onPress={() => toggleAdding($)} />
         )}

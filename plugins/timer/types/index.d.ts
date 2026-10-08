@@ -76,6 +76,8 @@ export type TodayView = {
   kind: 'today'
   tab: TodayTab
   selectedId: string | null
+  /** The day of the selected row in the To book tab; null for today's tabs. */
+  selectedDay: string | null
   confirmDeleteId: string | null
   /** Whether the form that adds time worked with no timer running is open. */
   isAdding: boolean

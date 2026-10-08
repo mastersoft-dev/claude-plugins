@@ -10,6 +10,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Every timer in the panel can be selected and edited, those of other
+  sessions in the All tab and every day of the To book tab included: note,
+  tags, From and To, continue and delete. A timer still open in another
+  session can't be deleted or continued from here.
 - The panel's "+ Add time" form adds time worked with no timer running: a
   day of the last week, from, to, note and tags.
 - A timer selected in the panel has From and To boxes that move its start
