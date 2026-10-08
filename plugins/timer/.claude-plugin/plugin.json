@@ -41,6 +41,12 @@
       "options": ["off", "session", "prompt"],
       "default": "off"
     },
+    "autoGraceMinutes": {
+      "type": "number",
+      "title": "Auto mode keeps running for (minutes)",
+      "description": "In auto mode the timer keeps running this many minutes after Claude's turn ends, for reading the answer and typing the next prompt; a turn started within them leaves no gap. 0 pauses it as the turn ends",
+      "default": 0
+    },
     "awayTime": {
       "type": "string",
       "title": "Time away",

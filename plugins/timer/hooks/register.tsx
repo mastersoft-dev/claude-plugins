@@ -226,6 +226,8 @@ let idleMs = DEFAULT_IDLE_MINUTES * MS_PER_MINUTE
 let splitsOnBranch = false
 let roundTo = 0
 let autoStartOn: (typeof AUTO_STARTS)[number] = 'off'
+let graceMs = 0
+let turnEndedAt: number | undefined
 
 /**
  * Drops booked timers older than the retention, the reminders of days gone by
@@ -544,13 +546,29 @@ const followBranch = ($: EngineInterface): Promise<void> => {
   return branchChecks
 }
 
-/** Runs the active auto-mode timer exactly while Claude works on a turn. */
+/**
+ * Runs the active auto-mode timer while Claude works on a turn, and for the
+ * person's `autoGraceMinutes` after it ends (reading the answer, typing the
+ * next prompt): a turn started within them leaves no gap, and past them the
+ * timer pauses as they ran out, which the refresh notices (or the next turn,
+ * which leaves out the time between). A timer resumed by hand after they ran
+ * out keeps running until the next turn ends.
+ */
 const followClaude = async ($: EngineInterface) => {
   const entry = await loadActive($)
   if (entry?.auto !== true) return
   const now = await $.clock.now()
   await creditCost($)
-  const changed = isClaudeWorking ? resumeEntry(entry, now) : pauseEntry(entry, now)
+  if (!isClaudeWorking) turnEndedAt ??= now
+  const graceEnd = (turnEndedAt ?? now) + graceMs
+  const lastStart = entry.segments.at(-1)?.start ?? now
+  const isRunning = stateOf(entry) === 'running'
+  if (!isClaudeWorking && (now < graceEnd || (isRunning && lastStart > graceEnd))) return
+  const isLapsed = isClaudeWorking && turnEndedAt !== undefined && isRunning && graceMs > 0 && lastStart < graceEnd && graceEnd < now
+  const lapsed = isLapsed ? pauseEntry(entry, graceEnd) : entry
+  const changed = isClaudeWorking
+    ? resumeEntry(typeof lapsed === 'string' ? entry : lapsed, now)
+    : pauseEntry(entry, Math.max(lastStart, Math.min(now, graceEnd)))
   if (typeof changed === 'string') return
   await saveEntry($, changed)
   await beat($)
@@ -562,8 +580,11 @@ const toggleAuto = async ($: EngineInterface): Promise<string> => {
   const auto = entry.auto !== true
   await saveEntry($, { ...entry, auto })
   if (!auto) return 'Auto mode off: the timer stays as it is until you pause or stop it.'
+  if (!isClaudeWorking) turnEndedAt = await $.clock.now()
   await followClaude($)
-  return 'Auto mode on: the timer runs only while Claude is working.'
+  return graceMs > 0
+    ? `Auto mode on: the timer runs while Claude is working and ${formatDuration(graceMs)} after.`
+    : 'Auto mode on: the timer runs only while Claude is working.'
 }
 
 /**
@@ -594,6 +615,7 @@ const tick = async ($: EngineInterface) => {
   lastTickAt = await $.clock.now()
   await recoverStale($, previous)
   await detectAway($, previous, lastTickAt)
+  if (graceMs > 0) await followClaude($)
   await beat($)
 }
 
@@ -877,6 +899,8 @@ export const register: Register = (on, options) => {
   autoStartOn = AUTO_STARTS.find(mode => mode === options.autoStart) ?? 'off'
   const step = Number(options.roundTo)
   roundTo = Number.isInteger(step) && step > 0 && step <= MAX_ROUND_TO ? step : 0
+  const grace = Number(options.autoGraceMinutes)
+  graceMs = (Number.isFinite(grace) && grace > 0 ? grace : 0) * MS_PER_MINUTE
   const idleMinutes = Number(options.idleMinutes)
   idleMs = (Number.isFinite(idleMinutes) && idleMinutes >= 0 ? idleMinutes : DEFAULT_IDLE_MINUTES) * MS_PER_MINUTE
 
@@ -1015,6 +1039,7 @@ export const register: Register = (on, options) => {
     const started = await next(e)
     isClaudeWorking = true
     await followClaude($)
+    turnEndedAt = undefined
     return started
   })
 
@@ -1023,6 +1048,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined) {
       isClaudeWorking = false
       lastActiveAt = await $.clock.now()
+      turnEndedAt = lastActiveAt
       await followBranch($)
       await followClaude($)
     } else {

@@ -5,7 +5,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 ## What it does
 
 - **Timer per session**: start, pause, resume and stop from the band above the prompt or with `/timer`. The status line shows the running time.
-- **Auto mode**: the timer runs only while Claude is working on a turn, for long background tasks.
+- **Auto mode**: the timer runs only while Claude is working on a turn, for long background tasks; with `autoGraceMinutes` also that many minutes after each turn.
 - **Time away**: with no typing, prompt or press for 15 minutes while Claude isn't working, or with the computer asleep, the timer notices you're away. When you're back the band asks whether to keep that time, leave it out, or move it to a timer of its own (the `awayTime` and `idleMinutes` settings).
 - **Session end**: closing Claude Code stops the timer, at the moment you left when you're still away; after `/clear` the band asks whether to keep it running or stop it.
 - **Panel** (`/timer open` or ☰): today's timers for this session or for all sessions, with editable notes, and a "To book" tab with every day not booked yet. You can continue or delete a timer from there.
@@ -43,6 +43,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
 | `autoStart` | `off` | Starts a timer with no note by itself: `session` when a session starts with none open, `prompt` at any prompt sent with none open (after a stop too). `off` starts timers only when you ask |
+| `autoGraceMinutes` | `0` | In auto mode, minutes the timer keeps running after Claude's turn ends (reading the answer, typing the next prompt); a turn started within them leaves no gap. `0` pauses it as the turn ends |
 | `awayTime` | `ask` | What happens to the time a running timer counts while you're away: `ask` when you're back (keep it, leave it out, or move it to a timer of its own), `discard` it, or `keep` counting it |
 | `idleMinutes` | `15` | Minutes with no typing, prompt or press, and Claude not working, before you count as away; `0` counts only a sleeping computer |
 | `branchChange` | `keep` | When a running timer's worktree moves to another branch (checked at each prompt and at the end of Claude's turn): `keep` counting on the same timer, or `split`, which stops it and starts a timer named after the new branch |
