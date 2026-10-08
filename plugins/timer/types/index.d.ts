@@ -20,6 +20,8 @@ export type Entry = {
   location?: string
   branch?: string
   task?: Task
+  /** Free labels the person gives the timer (review, meeting, support), listed with its time. */
+  tags?: string[]
   /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
   booked?: Record<string, string | number>
   /**
@@ -40,6 +42,7 @@ export type BookingLine = {
   /** The note, else the orchestrator's task title, else the branch's words, else the repo's name. */
   title: string
   note: string
+  tags?: string[]
   repo: string
   /** The git remote as `host/path`, when the repo has one. */
   remote?: string
@@ -74,6 +77,7 @@ export type TodayRow = {
   minutes: number
   state: 'running' | 'paused' | 'stopped'
   note: string
+  tags: string[]
   /** The note, else the branch's words, else the repo's name (its git remote's, else its folder's). */
   name: string
   /** The repo it ran in; `path` is its folder. */

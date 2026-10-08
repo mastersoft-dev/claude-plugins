@@ -206,6 +206,7 @@ export const parseEntry = (value: unknown): Entry | undefined => {
     (e.auto === undefined || typeof e.auto === 'boolean') &&
     (e.location === undefined || typeof e.location === 'string') &&
     (e.branch === undefined || typeof e.branch === 'string') &&
+    (e.tags === undefined || (Array.isArray(e.tags) && e.tags.every(tag => typeof tag === 'string'))) &&
     (e.task === undefined ||
       (typeof e.task === 'object' &&
         e.task !== null &&
@@ -345,6 +346,7 @@ export const bookingLines = (
             minutes: Math.round(minutes),
             title: titleOf(entry),
             note: entry.note,
+            ...(entry.tags === undefined || entry.tags.length === 0 ? {} : { tags: entry.tags }),
             repo: entry.repoName,
             ...(entry.repoKey.startsWith(PATH_KEY_PREFIX) ? {} : { remote: entry.repoKey }),
             ...(entry.branch === undefined ? {} : { branch: entry.branch }),
@@ -407,7 +409,7 @@ export const markBooked = (entry: Entry, day: string, reference: string): Entry 
   return { ...entry, booked: { ...entry.booked, [day]: reference } }
 }
 
-const CSV_HEADER = ['entry', 'session', 'repo', 'note', 'day', 'start', 'end', 'minutes', 'state', 'booked']
+const CSV_HEADER = ['entry', 'session', 'repo', 'note', 'day', 'start', 'end', 'minutes', 'state', 'booked', 'tags']
 
 const FORMULA_LEAD = /^[=+\-@\t\r]/
 
@@ -435,6 +437,7 @@ export const toCsv = (entries: readonly Entry[], now: number): string => {
             Math.round(((s.end ?? now) - s.start) / MS_PER_MINUTE),
             stateOf(entry),
             entry.booked?.[day] === undefined ? '' : String(entry.booked[day]),
+            (entry.tags ?? []).join(' '),
           ],
         }
       }),
@@ -442,6 +445,23 @@ export const toCsv = (entries: readonly Entry[], now: number): string => {
     .sort((a, b) => a.start - b.start)
   return [CSV_HEADER, ...rows.map(r => r.cells)].map(cells => cells.map(csvCell).join(',')).join('\r\n') + '\r\n'
 }
+
+const MAX_TAGS = 10
+const MAX_TAG_LENGTH = 32
+
+/**
+ * The tags a person typed, split on spaces and commas, a leading `#` dropped,
+ * each kept once in the order given: at most ten, each cut to 32 characters.
+ */
+export const parseTags = (text: string): string[] =>
+  [
+    ...new Set(
+      text
+        .split(/[\s,]+/)
+        .map(tag => tag.replace(/^#+/, '').slice(0, MAX_TAG_LENGTH))
+        .filter(Boolean),
+    ),
+  ].slice(0, MAX_TAGS)
 
 /**
  * A work branch as words for a timer's name (`feat/login-sso` → `login sso`);
@@ -500,6 +520,7 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number, w
           ),
           state: stateOf(entry),
           note: entry.note,
+          tags: entry.tags ?? [],
           name: titleOf(entry),
           repo: entry.location === undefined ? { name: entry.repoName } : { name: entry.repoName, path: entry.location },
           isBooked: entry.booked?.[day] !== undefined,

@@ -18,6 +18,7 @@ import {
   parseBookingRange,
   parseEntry,
   parseMark,
+  parseTags,
   pauseEntry,
   pendingDays,
   resumeEntry,
@@ -191,8 +192,8 @@ describe('toCsv', () => {
   test('writes one row per segment and quotes cells that need it', () => {
     const csv = toCsv([entry({ note: 'login, "SSO"', booked: { '2026-10-06': '900' } })], T0 + 90 * MINUTE)
     expect(csv).toBe(
-      'entry,session,repo,note,day,start,end,minutes,state,booked\r\n' +
-        'e1,s1,acme,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,900\r\n',
+      'entry,session,repo,note,day,start,end,minutes,state,booked,tags\r\n' +
+        'e1,s1,acme,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,900,\r\n',
     )
   })
 
@@ -300,8 +301,8 @@ describe('todayRows', () => {
     const running = entry({ id: 'r', note: '', segments: [{ start: T0 + 120 * MINUTE }], stoppedAt: undefined })
     const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE)
     expect(rows).toEqual([
-      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
-      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', repo: { name: 'acme' }, isBooked: false },
+      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', tags: [], name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
+      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', tags: [], name: 'acme', repo: { name: 'acme' }, isBooked: false },
     ])
   })
 })
@@ -364,5 +365,14 @@ describe('awayOf', () => {
 
   test('nothing before the running segment counts', () => {
     expect(awayOf({ ...presence, runningSince: T0 + 45 * MINUTE })).toEqual({ from: T0 + 45 * MINUTE, to: null })
+  })
+})
+
+describe('parseTags', () => {
+  test('splits on spaces and commas, drops a leading # and keeps each tag once', () => {
+    expect(parseTags('#review, meeting  review')).toEqual(['review', 'meeting'])
+    expect(parseTags('  ')).toEqual([])
+    expect(parseTags(Array.from({ length: 12 }, (_, i) => `t${i}`).join(' '))).toHaveLength(10)
+    expect(parseTags('x'.repeat(40))).toEqual(['x'.repeat(32)])
   })
 })

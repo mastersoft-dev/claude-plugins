@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Tags on a timer (`/timer tag review meeting`, or the Tags box of a timer
+  selected in the panel), shown in the panel, listed by the entries tool and
+  written to a new last `tags` column of the CSV export.
 - The `branchChange` setting (`keep` by default) can be set to `split`: when
   a running timer's worktree moves to another branch, the timer stops and a
   new one, named after the new branch, starts, so each branch is booked apart.

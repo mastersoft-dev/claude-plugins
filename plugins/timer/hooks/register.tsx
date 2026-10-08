@@ -21,6 +21,7 @@ import {
   parseBookingRange,
   parseEntry,
   parseMark,
+  parseTags,
   pauseEntry,
   pendingDays,
   reopenEntry,
@@ -64,7 +65,7 @@ const PANEL_MAX_ROWS = 30
 const ENTRIES_TOOL = 'entries'
 const MARK_TOOL = 'mark_booked'
 const ASK_TO_BOOK = 'ask Claude to book them'
-const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | open | export [file.csv]'
+const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file.csv]'
 
 const activeId = atom({ plugin: 'timer', key: 'activeId' } as const, null)
 const view = atom({ plugin: 'timer', key: 'view' } as const, null)
@@ -313,6 +314,20 @@ const setNote = async ($: EngineInterface, entryId: string, note: string): Promi
   return `Note set: ${trimmed || `(none, named ${titleOf({ ...entry, note: '' })})`}`
 }
 
+/** Replaces an entry's tags with the ones typed; none clears them. */
+const setTags = async ($: EngineInterface, entryId: string, text: string): Promise<string> => {
+  const entry = await loadEntry($, entryId)
+  if (entry === undefined) return 'That entry is gone.'
+  const tags = parseTags(text)
+  await saveEntry($, { ...entry, tags })
+  return tags.length === 0 ? 'Tags cleared.' : `Tags set: ${tags.map(tag => `#${tag}`).join(' ')}`
+}
+
+const tagActive = async ($: EngineInterface, text: string): Promise<string> => {
+  const entry = await loadActive($)
+  return entry === undefined ? 'No timer in this session: /timer start [note].' : setTags($, entry.id, text)
+}
+
 const setActiveNote = async ($: EngineInterface, note: string) => {
   const entry = await loadActive($)
   if (entry === undefined) return
@@ -376,6 +391,7 @@ const settleAway = async ($: EngineInterface, choice: 'keep' | 'discard' | 'spli
       location: entry.location,
       branch: entry.branch,
       task: entry.task,
+      tags: entry.tags,
     })
   }
   await saveCut($, entry, away.from, away.to)
@@ -451,6 +467,7 @@ const followBranch = ($: EngineInterface): Promise<void> => {
           branch: worktree.branch,
           ...(entry.task === undefined ? {} : { task: entry.task }),
           ...(entry.auto === undefined ? {} : { auto: entry.auto }),
+          ...(entry.tags === undefined ? {} : { tags: entry.tags }),
         },
         now,
       )
@@ -697,14 +714,14 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: COMMAND,
-      description: 'Track work time: start, pause, resume, stop, auto, open (panel), status, export',
-      argumentHint: '[status] | start [note] | pause | resume | stop | auto | open | export [file]',
+      description: 'Track work time: start, pause, resume, stop, auto, tag, open (panel), status, export',
+      argumentHint: '[status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file]',
       immediate: true,
     })
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -839,6 +856,8 @@ export const register: Register = (on, options) => {
           return exportCsv($, arg)
         case 'auto':
           return toggleAuto($)
+        case 'tag':
+          return tagActive($, arg)
         case 'open':
         case 'today':
           return openToday($)
@@ -1024,9 +1043,9 @@ export const register: Register = (on, options) => {
         {rows.length === 0 && (
           <Text dimColor>{current.tab === 'all' ? 'No timer today yet.' : 'No timer in this session today: see All.'}</Text>
         )}
-        {rows.length > 0 && <Text dimColor>Select a timer of this session to change its note, continue or delete it.</Text>}
+        {rows.length > 0 && <Text dimColor>Select a timer of this session to change its note or tags, continue or delete it.</Text>}
         {rows.map(r => {
-          const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.name}`
+          const summary = `${mark[r.state]} ${r.from}–${r.to.padEnd(5)} ${formatDuration(r.minutes * MS_PER_MINUTE)}  ${r.name}${r.tags.map(tag => ` #${tag}`).join('')}`
           return (
             <Box key={`t${r.id}`} gap={1}>
               {r.sessionId === sessionId ? (
@@ -1057,6 +1076,16 @@ export const register: Register = (on, options) => {
                 placeholder="(no note)"
                 submitLabel="Set note"
                 onSubmit={(value: string) => fromBand($, () => setNote($, selected.id, value))}
+              />
+            )}
+            {Input !== undefined && (
+              <Input
+                key="seltags"
+                label="Tags"
+                value={selected.tags.join(' ')}
+                placeholder="review meeting"
+                submitLabel="Set tags"
+                onSubmit={(value: string) => fromBand($, () => setTags($, selected.id, value))}
               />
             )}
             <Box gap={1}>

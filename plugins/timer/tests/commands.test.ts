@@ -387,6 +387,29 @@ test('pauses are left out of the worked time', async ($, on) => {
   expect(await timer($, 'stop')).toContain('1h 03m')
 })
 
+test('/timer tag labels the running timer, listed with its time and in the export', async ($, on) => {
+  const { clock, files } = world(on)
+  await timer($, 'start fix login')
+  expect(await timer($, 'tag #review meeting')).toBe('Tags set: #review #meeting')
+  await clock.advance(20 * MINUTE)
+  await timer($, 'stop')
+  expect((await lines($)).map(l => (l as { tags?: string[] }).tags)).toEqual([['review', 'meeting']])
+  await timer($, 'export out.csv')
+  expect(Object.entries(files).find(([path]) => path.endsWith('out.csv'))?.[1]).toContain(',stopped,,review meeting\r\n')
+})
+
+test('the panel sets a selected timer\'s tags', async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const [row] = await ui.findAll({ type: 'Button', text: /fix login/ })
+  await ui.press({ key: row?.key ?? '' })
+  await ui.input({ key: 'seltags', text: 'support' })
+  expect(await ui.find({ type: 'Button', text: /fix login #support/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('export writes every entry as CSV', async ($, on) => {
   const { clock, files } = world(on)
   await timer($, 'start fix login')
