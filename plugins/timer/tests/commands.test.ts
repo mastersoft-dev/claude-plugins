@@ -101,7 +101,11 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id })) }) as never)
   on('ui.log', () => ({ value: undefined }))
   on('prompt.edit', ($, e) => ({ text: e.text + e.inputText, cursor: e.cursor + e.inputText.length }))
-  on('prompt.submit', ($, e) => ({ text: e.text }) as never)
+  const submitted: { text: string; context?: readonly string[] }[] = []
+  on('prompt.submit', ($, e) => {
+    submitted.push({ text: e.text, ...(e.context === undefined ? {} : { context: e.context }) })
+    return { text: e.text } as never
+  })
   const suggestions: string[] = []
   const box = { isFree: true }
   on('prompt.suggest', ($, e) => {
@@ -110,7 +114,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   const usage = { usd: 0 }
   on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -496,6 +500,29 @@ test('with autoStart prompt, a slash command starts nothing, so /timer start kee
   await startSession($, on)
   await $.prompt.submit({ text: '/timer start fix login' } as never)
   expect(await timer($, 'status')).toContain('No timer in this session.')
+})
+
+test('each prompt tells Claude how long the timer has run and what waits to be booked', async ($, on) => {
+  const { clock, submitted } = world(on)
+  await trackAndStop($, clock)
+  await timer($, 'start review')
+  await clock.advance(10 * MINUTE)
+  await timer($, 'status')
+  await $.prompt.submit({ text: 'how long have I worked on this?' } as never)
+  await $.prompt.submit({ text: '/timer status' } as never)
+  expect(submitted.map(s => s.context)).toEqual([
+    [
+      '[timer plugin] The work timer of this session is running at 0h 10m on "review". 1 stopped timer waits to be booked (the mcp__timer__entries tool lists them).',
+    ],
+    undefined,
+  ])
+})
+
+test('with tellClaude off, prompts go as typed', { options: { tellClaude: 'off' } }, async ($, on) => {
+  const { submitted } = world(on)
+  await timer($, 'start review')
+  await $.prompt.submit({ text: 'go' } as never)
+  expect(submitted.map(s => s.context)).toEqual([undefined])
 })
 
 test('by default no timer starts by itself', async ($, on) => {

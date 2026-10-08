@@ -232,6 +232,7 @@ let splitsOnBranch = false
 let roundTo = 0
 let autoStartOn: (typeof AUTO_STARTS)[number] = 'off'
 let graceMs = 0
+let tellsClaude = true
 let turnEndedAt: number | undefined
 
 /**
@@ -382,6 +383,28 @@ const answerAfterClear = async ($: EngineInterface, isKept: boolean): Promise<st
   if (entry === undefined) return 'No timer in this session: /timer start [note].'
   await saveEntry($, { ...entry, sessionId: await $.session.id() })
   return `Timer kept: ${describe(entry, await $.clock.now())}`
+}
+
+/**
+ * One line on the timer for Claude, beside each prompt the person sends: how
+ * long the session's timer has run and on what, and how many timers wait to
+ * be booked. From the band's values, so it reads nothing more; undefined when
+ * there is nothing to say. Beside the prompt, not in the system prompt, so
+ * the prompt cache keeps the conversation before it.
+ */
+const timerContext = async ($: EngineInterface): Promise<string | undefined> => {
+  const info = await read($, band)
+  if (info === null) return undefined
+  const title = info.note || info.defaultTitle
+  const parts = [
+    info.state === 'idle'
+      ? ''
+      : `The work timer of this session is ${info.state} at ${info.worked}${title === '' ? '' : ` on "${title}"`}${info.auto ? ', in auto mode' : ''}.`,
+    info.unbooked > 0
+      ? `${plural(info.unbooked, 'stopped timer waits', 'stopped timers wait')} to be booked (the mcp__timer__entries tool lists them).`
+      : '',
+  ].filter(Boolean)
+  return parts.length === 0 ? undefined : `[timer plugin] ${parts.join(' ')}`
 }
 
 /**
@@ -1016,6 +1039,7 @@ export const register: Register = (on, options) => {
   awayMode = AWAY_MODES.find(mode => mode === options.awayTime) ?? 'ask'
   splitsOnBranch = options.branchChange === SPLIT
   autoStartOn = AUTO_STARTS.find(mode => mode === options.autoStart) ?? 'off'
+  tellsClaude = options.tellClaude !== 'off'
   const step = Number(options.roundTo)
   roundTo = Number.isInteger(step) && step > 0 && step <= MAX_ROUND_TO ? step : 0
   const grace = Number(options.autoGraceMinutes)
@@ -1147,12 +1171,14 @@ export const register: Register = (on, options) => {
   })
 
   on('prompt.submit', async ($, e, next) => {
-    const submitted = await next(e)
+    const isCommand = e.text.trimStart().startsWith('/')
+    const context = tellsClaude && !isCommand ? await timerContext($) : undefined
+    const submitted = await next(context === undefined ? e : { ...e, context: [...(e.context ?? []), context] })
     await noteActivity($)
     await followBranch($)
-    if (autoStartOn === 'prompt' && !e.text.trimStart().startsWith('/')) await autoStart($)
+    if (autoStartOn === 'prompt' && !isCommand) await autoStart($)
     return submitted
-  })
+  }).catch(($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
     const started = await next(e)

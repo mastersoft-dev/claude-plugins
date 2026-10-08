@@ -15,6 +15,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 - **Booking by Claude**: the plugin gives Claude tools. `mcp__timer__entries` lists the time per timer and day (minutes, the subagents' share of them, start, title, repo, git remote, branch, folder, state, and the other timers that ran at the same time); `mcp__timer__mark_booked` records a day as booked so it is not offered again. Asked with `includeCommits`, the entries tool also lists the commits you made in each timer's folder while it ran, so Claude can write the booking's description from them. From the reminder time (default 17:30, Italian time) the band shows how many timers wait to be booked, and the empty prompt box offers "Book my unbooked timers" once a day, for Tab to take.
 - **Fixing time with Claude**: `mcp__timer__add_entry` adds a timer for time you worked without one running, and `mcp__timer__edit_entry` moves a timer's start or end on a day, or changes its note or tags; ask Claude in your own words ("I worked on the release notes from 8 to 9:30, add it"). A day already booked keeps its times.
 - **Cost**: what Claude's work costs while a timer runs (the session's cost, as `/cost` counts it) is put on that timer by day. The panel shows it beside the repo, and the entries tool lists it as `costUsd`.
+- **Claude knows**: each prompt you send carries one line for Claude on this session's timer and the timers waiting to be booked, so "how long have I worked on this?" needs no tool call (`tellClaude: off` stops it).
 - **Export**: `/timer export [file.csv]` writes every session's time as CSV.
 
 ## Booking on GEWEB
@@ -42,6 +43,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
+| `tellClaude` | `on` | `on` adds one line beside each prompt you send on this session's timer and the timers waiting to be booked; `off` leaves prompts as typed |
 | `autoStart` | `off` | Starts a timer with no note by itself: `session` when a session starts with none open, `prompt` at any prompt sent with none open (after a stop too). `off` starts timers only when you ask |
 | `autoGraceMinutes` | `0` | In auto mode, minutes the timer keeps running after Claude's turn ends (reading the answer, typing the next prompt); a turn started within them leaves no gap. `0` pauses it as the turn ends |
 | `awayTime` | `ask` | What happens to the time a running timer counts while you're away: `ask` when you're back (keep it, leave it out, or move it to a timer of its own), `discard` it, or `keep` counting it |

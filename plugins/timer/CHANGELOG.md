@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- Each prompt you send tells Claude, in one line beside it, how long this
+  session's timer has run and on what, and how many timers wait to be
+  booked. The `tellClaude` setting (`on` by default) turns it off.
 - After `/relay` continues the work in a fresh conversation, the timer keeps
   running there with no question: it becomes the new conversation's timer.
 - Every timer in the panel can be selected and edited, those of other

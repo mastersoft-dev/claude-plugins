@@ -34,6 +34,13 @@
       "options": ["wall-clock", "summed"],
       "default": "wall-clock"
     },
+    "tellClaude": {
+      "type": "string",
+      "title": "Tell Claude about the timer",
+      "description": "on adds one line beside each prompt you send: how long this session's timer has run and on what, and how many timers wait to be booked, so Claude can answer about your time without asking; off leaves prompts as typed",
+      "options": ["on", "off"],
+      "default": "on"
+    },
     "autoStart": {
       "type": "string",
       "title": "Start a timer by itself",
