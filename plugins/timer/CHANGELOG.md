@@ -10,6 +10,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- One-key shortcuts while the band or the panel has the focus (ctrl+x tab, or
+  a click): on the band `s` start, `p` pause or resume, `x` stop, `a` auto,
+  `o` the panel, `k`/`l`/`t` for the away question; in the panel `1`-`4` the
+  tabs and `n` Add time.
 - A Week tab in the panel: a bar for each of the last seven days against the
   `targetHours` setting (8 by default), the days with timers still to book,
   and the week's time by repo and by tag.

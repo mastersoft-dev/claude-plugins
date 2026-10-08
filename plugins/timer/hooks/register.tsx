@@ -1308,7 +1308,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey || info === null) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const Input = e.surface === 'mobile' ? undefined : $.ui.resolve(e).Input
-    const today = <Button key="today" label="☰" onPress={() => toggleToday($)} />
+    const today = <Button key="today" label="☰" hotkey="o" onPress={() => toggleToday($)} />
     const toBook = info.isBookTime && info.unbooked > 0 && (
       <Text color="yellow">
         {info.unbooked} to book: ask Claude
@@ -1320,8 +1320,8 @@ export const register: Register = (on, options) => {
       return (
         <Box key="timer-band" width={e.props.bodyColumns} justifyContent="flex-end" gap={1}>
           <Text>Conversation cleared: keep the timer running?</Text>
-          <Button key="keepafterclear" label="Keep running" onPress={() => fromBand($, () => answerAfterClear($, true))} />
-          <Button key="stopafterclear" label="Stop" onPress={() => fromBand($, () => answerAfterClear($, false))} />
+          <Button key="keepafterclear" label="Keep running" hotkey="k" onPress={() => fromBand($, () => answerAfterClear($, true))} />
+          <Button key="stopafterclear" label="Stop" hotkey="x" onPress={() => fromBand($, () => answerAfterClear($, false))} />
         </Box>
       )
     }
@@ -1331,9 +1331,9 @@ export const register: Register = (on, options) => {
       return (
         <Box key="timer-band" width={e.props.bodyColumns} justifyContent="flex-end" gap={1}>
           <Text>Away {awaySpan(away, away.to)} while the timer ran:</Text>
-          <Button key="awaykeep" label="Keep" onPress={() => fromBand($, () => settleAway($, 'keep'))} />
-          <Button key="awaydiscard" label="Leave out" onPress={() => fromBand($, () => settleAway($, 'discard'))} />
-          <Button key="awaysplit" label="Own timer" onPress={() => fromBand($, () => settleAway($, 'split'))} />
+          <Button key="awaykeep" label="Keep" hotkey="k" onPress={() => fromBand($, () => settleAway($, 'keep'))} />
+          <Button key="awaydiscard" label="Leave out" hotkey="l" onPress={() => fromBand($, () => settleAway($, 'discard'))} />
+          <Button key="awaysplit" label="Own timer" hotkey="t" onPress={() => fromBand($, () => settleAway($, 'split'))} />
         </Box>
       )
     }
@@ -1353,7 +1353,7 @@ export const register: Register = (on, options) => {
             )}
             <Box gap={1}>
               <Text dimColor>⏱ no timer</Text>
-              <Button key="start" label="Start" onPress={() => startFromBand($, '')} />
+              <Button key="start" label="Start" hotkey="s" onPress={() => startFromBand($, '')} />
               {today}
               {toBook}
             </Box>
@@ -1386,16 +1386,17 @@ export const register: Register = (on, options) => {
             </Text>
             <Button
               key="auto"
+              hotkey="a"
               label={info.auto ? 'Auto ●' : 'Auto ○'}
               variant={info.auto ? 'primary' : 'secondary'}
               onPress={() => fromBand($, () => toggleAuto($))}
             />
             {isRunning ? (
-              <Button key="pause" label="Pause" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
+              <Button key="pause" label="Pause" hotkey="p" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
             ) : (
-              <Button key="resume" label="Resume" onPress={() => fromBand($, () => transition($, resumeEntry, 'resumed'))} />
+              <Button key="resume" label="Resume" hotkey="p" onPress={() => fromBand($, () => transition($, resumeEntry, 'resumed'))} />
             )}
-            <Button key="stop" label="Stop" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
+            <Button key="stop" label="Stop" hotkey="x" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
             {today}
             {toBook}
           </Box>
@@ -1488,10 +1489,10 @@ export const register: Register = (on, options) => {
               />
             )}
             {isRunningHere && (
-              <Button key="pausesel" label="Pause" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
+              <Button key="pausesel" label="Pause" hotkey="p" onPress={() => fromBand($, () => transition($, pauseEntry, 'paused'))} />
             )}
             {target.id === own && target.state !== 'stopped' && (
-              <Button key="stopsel" label="Stop" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
+              <Button key="stopsel" label="Stop" hotkey="x" onPress={() => fromBand($, () => transition($, stopEntry, 'stopped'))} />
             )}
             {!isElsewhere && (
               <Button
@@ -1508,24 +1509,28 @@ export const register: Register = (on, options) => {
       <Box gap={1}>
         <Button
           key="tabsession"
+          hotkey="1"
           label={`This session (${allRows.filter(r => r.sessionId === sessionId).length})`}
           variant={current.tab === 'session' ? 'primary' : 'secondary'}
           onPress={() => selectTab($, 'session')}
         />
         <Button
           key="taball"
+          hotkey="2"
           label={`All (${allRows.length})`}
           variant={current.tab === 'all' ? 'primary' : 'secondary'}
           onPress={() => selectTab($, 'all')}
         />
         <Button
           key="tabbook"
+          hotkey="3"
           label={`To book (${toBook.length})`}
           variant={current.tab === 'book' ? 'primary' : 'secondary'}
           onPress={() => selectTab($, 'book')}
         />
         <Button
           key="tabweek"
+          hotkey="4"
           label="Week"
           variant={current.tab === 'week' ? 'primary' : 'secondary'}
           onPress={() => selectTab($, 'week')}
@@ -1664,7 +1669,7 @@ export const register: Register = (on, options) => {
             sessionId: selected.sessionId,
           })}
         {Input !== undefined && Select !== undefined && !current.isAdding && (
-          <Button key="addtime" label="+ Add time" onPress={() => toggleAdding($)} />
+          <Button key="addtime" label="+ Add time" hotkey="n" onPress={() => toggleAdding($)} />
         )}
         {Input !== undefined && Select !== undefined && current.isAdding && (
           <Box key="adding" flexDirection="column" borderStyle="round" paddingX={1}>

@@ -5,6 +5,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 ## What it does
 
 - **Timer per session**: start, pause, resume and stop from the band above the prompt or with `/timer`. The status line shows the running time.
+- **Keys**: while the band or the panel has the focus (ctrl+x tab, or a click), `s` starts, `p` pauses or resumes, `x` stops, `a` toggles auto mode and `o` opens the panel; in the panel `1`-`4` pick the tab and `n` opens Add time.
 - **Auto mode**: the timer runs only while Claude is working on a turn, for long background tasks; with `autoGraceMinutes` also that many minutes after each turn.
 - **Time away**: with no typing, prompt or press for 15 minutes while Claude isn't working, or with the computer asleep, the timer notices you're away. When you're back the band asks whether to keep that time, leave it out, or move it to a timer of its own (the `awayTime` and `idleMinutes` settings).
 - **Session end**: closing Claude Code stops the timer, at the moment you left when you're still away; after `/clear` the band asks whether to keep it running or stop it, and after `/relay` (the relay plugin) continues the work in a fresh conversation, the timer goes on there by itself.

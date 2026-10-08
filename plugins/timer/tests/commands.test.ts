@@ -666,6 +666,20 @@ test('after /clear the band asks, and Stop ends the timer there', async ($, on) 
   expect(entry.stoppedAt).toBe(T0 + 15 * MINUTE)
 })
 
+test('the band and panel buttons answer one key each while their site has the focus', async ($, on) => {
+  world(on)
+  await timer($, 'start fix login')
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const keyOf = async (ui: { find: (target: { key: string }) => Promise<{ props: { hotkey?: unknown } } | undefined> }, key: string) =>
+    (await ui.find({ key }))?.props.hotkey
+  expect(await Promise.all(['pause', 'stop', 'auto', 'today'].map(key => keyOf(band, key)))).toEqual(['p', 'x', 'a', 'o'])
+  await band.unmount()
+  await timer($, 'open')
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await Promise.all(['tabsession', 'taball', 'tabbook', 'tabweek', 'addtime'].map(key => keyOf(pane, key)))).toEqual(['1', '2', '3', '4', 'n'])
+  await pane.unmount()
+})
+
 test('the ☰ button opens the panel and a second press closes it', async ($, on) => {
   const { panes } = world(on)
   await timer($, 'start')
