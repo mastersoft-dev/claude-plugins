@@ -81,6 +81,10 @@ const ADD_TOOL = 'add_entry'
 const EDIT_TOOL = 'edit_entry'
 const ASK_TO_BOOK = 'ask Claude to book them'
 const BOOK_PROMPT = 'Book my unbooked timers'
+const SUMMARY_TIMEOUT_MS = 60_000
+const SUMMARY_CHARS = 400
+const SUMMARY_REQUEST =
+  'For a timesheet entry, describe the work done in this conversation in one or two plain sentences, in the language the person writes in: what was built, fixed or reviewed, and for what. No preamble, no lists, no markdown.'
 const SUGGESTED_PREFIX = 'suggested:'
 const USAGE = 'Usage: /timer [status] | start [note] | pause | resume | stop | auto | tag [tags] | open | export [file.csv]'
 
@@ -896,6 +900,37 @@ const withCommits = async ($: EngineInterface, entries: readonly Entry[], lines:
   return out
 }
 
+/**
+ * What this session did, for the booking's description: one question over the
+ * session's own transcript, served from Claude's prompt cache, given a minute.
+ * Undefined when there is nothing to ask about yet or no answer came.
+ */
+const sessionSummary = async ($: EngineInterface): Promise<string | undefined> => {
+  let timer: Timer | undefined
+  const expired = new Promise<undefined>(resolve => {
+    timer = $.clock.after(SUMMARY_TIMEOUT_MS, () => resolve(undefined))
+  })
+  try {
+    const forked = await Promise.race([$.model.fork({ prompt: SUMMARY_REQUEST }), expired])
+    if (forked === undefined || !forked.isAnswered) {
+      $.ui.log(`timer: no session summary (${forked === undefined ? 'timed out' : forked.reason})`, { to: 'debug' })
+      return undefined
+    }
+    return forked.text.trim().slice(0, SUMMARY_CHARS)
+  } finally {
+    timer?.cancel()
+  }
+}
+
+/** Adds the session's summary to the lines of this session's timers. */
+const withSummary = async ($: EngineInterface, entries: readonly Entry[], lines: BookingLine[]): Promise<BookingLine[]> => {
+  const sessionId = await $.session.id()
+  const own = new Set(entries.filter(entry => entry.sessionId === sessionId).map(entry => entry.id))
+  if (!lines.some(line => own.has(line.entryId))) return lines
+  const summary = await sessionSummary($)
+  return summary === undefined ? lines : lines.map(line => (own.has(line.entryId) ? { ...line, summary } : line))
+}
+
 /** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
 const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
   bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents, roundTo).filter(
@@ -1057,7 +1092,7 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, costUsd (what Claude's work cost while the timer ran that day, US dollars), for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. With includeCommits, each line also lists the person's commits on the local branches of its folder while the timer ran that day (hash and subject, at most twenty; null when git could not say, such as with no user.email), to write the booking's description from. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, costUsd (what Claude's work cost while the timer ran that day, US dollars), for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. With includeCommits, each line also lists the person's commits on the local branches of its folder while the timer ran that day (hash and subject, at most twenty; null when git could not say, such as with no user.email), to write the booking's description from. With includeSummary, the lines of this session's timers also carry summary: what this session did, written from its transcript by one extra model call. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -1065,6 +1100,7 @@ export const register: Register = (on, options) => {
           to: { type: 'string', description: 'Last day to list, YYYY-MM-DD' },
           includeBooked: { type: 'boolean', description: 'Also list days already booked' },
           includeCommits: { type: 'boolean', description: "Also list the person's commits made while each timer ran" },
+          includeSummary: { type: 'boolean', description: "Also describe this session's work from its transcript, for this session's lines" },
         },
         additionalProperties: false,
       },
@@ -1145,7 +1181,8 @@ export const register: Register = (on, options) => {
     await recoverStale($, lastTickAt)
     const entries = await loadEntries($)
     const found = bookingLines(entries, range, countsAgents, roundTo)
-    return { result: { lines: range.includeCommits === true ? await withCommits($, entries, found) : found } }
+    const withGit = range.includeCommits === true ? await withCommits($, entries, found) : found
+    return { result: { lines: range.includeSummary === true ? await withSummary($, entries, withGit) : withGit } }
   })
 
   on('tool.call', { tool: 'mcp__timer__mark_booked' }, async ($, e) => {

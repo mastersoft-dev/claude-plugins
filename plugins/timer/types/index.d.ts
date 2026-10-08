@@ -63,6 +63,8 @@ export type BookingLine = {
   agentMinutes?: number
   /** What Claude's work cost while the timer ran that day, US dollars to the cent. */
   costUsd?: number
+  /** For a timer of the session asked, what the session did, written from its transcript, when asked for. */
+  summary?: string
   /** The person's commits in the timer's folder while it ran that day, when asked for; null when git couldn't say. */
   commits?: { hash: string; subject: string }[] | null
   /** The other timers that ran at the same time that day, with the whole minutes they share with this one. */

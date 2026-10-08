@@ -204,6 +204,22 @@ test('with includeCommits, each line lists the person\'s commits in its folder w
   expect((await lines($)).map(l => (l as { commits?: unknown }).commits)).toEqual([undefined])
 })
 
+test('with includeSummary, this session\'s lines carry what the session did, from one question over its transcript', async ($, on) => {
+  const { clock } = world(on, { 'entry:other': otherSession })
+  const asked: string[] = []
+  on('model.fork', ($, e) => {
+    asked.push(e.prompt)
+    return { value: { isAnswered: true, text: ' Fixed the SSO login redirect. ', usage: {} } } as never
+  })
+  await trackAndStop($, clock)
+  const found = (await lines($, { includeSummary: true })) as (Line & { summary?: string; note: string })[]
+  expect(found.map(l => [l.title, l.summary])).toEqual([
+    ['call with Beta', undefined],
+    ['fix login', 'Fixed the SSO login redirect.'],
+  ])
+  expect(asked).toHaveLength(1)
+})
+
 test('with no git user.email, a line\'s commits are null rather than everyone\'s', async ($, on) => {
   const { clock, git, commands } = world(on)
   git.email = null

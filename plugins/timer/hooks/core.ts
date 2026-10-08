@@ -436,18 +436,26 @@ export const bookingLines = (
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 /** What the `entries` tool takes: the days to list, and whether to add booked days and commits. */
-export type BookingRange = { from?: string; to?: string; includeBooked?: boolean; includeCommits?: boolean }
+export type BookingRange = {
+  from?: string
+  to?: string
+  includeBooked?: boolean
+  includeCommits?: boolean
+  includeSummary?: boolean
+}
 
 /** The `entries` tool's input, or why it is refused. */
 export const parseBookingRange = (input: unknown): BookingRange | string => {
   if (!isRecord(input)) return 'The input must be an object.'
-  const { from, to, includeBooked, includeCommits } = input
+  const { from, to, includeBooked, includeCommits, includeSummary } = input
   for (const [name, value] of [['from', from], ['to', to]] as const) {
     if (value !== undefined && (typeof value !== 'string' || !DAY.test(value))) return `${name} must be a day, YYYY-MM-DD.`
   }
   if (includeBooked !== undefined && typeof includeBooked !== 'boolean') return 'includeBooked must be true or false.'
   if (includeCommits !== undefined && typeof includeCommits !== 'boolean') return 'includeCommits must be true or false.'
+  if (includeSummary !== undefined && typeof includeSummary !== 'boolean') return 'includeSummary must be true or false.'
   return {
+    ...(includeSummary === undefined ? {} : { includeSummary }),
     ...(includeCommits === undefined ? {} : { includeCommits }),
     ...(from === undefined ? {} : { from: from as string }),
     ...(to === undefined ? {} : { to: to as string }),
