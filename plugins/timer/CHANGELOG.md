@@ -10,6 +10,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- After `/relay` continues the work in a fresh conversation, the timer keeps
+  running there with no question: it becomes the new conversation's timer.
 - Every timer in the panel can be selected and edited, those of other
   sessions in the All tab and every day of the To book tab included: note,
   tags, From and To, continue and delete. A timer still open in another

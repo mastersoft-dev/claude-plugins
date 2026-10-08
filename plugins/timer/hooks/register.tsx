@@ -51,6 +51,7 @@ import type { Runner } from './git'
 import { orcaTaskOf } from './orca'
 
 const COMMAND = 'timer'
+const RELAY = 'relay'
 const PANE = 'timer'
 const MS_PER_MINUTE = 60_000
 const TICK_MS = 30_000
@@ -381,6 +382,21 @@ const answerAfterClear = async ($: EngineInterface, isKept: boolean): Promise<st
   if (entry === undefined) return 'No timer in this session: /timer start [note].'
   await saveEntry($, { ...entry, sessionId: await $.session.id() })
   return `Timer kept: ${describe(entry, await $.clock.now())}`
+}
+
+/**
+ * After a /clear that the relay plugin ran to continue the work in a fresh
+ * conversation, keeps the timer running there with no question: the open
+ * timer becomes the new conversation's, as Keep running would make it.
+ */
+const carryOverRelay = async ($: EngineInterface) => {
+  const asked = await read($, askAfterClear)
+  await update($, askAfterClear, () => null)
+  const entry = asked === null ? undefined : await loadEntry($, asked)
+  if (entry === undefined || stateOf(entry) === 'stopped') return
+  await saveEntry($, { ...entry, sessionId: await $.session.id() })
+  await beat($)
+  $.ui.toast(`Timer carried over to the relayed conversation: ${describe(entry, await $.clock.now())}`)
 }
 
 let draftNote = ''
@@ -1177,6 +1193,12 @@ export const register: Register = (on, options) => {
     await update($, activeId, () => null)
     return next(e)
   })
+
+  on('command.run', { command: 'clear' }, async ($, e, next) => {
+    const cleared = await next(e)
+    if (e.origin.kind === 'plugin' && e.origin.name === RELAY) await carryOverRelay($)
+    return cleared
+  }).catch(($, e, next) => next(e))
 
   on('command.run', { command: COMMAND }, async ($, e) => {
     await noteActivity($)

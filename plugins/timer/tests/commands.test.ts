@@ -581,6 +581,37 @@ const clearWith = async ($: Engine, on: On, answer: 'keepafterclear' | 'stopafte
   return entryOf(store) as { sessionId: string; stoppedAt?: number }
 }
 
+const clearBy = async ($: Engine, on: On, origin: Record<string, unknown>) => {
+  const w = world(on)
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  on('command.run', { command: 'clear' }, async () => {
+    await $.session.end({ reason: 'clear', sessionId: 's1' } as never)
+    w.session.id = 's2'
+    return { text: '' }
+  })
+  await timer($, 'start fix login')
+  await w.clock.advance(10 * MINUTE)
+  await $.command.run({ command: 'clear', args: '', origin } as never)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const question = await ui.find({ type: 'Text', text: /cleared/ })
+  await ui.unmount()
+  return { ...w, question }
+}
+
+test('a /clear that /relay runs carries the running timer into the new conversation with no question', async ($, on) => {
+  const { store, question, toasts } = await clearBy($, on, { kind: 'plugin', name: 'relay' })
+  expect(question).toBe(undefined)
+  const entry = entryOf(store) as { sessionId: string; stoppedAt?: number }
+  expect([entry.sessionId, entry.stoppedAt]).toEqual(['s2', undefined])
+  expect(toasts.at(-1)).toContain('Timer carried over to the relayed conversation')
+  expect(await timer($, 'status')).toContain('This session: running')
+})
+
+test('a /clear the person types still asks whether to keep the timer', async ($, on) => {
+  const { question } = await clearBy($, on, { kind: 'composer' })
+  expect(question?.text).toContain('keep the timer running?')
+})
+
 test('after /clear the band asks, and Keep running carries the timer into the new conversation', async ($, on) => {
   const entry = await clearWith($, on, 'keepafterclear')
   expect(entry.stoppedAt).toBe(undefined)
