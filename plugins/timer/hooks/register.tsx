@@ -82,6 +82,14 @@ const PANEL_MAX_ROWS = 30
 const ENTRIES_TOOL = 'entries'
 const MARK_TOOL = 'mark_booked'
 const ADD_TOOL = 'add_entry'
+const PLAN_AGENT = 'booking-plan'
+const PLAN_PROMPT = [
+  "You prepare a booking plan from the work timer's entries. You book nothing and change nothing.",
+  'Load the mcp__timer__entries tool with ToolSearch if it is not loaded, then call it with includeCommits: true, and with from and to when you were given days (else it lists every day not booked yet).',
+  'Answer one line per timer and day: day, start, minutes, title, repo (or the Orca task), and one plain sentence on what was done, written from the line\'s commits, else its summary, else its note.',
+  'Flag the lines that overlap another timer and with which, the lines of timers still open, and the days whose total is far from a full working day.',
+  'End with the total per day. Plain text, no preamble, in the language of the request.',
+].join('\n')
 const EDIT_TOOL = 'edit_entry'
 const ASK_TO_BOOK = 'ask Claude to book them'
 const BOOK_PROMPT = 'Book my unbooked timers'
@@ -1181,6 +1189,14 @@ export const register: Register = (on, options) => {
         required: ['entryId', 'day', 'reference'],
         additionalProperties: false,
       },
+    })
+    await $.agent.register({
+      name: PLAN_AGENT,
+      description:
+        "Prepares a booking plan from the work timer's entries in its own context: one line per timer and day with a description from its commits, the overlaps and open timers flagged, and each day's total. Read-only: it books nothing, so book after the person confirms the plan.",
+      prompt: PLAN_PROMPT,
+      tools: ['ToolSearch', 'mcp__timer__entries'],
+      model: 'haiku',
     })
     await $.tool.register({
       name: ADD_TOOL,

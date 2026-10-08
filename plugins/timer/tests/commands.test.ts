@@ -79,6 +79,11 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   on('command.register', () => ({ value: undefined }) as never)
   const tools: string[] = []
+  const agents: { name: string; tools?: readonly string[] }[] = []
+  on('agent.register', ($, e) => {
+    agents.push({ name: e.name, ...(e.tools === undefined ? {} : { tools: e.tools }) })
+    return { value: { agent: `timer:${e.name}` } } as never
+  })
   on('tool.register', ($, e) => {
     tools.push(e.name)
     return { value: { tool: `mcp__timer__${e.name}` } } as never
@@ -124,7 +129,7 @@ const world = (on: On, stored: Record<string, unknown> = {}, head: string | null
   })
   const usage = { usd: 0 }
   on('session.usage', () => ({ value: { startedAt: T0, rateLimits: [], cost: { usd: usage.usd } } }) as never)
-  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted, played, copied }
+  return { clock, files, store, toasts, panes, session, hold, tools, orca, reads, git, commands, usage, suggestions, box, submitted, played, copied, agents }
 }
 
 const timer = async ($: Engine, args: string) => (await $.command.run({ command: 'timer', args } as never)).text ?? ''
@@ -290,6 +295,12 @@ test('mark_booked takes a day out of the entries tool and the band hint', async 
   expect(await lines($)).toEqual([])
   expect((await lines($, { includeBooked: true })).map(l => l.booked)).toEqual(['900'])
   expect(await timer($, 'status')).not.toContain('not booked')
+})
+
+test('the session registers a read-only booking-plan agent that reads the entries tool', async ($, on) => {
+  const { agents } = world(on)
+  await startSession($, on)
+  expect(agents).toEqual([{ name: 'booking-plan', tools: ['ToolSearch', 'mcp__timer__entries'] }])
 })
 
 test('add_entry adds a stopped timer for time worked with no timer running, overlaps named', async ($, on) => {

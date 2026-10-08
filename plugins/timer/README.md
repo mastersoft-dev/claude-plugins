@@ -17,6 +17,7 @@ A Claude Code plugin that tracks working time per Claude Code session, under any
 - **Fixing time with Claude**: `mcp__timer__add_entry` adds a timer for time you worked without one running, and `mcp__timer__edit_entry` moves a timer's start or end on a day, or changes its note or tags; ask Claude in your own words ("I worked on the release notes from 8 to 9:30, add it"). A day already booked keeps its times.
 - **Cost**: what Claude's work costs while a timer runs (the session's cost, as `/cost` counts it) is put on that timer by day. The panel shows it beside the repo, and the entries tool lists it as `costUsd`.
 - **Claude knows**: each prompt you send carries one line for Claude on this session's timer and the timers waiting to be booked, so "how long have I worked on this?" needs no tool call (`tellClaude: off` stops it).
+- **Booking plan agent**: `timer:booking-plan` reads the entries with their commits in its own context and returns the plan (a line per timer and day with a description, overlaps and open timers flagged, each day's total). It books nothing: Claude books after you confirm.
 - **Export**: `/timer export [file.csv]` writes every session's time as CSV.
 
 ## Booking on GEWEB

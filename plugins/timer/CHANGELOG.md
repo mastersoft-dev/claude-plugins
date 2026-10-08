@@ -10,6 +10,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- A `timer:booking-plan` agent prepares the booking plan in its own context
+  (one line per timer and day with a description from its commits, overlaps
+  and open timers flagged, each day's total) and books nothing, so Claude
+  books after you confirm.
 - Typing `/timer ` offers its subcommands, and `/timer tag ` the tags already
   in use.
 - Copy list (`c`) in the To book tab puts its lines on the clipboard,
