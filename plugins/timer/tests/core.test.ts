@@ -7,6 +7,7 @@ import {
   branchLabel,
   canonicalRemote,
   closeStale,
+  dayMinutes,
   dayOf,
   fileUrl,
   isExpired,
@@ -299,5 +300,18 @@ describe('todayRows', () => {
       { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
       { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', repo: { name: 'acme' }, isBooked: false },
     ])
+  })
+})
+
+describe('dayMinutes', () => {
+  const parallel = entry({ id: 'e2', segments: [{ start: T0 + 33 * MINUTE, end: T0 + 93 * MINUTE }], agentMs: { '2026-10-06': 10 * MINUTE } })
+
+  test("summed adds every timer's own minutes", () => {
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: false, wallClock: false })).toBe(123)
+  })
+
+  test('on the wall clock the time timers ran at once counts once, subagents on top when asked', () => {
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: false, wallClock: true })).toBe(93)
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: true, wallClock: true })).toBe(103)
   })
 })

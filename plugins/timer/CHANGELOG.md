@@ -16,6 +16,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Changed
 
+- Today's totals (`/timer status`, the panel) count time that timers in
+  several sessions ran at once only once. The `parallelTime` setting
+  (`wall-clock` by default) can switch back to `summed`, which adds every
+  timer's own time.
 - The 30-second refresh reads only the open timers, and the count of timers
   to book at most every five minutes, instead of every timer the store keeps.
 

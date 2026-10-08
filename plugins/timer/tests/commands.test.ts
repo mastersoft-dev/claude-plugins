@@ -605,6 +605,25 @@ const otherSession = {
   stoppedAt: T0 - 10 * MINUTE,
 }
 
+const alongside = { ...otherSession, segments: [{ start: T0, end: T0 + 30 * MINUTE }], stoppedAt: T0 + 30 * MINUTE }
+
+test("today's total counts timers run at once in two sessions once", async ($, on) => {
+  const { clock } = world(on, { 'entry:other': alongside })
+  await trackAndStop($, clock)
+  expect(await timer($, 'status')).toContain('Today, every session: 1h 03m')
+  await timer($, 'open')
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'taball' })
+  expect((await ui.find({ type: 'Text', text: /^Today/ }))?.text).toContain('1h 03m in 2 timers')
+  await ui.unmount()
+})
+
+test("with parallel time summed, today's total adds every timer", { options: { parallelTime: 'summed' } }, async ($, on) => {
+  const { clock } = world(on, { 'entry:other': alongside })
+  await trackAndStop($, clock)
+  expect(await timer($, 'status')).toContain('Today, every session: 1h 33m')
+})
+
 test('the All tab shows timers of other sessions but only this session\'s can be selected', async ($, on) => {
   const { clock } = world(on, { 'entry:other': otherSession })
   await trackAndStop($, clock)

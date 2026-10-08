@@ -462,6 +462,34 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number, w
     .map(({ row }) => row)
 
 /**
+ * The whole minutes worked on `day` by `entries` together. Summed, each
+ * timer's own minutes add up, so two timers run at once count twice; on the
+ * wall clock the time they ran at once counts once. Subagents' runs add on top
+ * when `withAgents`.
+ */
+export const dayMinutes = (
+  entries: readonly Entry[],
+  day: string,
+  now: number,
+  { withAgents, wallClock }: { withAgents: boolean; wallClock: boolean },
+): number => {
+  if (!wallClock) return todayRows(entries, day, now, withAgents).reduce((sum, r) => sum + r.minutes, 0)
+  const pieces = entries
+    .flatMap(entry => entry.segments.flatMap(s => splitAtMidnight(s, now)))
+    .filter(s => dayOf(s.start) === day)
+    .map(s => ({ start: s.start, end: s.end ?? now }))
+    .sort((a, b) => a.start - b.start)
+  let covered = 0
+  let reach = -Infinity
+  for (const { start, end } of pieces) {
+    covered += Math.max(0, end - Math.max(start, reach))
+    reach = Math.max(reach, end)
+  }
+  const agents = withAgents ? entries.reduce((sum, entry) => sum + (entry.agentMs?.[day] ?? 0), 0) : 0
+  return Math.round((covered + agents) / MS_PER_MINUTE)
+}
+
+/**
  * Takes a paused or stopped entry up again in `sessionId`: running from `now`,
  * no longer stopped.
  */

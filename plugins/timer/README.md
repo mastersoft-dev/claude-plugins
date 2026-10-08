@@ -38,6 +38,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `reminderTime` | `17:30` | HH:mm, Italian time, from when the band shows the timers still to book and reminds you once a day |
 | `retentionDays` | `90` | Days a booked timer is kept after it stopped, then dropped from the panel and the export; time not yet booked is kept however old |
 | `agentTime` | `wall-clock` | `wall-clock` counts the timer's own time. `summed` adds the run of every subagent that ends while the timer runs, so three parallel subagents count three times; the CSV export keeps the timer's own segments |
+| `parallelTime` | `wall-clock` | How today's totals in `/timer status` and the panel count timers that ran at the same time in several sessions: `wall-clock` counts that time once, `summed` adds every timer's own time. Booking always lists each timer's own minutes, with the timers it overlapped |
 
 ## Development
 

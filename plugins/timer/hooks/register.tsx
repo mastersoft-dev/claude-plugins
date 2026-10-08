@@ -8,6 +8,7 @@ import {
   bookingLines,
   canonicalRemote,
   closeStale,
+  dayMinutes,
   dayOf,
   errorText,
   fileUrl,
@@ -183,6 +184,7 @@ const unbookedOf = async ($: EngineInterface, now: number): Promise<number> => {
 let reminderAt = DEFAULT_REMINDER
 let retentionDays = DEFAULT_RETENTION_DAYS
 let countsAgents = false
+let isWallClock = true
 
 /**
  * Drops booked timers older than the retention and the reminders of days gone
@@ -425,7 +427,7 @@ const status = async ($: EngineInterface): Promise<string> => {
   const entries = await loadEntries($)
   const active = await loadActive($)
   const today = dayOf(now)
-  const todayMs = todayRows(entries, today, now, countsAgents).reduce((sum, r) => sum + r.minutes * MS_PER_MINUTE, 0)
+  const todayMs = dayMinutes(entries, today, now, { withAgents: countsAgents, wallClock: isWallClock }) * MS_PER_MINUTE
   const unbooked = countUnbooked(entries)
   return [
     active === undefined ? 'No timer in this session.' : `This session: ${stateOf(active)} ${describe(active, now)}`,
@@ -548,6 +550,7 @@ export const register: Register = (on, options) => {
   const retention = Number(options.retentionDays)
   retentionDays = Number.isInteger(retention) && retention > 0 ? retention : DEFAULT_RETENTION_DAYS
   countsAgents = options.agentTime === SUMMED
+  isWallClock = options.parallelTime !== SUMMED
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -783,9 +786,11 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     const own = await read($, activeId)
     const sessionId = await $.session.id()
-    const allRows = todayRows(await loadEntries($), dayOf(now), now, countsAgents)
+    const entries = await loadEntries($)
+    const allRows = todayRows(entries, dayOf(now), now, countsAgents)
     const rows = current.tab === 'all' ? allRows : allRows.filter(r => r.sessionId === sessionId)
-    const total = rows.reduce((sum, r) => sum + r.minutes, 0)
+    const shown = current.tab === 'all' ? entries : entries.filter(entry => entry.sessionId === sessionId)
+    const total = dayMinutes(shown, dayOf(now), now, { withAgents: countsAgents, wallClock: isWallClock })
     const selected = rows.find(r => r.id === current.selectedId && r.sessionId === sessionId)
     const mark = { running: '⏱', paused: '⏸', stopped: '■' } as const
     return (
