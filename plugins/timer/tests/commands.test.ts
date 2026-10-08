@@ -166,6 +166,12 @@ test('the entries tool lists each timer and day with its minutes, start and titl
   ])
 })
 
+test('with roundTo set, the entries tool rounds each line and keeps the exact minutes', { options: { roundTo: 15 } }, async ($, on) => {
+  const { clock } = world(on)
+  await trackAndStop($, clock)
+  expect((await lines($)).map(l => [l.minutes, (l as { exactMinutes?: number }).exactMinutes])).toEqual([[60, 63]])
+})
+
 test('mark_booked takes a day out of the entries tool and the band hint', async ($, on) => {
   const { clock } = world(on)
   await trackAndStop($, clock)

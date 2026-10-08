@@ -44,6 +44,7 @@ The changes are in [CHANGELOG.md](CHANGELOG.md).
 | `awayTime` | `ask` | What happens to the time a running timer counts while you're away: `ask` when you're back (keep it, leave it out, or move it to a timer of its own), `discard` it, or `keep` counting it |
 | `idleMinutes` | `15` | Minutes with no typing, prompt or press, and Claude not working, before you count as away; `0` counts only a sleeping computer |
 | `branchChange` | `keep` | When a running timer's worktree moves to another branch (checked at each prompt and at the end of Claude's turn): `keep` counting on the same timer, or `split`, which stops it and starts a timer named after the new branch |
+| `roundTo` | `0` | Minutes to round each timer's day to when Claude books it (to the nearest multiple, never below one; 15 books 52 minutes as 45 and 53 as 60). `0` books whole minutes. The panel and the CSV export keep the time as tracked |
 | `parallelTime` | `wall-clock` | How today's totals in `/timer status` and the panel count timers that ran at the same time in several sessions: `wall-clock` counts that time once, `summed` adds every timer's own time. Booking always lists each timer's own minutes, with the timers it overlapped |
 
 ## Development

@@ -37,8 +37,10 @@ export type BookingLine = {
   day: string
   /** When the timer first started that day, HH:mm, Italian time. */
   start: string
-  /** Whole minutes, the closed time only. */
+  /** Whole minutes, the closed time only, rounded to the person's `roundTo` when set. */
   minutes: number
+  /** The whole minutes before rounding, when rounding changed them. */
+  exactMinutes?: number
   /** The note, else the orchestrator's task title, else the branch's words, else the repo's name. */
   title: string
   note: string

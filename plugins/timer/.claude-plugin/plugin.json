@@ -54,6 +54,12 @@
       "options": ["keep", "split"],
       "default": "keep"
     },
+    "roundTo": {
+      "type": "number",
+      "title": "Round booked time to (minutes)",
+      "description": "Rounds each timer's minutes of a day to the nearest multiple of this many minutes (a whole number up to 60) when Claude books them, never below one multiple; 0 books whole minutes. The panel and the export keep the time as tracked",
+      "default": 0
+    },
     "parallelTime": {
       "type": "string",
       "title": "Timers run at once",

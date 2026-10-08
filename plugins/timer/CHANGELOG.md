@@ -10,6 +10,9 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Added
 
+- The `roundTo` setting (0, off, by default) rounds each timer's minutes of a
+  day to the nearest multiple when Claude books them, never below one; the
+  entries tool then lists the minutes before rounding as `exactMinutes`.
 - Two tools for Claude: `mcp__timer__add_entry` adds a timer for time worked
   with no timer running ("I forgot to start it at 9"), and
   `mcp__timer__edit_entry` changes a timer's start or end on a day, its note

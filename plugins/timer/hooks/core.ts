@@ -311,6 +311,15 @@ export const isExpired = (entry: Entry, now: number, retentionDays: number): boo
   return stoppedAt < now - retentionDays * DAY_MS
 }
 
+/**
+ * Minutes rounded for booking to the nearest multiple of `step`, never below
+ * one step for time worked; a `step` of 0 leaves them whole.
+ */
+export const roundMinutes = (minutes: number, step: number): number => {
+  const whole = Math.round(minutes)
+  return step > 0 && whole > 0 ? Math.max(step, Math.round(whole / step) * step) : whole
+}
+
 /** An entry's closed time cut at midnight, the pieces of each day apart. */
 const closedPiecesByDay = (entry: Entry): Map<string, Segment[]> => {
   const days = new Map<string, Segment[]>()
@@ -335,12 +344,14 @@ export const sharedMs = (a: readonly Segment[], b: readonly Segment[]): number =
  * a timer still open counts what it has done so far and says it is open. With
  * `withAgents` the minutes add the subagents' runs, always listed apart too.
  * A line names the other timers that ran at the same time that day, so the
- * same hours are not booked twice unseen.
+ * same hours are not booked twice unseen. With `roundTo` the minutes are
+ * rounded for booking, and `exactMinutes` keeps the whole ones.
  */
 export const bookingLines = (
   entries: readonly Entry[],
   range: { from?: string; to?: string; includeBooked?: boolean },
   withAgents = false,
+  roundTo = 0,
 ): BookingLine[] => {
   const pieces = new Map(entries.map(entry => [entry.id, closedPiecesByDay(entry)]))
   const onDay = new Map<string, Entry[]>()
@@ -364,13 +375,15 @@ export const bookingLines = (
         const booked = entry.booked?.[day]
         const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
         const overlaps = overlapsOf(entry, day)
+        const rounded = roundMinutes(minutes, roundTo)
         return {
           firstStart,
           line: {
             entryId: entry.id,
             day,
             start: timeOf(firstStart),
-            minutes: Math.round(minutes),
+            minutes: rounded,
+            ...(rounded === Math.round(minutes) ? {} : { exactMinutes: Math.round(minutes) }),
             title: titleOf(entry),
             note: entry.note,
             ...(entry.tags === undefined || entry.tags.length === 0 ? {} : { tags: entry.tags }),

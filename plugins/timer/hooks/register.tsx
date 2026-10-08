@@ -60,6 +60,7 @@ const SUMMED = 'summed'
 const AWAY_MODES = ['ask', 'discard', 'keep'] as const
 const DEFAULT_IDLE_MINUTES = 15
 const SPLIT = 'split'
+const MAX_ROUND_TO = 60
 const REMINDED_PREFIX = 'reminded:'
 const DEFAULT_REMINDER = '17:30'
 const DEFAULT_RETENTION_DAYS = 90
@@ -204,6 +205,7 @@ let isWallClock = true
 let awayMode: (typeof AWAY_MODES)[number] = 'ask'
 let idleMs = DEFAULT_IDLE_MINUTES * MS_PER_MINUTE
 let splitsOnBranch = false
+let roundTo = 0
 
 /**
  * Drops booked timers older than the retention and the reminders of days gone
@@ -702,7 +704,7 @@ const continueEntry = async ($: EngineInterface, id: string): Promise<string> =>
 
 /** The entries tool's lines of one timer on one day, booked or not, as the add and edit tools answer. */
 const linesOf = async ($: EngineInterface, entryId: string, day: string) =>
-  bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents).filter(
+  bookingLines(await loadEntries($), { from: day, to: day, includeBooked: true }, countsAgents, roundTo).filter(
     line => line.entryId === entryId,
   )
 
@@ -776,6 +778,8 @@ export const register: Register = (on, options) => {
   isWallClock = options.parallelTime !== SUMMED
   awayMode = AWAY_MODES.find(mode => mode === options.awayTime) ?? 'ask'
   splitsOnBranch = options.branchChange === SPLIT
+  const step = Number(options.roundTo)
+  roundTo = Number.isInteger(step) && step > 0 && step <= MAX_ROUND_TO ? step : 0
   const idleMinutes = Number(options.idleMinutes)
   idleMs = (Number.isFinite(idleMinutes) && idleMinutes >= 0 ? idleMinutes : DEFAULT_IDLE_MINUTES) * MS_PER_MINUTE
 
@@ -789,7 +793,7 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: ENTRIES_TOOL,
       description:
-        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
+        "Lists the work time the timer tracked, to book it on a timesheet: one line per timer and day (Italian time) with whole minutes (wall-clock, or with the subagents' runs added when the person's agentTime setting is summed; agentMinutes, when present, is the subagents' share; rounded to the nearest multiple of the person's roundTo setting, never below one, with exactMinutes then the minutes before rounding), the time it started, its title (the person's note, else the orchestrator's task, else the git branch's words, else the repo), the person's tags, the repo, its git remote as host/path, branch, folder, the orchestrator's task when one started it (its group, such as an Orca worktree, its title and the issue's link), state, for a day already booked the booking's reference, and overlaps: the other timers that ran at the same time that day, with the minutes shared, so the same hours are not booked twice without the person choosing to. Only closed time counts: a running or paused timer lists what it has done so far. Days already booked are left out unless includeBooked is true. Read-only.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -873,7 +877,7 @@ export const register: Register = (on, options) => {
     const range = parseBookingRange(e.input)
     if (typeof range === 'string') return { deny: range }
     await recoverStale($, lastTickAt)
-    return { result: { lines: bookingLines(await loadEntries($), range, countsAgents) } }
+    return { result: { lines: bookingLines(await loadEntries($), range, countsAgents, roundTo) } }
   })
 
   on('tool.call', { tool: 'mcp__timer__mark_booked' }, async ($, e) => {

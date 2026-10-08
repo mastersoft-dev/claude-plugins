@@ -26,6 +26,7 @@ import {
   pendingDays,
   reshapeDay,
   resumeEntry,
+  roundMinutes,
   segmentsWithin,
   sharedMs,
   startEntry,
@@ -449,5 +450,15 @@ describe('reshapeDay', () => {
     expect(reshapeDay(two, '2026-10-06', { ...day, start: T0 + 100 * MINUTE })).toContain('leaves no time')
     const running = entry({ segments: [{ start: T0 }], stoppedAt: undefined })
     expect(reshapeDay(running, '2026-10-06', { ...day, end: T0 + 10 * MINUTE })).toContain('still running')
+  })
+})
+
+describe('roundMinutes', () => {
+  test('rounds to the nearest step, never below one step, and leaves minutes whole with no step', () => {
+    expect(roundMinutes(52.4, 15)).toBe(45)
+    expect(roundMinutes(53, 15)).toBe(60)
+    expect(roundMinutes(4, 15)).toBe(15)
+    expect(roundMinutes(0.2, 15)).toBe(0)
+    expect(roundMinutes(52.6, 0)).toBe(53)
   })
 })
