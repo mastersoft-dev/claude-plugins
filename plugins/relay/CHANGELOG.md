@@ -8,6 +8,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-10-12
+
 ### Removed
 
 - The pinned `relay: cache warm` status line entry: it drew as a permanent
