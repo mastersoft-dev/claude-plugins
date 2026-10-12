@@ -49,7 +49,6 @@ function fakeSession(on: On, options: SessionOptions) {
     recorded.closes += 1
     return { value: undefined }
   })
-  on('ui.status', () => ({ value: undefined }))
   on('ui.toast', (_$, e) => {
     recorded.toasts.push(e.text)
     return { value: undefined }

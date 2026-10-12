@@ -259,15 +259,9 @@ async function checkCache($: Engine): Promise<CacheCheck> {
 async function tick($: Engine): Promise<void> {
   const cache = await readCache($)
   if (cache === null) {
-    $.ui.status(undefined)
     await update($, band, () => null)
     return
   }
-  $.ui.status(
-    cache.isWarm
-      ? `relay: cache warm, expires in ${formatMinutes((CACHE_TTL_MS - cache.idleMs) / MINUTE_MS)}`
-      : 'relay: cache cold',
-  )
   const showBand = !cache.isWarm &&
     cache.contextTokens >= BAND_MIN_TOKENS &&
     (await read($, dismissedFor)) !== cache.activityAt
