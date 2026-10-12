@@ -8,6 +8,12 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Removed
+
+- The pinned `relay: cache warm` status line entry: it drew as a permanent
+  warning and repeated the cache countdown the status line already shows. The
+  row above the prompt still flags a cold cache.
+
 ### Fixed
 
 - On Windows `/relay` finds the installed agent CLIs with `where`, as `which`
