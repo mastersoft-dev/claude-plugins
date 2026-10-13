@@ -18,6 +18,10 @@ const SIGNAL_BUDGET_CHARS = 800;
 // Skip the expensive git/doc scan when nothing relevant changed. Findings are
 // cached per-repo keyed by a cheap signature (HEAD sha + input mtimes); this
 // max-age forces an occasional refresh so time-based thresholds still advance.
+// UserPromptSubmit also fires for background-task notifications, scheduled
+// runs and peer messages. They are not a user turn, so they must neither
+// advance the prompt counter nor consume the once-per-session emission.
+const INJECTED_TURN_PREFIX = /^\s*(?:<task-notification[\s>]|\[SYSTEM NOTIFICATION)/;
 const LINT_SCAN_MAX_AGE_MS = Number(process.env.MASTERSOFT_LINT_SCAN_MAX_AGE_MS) || 3600000;
 
 // Tunable lint defaults live in ORG_RULES.md frontmatter (precedence per key:
@@ -303,6 +307,8 @@ function main() {
   const QUIET = setting('MASTERSOFT_QUIET');
   if (QUIET === '1' || QUIET === 'all' || QUIET === 'true') process.exit(0);
   const quietLintsOnly = QUIET === 'lints';
+
+  if (isInjectedTurn(input.prompt)) process.exit(0);
 
   const sessionId = input.session_id || '';
   const cwd = input.cwd || '.';
@@ -617,7 +623,9 @@ function main() {
       signalSize += c.rendered.length + 1;
     }
   }
-  const signals = chosen.map(c => c.rendered);
+  const signalsAlreadyEmitted = Boolean(sessionState.signalsEmitted);
+  const signals = signalsAlreadyEmitted ? [] : chosen.map(c => c.rendered);
+  if (signals.length && emitSignals) sessionState.signalsEmitted = true;
 
   // User-visible notification: enumerate the active signals + each one's fix
   // command, so the toast carries the actual lint content instead of a generic
@@ -628,7 +636,7 @@ function main() {
   // flows (/mastersoft:ack-lints, /mastersoft:refresh-rules).
   const hasHigh = chosen.some(c => c.severity === 'high');
   let systemMessage = null;
-  if (signals.length && (!sessionState.lintsNoticeShown || hasHigh)) {
+  if (chosen.length && (!sessionState.lintsNoticeShown || hasHigh)) {
     if (!hasProjectRules) {
       // A repo with no project rules needs init-rules (scaffold), not the
       // per-signal routing below (there is nothing yet to refresh).
@@ -637,7 +645,7 @@ function main() {
       const lines = chosen.map(c =>
         `  • ${c.id}${c.severity ? ` (${c.severity})` : ''}${c.fix ? ` → ${c.fix}` : ''}`);
       systemMessage = [
-        `[Mastersoft] ${signals.length} lint signal(s) in this repo:`,
+        `[Mastersoft] ${chosen.length} lint signal(s) in this repo:`,
         ...lines,
         '  /mastersoft:ack-lints to defer/suppress.',
       ].join('\n');
@@ -677,6 +685,10 @@ function main() {
 
   process.stdout.write(JSON.stringify(out) + '\n');
   process.exit(0);
+}
+
+function isInjectedTurn(prompt) {
+  return typeof prompt === 'string' && INJECTED_TURN_PREFIX.test(prompt);
 }
 
 // The lint engine is advisory and runs on every prompt. A throw here (a huge

@@ -25,6 +25,7 @@ function main() {
 
   delete ss.orgRulesUnknownKeysWarned;
   delete ss.midSessionEditNoticed;
+  delete ss.signalsEmitted;
   delete ss.lintsNoticeShown; // re-surface the once-per-session lint notice after reset
 // Reset the mid-session-edit baseline. Without this, a user who edited
   // CLAUDE.md then ran /clear or /compact (precisely to make edits apply)
