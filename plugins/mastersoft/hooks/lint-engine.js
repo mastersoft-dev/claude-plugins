@@ -21,7 +21,7 @@ const SIGNAL_BUDGET_CHARS = 800;
 // UserPromptSubmit also fires for background-task notifications, scheduled
 // runs and peer messages. They are not a user turn, so they must neither
 // advance the prompt counter nor consume the once-per-session emission.
-const INJECTED_TURN_PREFIX = /^\s*(?:<task-notification[\s>]|\[SYSTEM NOTIFICATION)/;
+const INJECTED_TURN_PREFIX = /^\s*<task-notification[\s>]/;
 const LINT_SCAN_MAX_AGE_MS = Number(process.env.MASTERSOFT_LINT_SCAN_MAX_AGE_MS) || 3600000;
 
 // Tunable lint defaults live in ORG_RULES.md frontmatter (precedence per key:
