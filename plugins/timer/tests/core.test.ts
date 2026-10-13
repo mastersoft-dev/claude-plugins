@@ -3,27 +3,41 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Entry } from '../types'
 import {
   addAgentRun,
+  awayOf,
+  barOf,
   bookingLines,
   branchLabel,
   canonicalRemote,
   closeStale,
+  cutRange,
+  dayMinutes,
   dayOf,
   fileUrl,
+  instantOf,
   isExpired,
   markBooked,
   minutesByDay,
   parseBookingRange,
   parseEntry,
+  parseEntryEdit,
   parseMark,
+  parseNewEntry,
+  parseTags,
   pauseEntry,
   pendingDays,
+  recentDays,
+  reshapeDay,
   resumeEntry,
+  roundMinutes,
+  segmentsWithin,
+  sharedMs,
   startEntry,
   stateOf,
   stopEntry,
   titleOf,
   toCsv,
   todayRows,
+  weekOf,
 } from '../hooks/core'
 
 const MINUTE = 60_000
@@ -133,6 +147,24 @@ describe('bookingLines', () => {
   test('gives no remote for a repo known only by its folder', () => {
     expect(bookingLines([entry({ repoKey: 'path:C:/repos/acme' })], {})[0]?.remote).toBe(undefined)
   })
+
+  test('names the timers that ran at the same time, with the minutes shared', () => {
+    const parallel = entry({ id: 'e2', note: 'review', segments: [{ start: T0 + 43 * MINUTE, end: T0 + 90 * MINUTE }] })
+    const after = entry({ id: 'e3', note: 'docs', segments: [{ start: T0 + 90 * MINUTE, end: T0 + 100 * MINUTE }] })
+    expect(bookingLines([entry(), parallel, after], {}).map(l => [l.entryId, l.overlaps])).toEqual([
+      ['e1', [{ entryId: 'e2', title: 'review', minutes: 20 }]],
+      ['e2', [{ entryId: 'e1', title: 'fix login', minutes: 20 }]],
+      ['e3', undefined],
+    ])
+  })
+})
+
+describe('sharedMs', () => {
+  test('adds up every stretch two lists of segments run at once', () => {
+    const a = [{ start: 0, end: 10 }, { start: 20, end: 30 }]
+    expect(sharedMs(a, [{ start: 5, end: 25 }])).toBe(10)
+    expect(sharedMs(a, [{ start: 10, end: 20 }])).toBe(0)
+  })
 })
 
 describe('markBooked', () => {
@@ -168,8 +200,8 @@ describe('toCsv', () => {
   test('writes one row per segment and quotes cells that need it', () => {
     const csv = toCsv([entry({ note: 'login, "SSO"', booked: { '2026-10-06': '900' } })], T0 + 90 * MINUTE)
     expect(csv).toBe(
-      'entry,session,repo,note,day,start,end,minutes,state,booked\r\n' +
-        'e1,s1,acme,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,900\r\n',
+      'entry,session,repo,note,day,start,end,minutes,state,booked,tags\r\n' +
+        'e1,s1,acme,"login, ""SSO""",2026-10-06,09:00,10:03,63,stopped,900,\r\n',
     )
   })
 
@@ -277,8 +309,192 @@ describe('todayRows', () => {
     const running = entry({ id: 'r', note: '', segments: [{ start: T0 + 120 * MINUTE }], stoppedAt: undefined })
     const rows = todayRows([running, yesterday, morning], '2026-10-06', T0 + 150 * MINUTE)
     expect(rows).toEqual([
-      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false },
-      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', name: 'acme', repo: { name: 'acme' }, isBooked: false },
+      { id: 'm', sessionId: 's1', from: '09:00', to: '10:30', minutes: 60, state: 'stopped', note: 'fix login', tags: [], name: 'fix login', repo: { name: 'acme', path: 'C:/repos/acme' }, isBooked: false, overlapMinutes: 0 },
+      { id: 'r', sessionId: 's1', from: '11:00', to: 'now', minutes: 30, state: 'running', note: '', tags: [], name: 'acme', repo: { name: 'acme' }, isBooked: false, overlapMinutes: 0 },
     ])
+  })
+})
+
+describe('dayMinutes', () => {
+  const parallel = entry({ id: 'e2', segments: [{ start: T0 + 33 * MINUTE, end: T0 + 93 * MINUTE }], agentMs: { '2026-10-06': 10 * MINUTE } })
+
+  test("summed adds every timer's own minutes", () => {
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: false, wallClock: false })).toBe(123)
+  })
+
+  test('on the wall clock the time timers ran at once counts once, subagents on top when asked', () => {
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: false, wallClock: true })).toBe(93)
+    expect(dayMinutes([entry(), parallel], '2026-10-06', T0, { withAgents: true, wallClock: true })).toBe(103)
+  })
+})
+
+describe('cutRange', () => {
+  test('takes the span out of closed segments and keeps an open one open after it', () => {
+    const open = entry({ segments: [{ start: 0, end: 10 }, { start: 20 }], stoppedAt: undefined })
+    expect(cutRange(open, 5, 30).segments).toEqual([{ start: 0, end: 5 }, { start: 30 }])
+    expect(cutRange(open, 12, 18).segments).toEqual([{ start: 0, end: 10 }, { start: 20 }])
+  })
+})
+
+describe('segmentsWithin', () => {
+  test('gives the closed pieces of the segments inside the span', () => {
+    const open = entry({ segments: [{ start: 0, end: 10 }, { start: 20 }], stoppedAt: undefined })
+    expect(segmentsWithin(open, 5, 30)).toEqual([{ start: 5, end: 10 }, { start: 20, end: 30 }])
+  })
+})
+
+describe('awayOf', () => {
+  const presence = {
+    now: T0 + 60 * MINUTE,
+    lastActive: T0 + 40 * MINUTE,
+    lastTick: T0 + 60 * MINUTE - 30_000,
+    isClaudeWorking: false,
+    runningSince: T0,
+    idleMs: 15 * MINUTE,
+    sleepMs: 150_000,
+  }
+
+  test('idle past the threshold is away from the last activity until the person is back', () => {
+    expect(awayOf(presence)).toEqual({ from: T0 + 40 * MINUTE, to: null })
+    expect(awayOf({ ...presence, lastActive: T0 + 50 * MINUTE })).toBe(undefined)
+  })
+
+  test('Claude working is not idle, and idleMs 0 never is', () => {
+    expect(awayOf({ ...presence, isClaudeWorking: true })).toBe(undefined)
+    expect(awayOf({ ...presence, idleMs: 0 })).toBe(undefined)
+  })
+
+  test('a sleep alone ends as the computer wakes, one shorter than the idle threshold is not away', () => {
+    const woke = { ...presence, lastActive: T0 + 59 * MINUTE, lastTick: T0 + 30 * MINUTE, isClaudeWorking: true }
+    expect(awayOf(woke)).toEqual({ from: T0 + 30 * MINUTE, to: T0 + 60 * MINUTE })
+    expect(awayOf({ ...woke, lastTick: T0 + 50 * MINUTE })).toBe(undefined)
+    expect(awayOf({ ...woke, idleMs: 0, lastTick: T0 + 55 * MINUTE })).toEqual({ from: T0 + 55 * MINUTE, to: T0 + 60 * MINUTE })
+  })
+
+  test('nothing before the running segment counts', () => {
+    expect(awayOf({ ...presence, runningSince: T0 + 45 * MINUTE })).toEqual({ from: T0 + 45 * MINUTE, to: null })
+  })
+})
+
+describe('parseTags', () => {
+  test('splits on spaces and commas, drops a leading # and keeps each tag once', () => {
+    expect(parseTags('#review, meeting  review')).toEqual(['review', 'meeting'])
+    expect(parseTags('  ')).toEqual([])
+    expect(parseTags(Array.from({ length: 12 }, (_, i) => `t${i}`).join(' '))).toHaveLength(10)
+    expect(parseTags('x'.repeat(40))).toEqual(['x'.repeat(32)])
+  })
+})
+
+describe('instantOf', () => {
+  test('reads a wall-clock time of the day in Italian time, clock changes included', () => {
+    expect(instantOf('2026-10-06', '09:00')).toBe(T0)
+    expect(instantOf('2026-01-15', '09:00')).toBe(Date.parse('2026-01-15T08:00:00Z'))
+    expect(instantOf('2026-03-29', '02:30')).toBe(undefined)
+    expect(instantOf('2026-10-25', '02:30')).toBe(Date.parse('2026-10-25T00:30:00Z'))
+    expect(instantOf('2026-02-31', '09:00')).toBe(undefined)
+    expect(instantOf('2026-10-06', '9:00')).toBe(undefined)
+  })
+})
+
+describe('parseNewEntry and parseEntryEdit', () => {
+  test('take a stretch of one day and refuse one that ends before it starts', () => {
+    expect(parseNewEntry({ day: '2026-10-06', start: '09:00', end: '10:00', note: ' call ', tags: ['#meeting'] })).toEqual({
+      day: '2026-10-06',
+      start: T0,
+      end: T0 + 60 * MINUTE,
+      note: 'call',
+      tags: ['meeting'],
+    })
+    expect(parseNewEntry({ day: '2026-10-06', start: '10:00', end: '09:00' })).toContain('end must come after start')
+    expect(parseNewEntry({ day: '2026-10-06', start: '10:00' })).toContain('start and end are both needed')
+  })
+
+  test('an edit says what to change', () => {
+    expect(parseEntryEdit({ entryId: 'e1', day: '2026-10-06' })).toContain('Say what to change')
+    expect(parseEntryEdit({ entryId: 'e1', day: '2026-10-06', start: '09:30' })).toEqual({ entryId: 'e1', day: '2026-10-06', start: T0 + 30 * MINUTE })
+  })
+})
+
+describe('reshapeDay', () => {
+  const day = { dayStart: Date.parse('2026-10-05T22:00:00Z'), dayEnd: Date.parse('2026-10-06T22:00:00Z') }
+  const two = entry({ segments: [{ start: T0, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 90 * MINUTE }], stoppedAt: T0 + 90 * MINUTE })
+
+  test('an earlier start or a later end widens the first or last segment', () => {
+    const wider = reshapeDay(two, '2026-10-06', { ...day, start: T0 - 15 * MINUTE, end: T0 + 120 * MINUTE }) as Entry
+    expect(wider.segments).toEqual([{ start: T0 - 15 * MINUTE, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 120 * MINUTE }])
+    expect(wider.stoppedAt).toBe(T0 + 120 * MINUTE)
+  })
+
+  test('a later start or an earlier end cuts the time before or after away', () => {
+    const narrower = reshapeDay(two, '2026-10-06', { ...day, start: T0 + 15 * MINUTE, end: T0 + 70 * MINUTE }) as Entry
+    expect(narrower.segments).toEqual([{ start: T0 + 15 * MINUTE, end: T0 + 30 * MINUTE }, { start: T0 + 60 * MINUTE, end: T0 + 70 * MINUTE }])
+    expect(narrower.stoppedAt).toBe(T0 + 70 * MINUTE)
+  })
+
+  test('a later start on a segment from the day before keeps that day\'s part, and touching segments join', () => {
+    const night = entry({ segments: [{ start: day.dayStart - 60 * MINUTE, end: day.dayStart + 60 * MINUTE }], stoppedAt: day.dayStart + 60 * MINUTE })
+    expect((reshapeDay(night, '2026-10-06', { ...day, start: day.dayStart + 30 * MINUTE }) as Entry).segments).toEqual([
+      { start: day.dayStart - 60 * MINUTE, end: day.dayStart },
+      { start: day.dayStart + 30 * MINUTE, end: day.dayStart + 60 * MINUTE },
+    ])
+    const split = entry({ segments: [{ start: day.dayStart - 60 * MINUTE, end: day.dayStart }, { start: day.dayStart + 30 * MINUTE, end: day.dayStart + 60 * MINUTE }] })
+    expect((reshapeDay(split, '2026-10-06', { ...day, start: day.dayStart }) as Entry).segments).toEqual([
+      { start: day.dayStart - 60 * MINUTE, end: day.dayStart + 60 * MINUTE },
+    ])
+  })
+
+  test('a stopped timer keeps its stop when its end is not moved', () => {
+    const late = entry({ segments: [{ start: T0, end: T0 + 30 * MINUTE }], stoppedAt: T0 + 40 * MINUTE })
+    expect((reshapeDay(late, '2026-10-06', { ...day, start: T0 + 10 * MINUTE }) as Entry).stoppedAt).toBe(T0 + 40 * MINUTE)
+  })
+
+  test('refuses a day with no time, one left with none, and the end of a running timer', () => {
+    expect(reshapeDay(two, '2026-10-07', { dayStart: day.dayEnd, dayEnd: day.dayEnd + 24 * 60 * MINUTE, start: day.dayEnd })).toContain('no time on 2026-10-07')
+    expect(reshapeDay(two, '2026-10-06', { ...day, start: T0 + 100 * MINUTE })).toContain('leaves no time')
+    const running = entry({ segments: [{ start: T0 }], stoppedAt: undefined })
+    expect(reshapeDay(running, '2026-10-06', { ...day, end: T0 + 10 * MINUTE })).toContain('still running')
+  })
+})
+
+describe('roundMinutes', () => {
+  test('rounds to the nearest step, never below one step, and leaves minutes whole with no step', () => {
+    expect(roundMinutes(52.4, 15)).toBe(45)
+    expect(roundMinutes(53, 15)).toBe(60)
+    expect(roundMinutes(4, 15)).toBe(15)
+    expect(roundMinutes(0.2, 15)).toBe(0)
+    expect(roundMinutes(52.6, 0)).toBe(53)
+  })
+})
+
+describe('recentDays', () => {
+  test('gives the day and the six before it, the clock change included', () => {
+    expect(recentDays(Date.parse('2026-10-26T06:00:00Z'))).toEqual([
+      '2026-10-26',
+      '2026-10-25',
+      '2026-10-24',
+      '2026-10-23',
+      '2026-10-22',
+      '2026-10-21',
+      '2026-10-20',
+    ])
+  })
+})
+
+describe('weekOf and barOf', () => {
+  test('lists the last seven days with their minutes and what waits to be booked, and the time by repo and tag', () => {
+    const yesterday = entry({ id: 'y', tags: ['review'], segments: [{ start: T0 - 24 * 60 * MINUTE, end: T0 - 23 * 60 * MINUTE }], stoppedAt: T0 - 23 * 60 * MINUTE })
+    const week = weekOf([entry(), yesterday], T0 + 120 * MINUTE, { withAgents: false, wallClock: true })
+    expect(week.days.slice(0, 3)).toEqual([
+      { day: '2026-10-06', weekday: 'Tue', minutes: 63, toBook: 1 },
+      { day: '2026-10-05', weekday: 'Mon', minutes: 60, toBook: 1 },
+      { day: '2026-10-04', weekday: 'Sun', minutes: 0, toBook: 0 },
+    ])
+    expect(week.byRepo).toEqual([{ name: 'acme', minutes: 123 }])
+    expect(week.byTag).toEqual([{ name: 'review', minutes: 60 }])
+  })
+
+  test('draws a bar full at the target and marks time past it', () => {
+    expect(barOf(240, 480)).toBe(`${'█'.repeat(10)}${'░'.repeat(10)} `)
+    expect(barOf(600, 480)).toBe(`${'█'.repeat(20)}+`)
   })
 })

@@ -33,6 +33,72 @@
       "description": "wall-clock counts the timer's own time; summed adds every subagent's run while the timer runs, so parallel agents each count",
       "options": ["wall-clock", "summed"],
       "default": "wall-clock"
+    },
+    "sound": {
+      "type": "string",
+      "title": "Chime",
+      "description": "on plays a short chime at the daily booking reminder and when the band asks about time away, where Claude Code has a player (macOS; a Windows or Linux terminal has none); off stays silent",
+      "options": ["off", "on"],
+      "default": "off"
+    },
+    "tellClaude": {
+      "type": "string",
+      "title": "Tell Claude about the timer",
+      "description": "on adds one line beside each prompt you send: how long this session's timer has run and on what, and how many timers wait to be booked, so Claude can answer about your time without asking; off leaves prompts as typed",
+      "options": ["on", "off"],
+      "default": "on"
+    },
+    "autoStart": {
+      "type": "string",
+      "title": "Start a timer by itself",
+      "description": "off starts timers only when you ask; session starts one, with no note, when a session starts with none open; prompt starts one at any prompt sent with none open, a stopped one included",
+      "options": ["off", "session", "prompt"],
+      "default": "off"
+    },
+    "autoGraceMinutes": {
+      "type": "number",
+      "title": "Auto mode keeps running for (minutes)",
+      "description": "In auto mode the timer keeps running this many minutes after Claude's turn ends, for reading the answer and typing the next prompt; a turn started within them leaves no gap. 0 pauses it as the turn ends",
+      "default": 0
+    },
+    "awayTime": {
+      "type": "string",
+      "title": "Time away",
+      "description": "What happens to the time a running timer counts while you are away (no activity for idleMinutes, or the computer asleep): ask when you are back, discard it, or keep counting it",
+      "options": ["ask", "discard", "keep"],
+      "default": "ask"
+    },
+    "idleMinutes": {
+      "type": "number",
+      "title": "Away after (minutes)",
+      "description": "Minutes with no typing, prompt or press, and Claude not working, after which a running timer counts you away; 0 counts only a sleeping computer",
+      "default": 15
+    },
+    "branchChange": {
+      "type": "string",
+      "title": "Branch changes",
+      "description": "When the worktree of a running timer moves to another branch: keep counting on the same timer, or split, stopping it and starting a new timer named after the new branch",
+      "options": ["keep", "split"],
+      "default": "keep"
+    },
+    "roundTo": {
+      "type": "number",
+      "title": "Round booked time to (minutes)",
+      "description": "Rounds each timer's minutes of a day to the nearest multiple of this many minutes (a whole number up to 60) when Claude books them, never below one multiple; 0 books whole minutes. The panel and the export keep the time as tracked",
+      "default": 0
+    },
+    "targetHours": {
+      "type": "number",
+      "title": "Daily target (hours)",
+      "description": "The hours a working day aims at, a whole or decimal number up to 24: the panel's Week tab draws each day's bar against it. 0 draws them against 8 hours with no target shown",
+      "default": 8
+    },
+    "parallelTime": {
+      "type": "string",
+      "title": "Timers run at once",
+      "description": "How today's totals count timers that ran at the same time in several sessions: wall-clock counts that time once, summed adds every timer's own time",
+      "options": ["wall-clock", "summed"],
+      "default": "wall-clock"
     }
   }
 }

@@ -3,6 +3,7 @@ import type { BookingLine, Entry, Segment, TodayRow } from '../types'
 export const TIME_ZONE = 'Europe/Rome'
 export const PATH_KEY_PREFIX = 'path:'
 const MS_PER_MINUTE = 60_000
+const CENTS = 100
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD', ''])
@@ -32,6 +33,8 @@ export const timeOf = (ms: number): string => timeFormat.format(ms)
 /** The message of a rejection, without the `Error:` prefix. */
 export const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
 const clockFormat = new Intl.DateTimeFormat('en-GB', {
   timeZone: TIME_ZONE,
   hour: '2-digit',
@@ -53,6 +56,81 @@ export const nextMidnight = (ms: number): number => {
   while (dayOf(midnight - HOUR_MS) !== day) midnight -= HOUR_MS
   return midnight
 }
+
+/** A wall-clock time of day, HH:mm. */
+export const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
+
+const isAt = (t: number, day: string, time: string) => dayOf(t) === day && timeOf(t) === time
+
+/**
+ * The instant a wall-clock `time` (HH:mm) on `day` stands for in the timer's
+ * time zone; undefined for a malformed one, a day the calendar lacks, or a
+ * time the clock skipped when it moved forward. Of a time the clock passed
+ * twice, as it moved back, the first.
+ */
+export const instantOf = (day: string, time: string): number | undefined => {
+  if (!DAY.test(day) || !CLOCK.test(time)) return undefined
+  const target = Date.parse(`${day}T${time}:00Z`)
+  if (Number.isNaN(target)) return undefined
+  let t = target
+  for (let i = 0; i < 3; i++) t += target - Date.parse(`${dayOf(t)}T${clockFormat.format(t)}Z`)
+  if (!isAt(t, day, time)) return undefined
+  return isAt(t - HOUR_MS, day, time) ? t - HOUR_MS : t
+}
+
+const RECENT_DAYS = 7
+const BAR_CELLS = 20
+
+const weekdayFormat = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, weekday: 'short' })
+
+/** The day of `now` and the six before it, newest first, as the panel's Add form offers them. */
+export const recentDays = (now: number): string[] => {
+  const noon = instantOf(dayOf(now), '12:00') ?? now
+  return Array.from({ length: RECENT_DAYS }, (_, i) => dayOf(noon - i * DAY_MS))
+}
+
+/** One day of the Week tab. */
+export type WeekDay = { day: string; weekday: string; minutes: number; toBook: number }
+
+/** What the Week tab shows: the last seven days, newest first, and the time by repo and by tag. */
+export type Week = { days: WeekDay[]; byRepo: { name: string; minutes: number }[]; byTag: { name: string; minutes: number }[] }
+
+const ranked = (totals: Map<string, number>) =>
+  [...totals].map(([name, minutes]) => ({ name, minutes })).filter(t => t.minutes > 0).sort((a, b) => b.minutes - a.minutes)
+
+/**
+ * The last seven days for the Week tab: each day's minutes (counted as the
+ * day totals are), how many stopped timers still wait to be booked that day,
+ * and every timer's own minutes added up by repo and by tag.
+ */
+export const weekOf = (entries: readonly Entry[], now: number, options: { withAgents: boolean; wallClock: boolean }): Week => {
+  const byRepo = new Map<string, number>()
+  const byTag = new Map<string, number>()
+  const days = recentDays(now).map(day => {
+    for (const row of todayRows(entries, day, now, options.withAgents)) {
+      byRepo.set(row.repo.name, (byRepo.get(row.repo.name) ?? 0) + row.minutes)
+      for (const tag of row.tags) byTag.set(tag, (byTag.get(tag) ?? 0) + row.minutes)
+    }
+    return {
+      day,
+      weekday: weekdayFormat.format(instantOf(day, '12:00') ?? now),
+      minutes: dayMinutes(entries, day, now, options),
+      toBook: entries.filter(entry => pendingDays(entry).some(([pending]) => pending === day)).length,
+    }
+  })
+  return { days, byRepo: ranked(byRepo), byTag: ranked(byTag) }
+}
+
+/** A bar of `minutes` against `targetMinutes`, full at the target and `+` past it; against a day's 8h with no target. */
+export const barOf = (minutes: number, targetMinutes: number): string => {
+  const scale = targetMinutes > 0 ? targetMinutes : 8 * 60
+  const filled = Math.min(BAR_CELLS, Math.round((minutes / scale) * BAR_CELLS))
+  return `${'█'.repeat(filled)}${'░'.repeat(BAR_CELLS - filled)}${minutes > scale ? '+' : ' '}`
+}
+
+/** Whether an entry has time, closed or still running, between `dayStart` and `dayEnd`. */
+export const hasTimeIn = (entry: Entry, dayStart: number, dayEnd: number): boolean =>
+  entry.segments.some(s => (s.end ?? Infinity) > dayStart && s.start < dayEnd)
 
 /** A segment cut at every midnight it spans, so that each piece lies in one day; an open one stays open. */
 export const splitAtMidnight = (segment: Segment, now: number): Segment[] => {
@@ -87,10 +165,12 @@ export const addAgentRun = (byDay: Record<string, number>, end: number, duration
   return added
 }
 
-/** The per-day agent time a store value holds; anything malformed reads as none. */
-export const parseAgentMs = (value: unknown): Record<string, number> =>
+/** A per-day amount a store value holds (agent time, cost); anything malformed reads as none. */
+export const parseByDay = (value: unknown): Record<string, number> =>
   typeof value === 'object' && value !== null
-    ? Object.fromEntries(Object.entries(value).filter(([, ms]) => typeof ms === 'number' && Number.isFinite(ms) && ms > 0))
+    ? Object.fromEntries(
+        Object.entries(value).filter(([, amount]) => typeof amount === 'number' && Number.isFinite(amount) && amount > 0),
+      )
     : {}
 
 export const formatDuration = (ms: number): string => {
@@ -120,6 +200,54 @@ export const stopEntry = (entry: Entry, now: number): Entry | string => {
 
 const closeLast = (segments: Entry['segments'], now: number) =>
   segments.map((s, i) => (i === segments.length - 1 && s.end === undefined ? { ...s, end: now } : s))
+
+/** The entry with the time from `from` to `to` taken out of its segments; an open one stays open from `to`. */
+export const cutRange = (entry: Entry, from: number, to: number): Entry => ({
+  ...entry,
+  segments: entry.segments.flatMap(s => {
+    const end = s.end ?? Infinity
+    if (end <= from || s.start >= to) return [s]
+    const before = s.start < from ? [{ start: s.start, end: from }] : []
+    const after = end > to ? [s.end === undefined ? { start: to } : { start: to, end: s.end }] : []
+    return [...before, ...after]
+  }),
+})
+
+/** The pieces of an entry's segments that lie between `from` and `to`, all closed. */
+export const segmentsWithin = (entry: Entry, from: number, to: number): Segment[] =>
+  entry.segments
+    .map(s => ({ start: Math.max(s.start, from), end: Math.min(s.end ?? to, to) }))
+    .filter(s => s.end > s.start)
+
+/** What the timer knows of the person's presence when its refresh runs. */
+export type Presence = {
+  now: number
+  /** The person's last keystroke, prompt, command or press, or the end of Claude's last turn. */
+  lastActive: number
+  /** The refresh before this one; a long gap since means the computer slept. */
+  lastTick: number | undefined
+  isClaudeWorking: boolean
+  /** When the running timer's open segment began: nothing before it is cut. */
+  runningSince: number
+  /** No activity for this long is away time; 0 never calls idle time away. */
+  idleMs: number
+  /** A gap between refreshes this long means the computer slept. */
+  sleepMs: number
+}
+
+/**
+ * The away time a refresh finds, or undefined. Idle time runs from the last
+ * activity until the person is back (`to` null); a sleep alone ends as the
+ * computer wakes. Claude working is not idle time; nothing before the running
+ * segment counts.
+ */
+export const awayOf = (p: Presence): { from: number; to: number | null } | undefined => {
+  const isIdle = p.idleMs > 0 && !p.isClaudeWorking && p.now - p.lastActive >= p.idleMs
+  const sleptFrom =
+    p.lastTick !== undefined && p.now - p.lastTick >= Math.max(p.sleepMs, p.idleMs) ? p.lastTick : undefined
+  if (isIdle) return { from: Math.max(Math.min(p.lastActive, sleptFrom ?? Infinity), p.runningSince), to: null }
+  return sleptFrom === undefined ? undefined : { from: Math.max(sleptFrom, p.runningSince), to: p.now }
+}
 
 /**
  * Stops a running or paused entry whose session stopped beating before
@@ -158,6 +286,7 @@ export const parseEntry = (value: unknown): Entry | undefined => {
     (e.auto === undefined || typeof e.auto === 'boolean') &&
     (e.location === undefined || typeof e.location === 'string') &&
     (e.branch === undefined || typeof e.branch === 'string') &&
+    (e.tags === undefined || (Array.isArray(e.tags) && e.tags.every(tag => typeof tag === 'string'))) &&
     (e.task === undefined ||
       (typeof e.task === 'object' &&
         e.task !== null &&
@@ -235,31 +364,92 @@ export const isExpired = (entry: Entry, now: number, retentionDays: number): boo
   return stoppedAt < now - retentionDays * DAY_MS
 }
 
+/** The span of an entry's closed time on `day`, from its first start to its last end; undefined with none. */
+export const daySpan = (entry: Entry, day: string): { since: number; until: number } | undefined => {
+  const pieces = closedPiecesByDay(entry).get(day) ?? []
+  const first = pieces[0]
+  return first === undefined
+    ? undefined
+    : { since: Math.min(...pieces.map(s => s.start)), until: Math.max(...pieces.map(s => s.end ?? s.start)) }
+}
+
+/**
+ * Minutes rounded for booking to the nearest multiple of `step`, never below
+ * one step for time worked; a `step` of 0 leaves them whole.
+ */
+export const roundMinutes = (minutes: number, step: number): number => {
+  const whole = Math.round(minutes)
+  return step > 0 && whole > 0 ? Math.max(step, Math.round(whole / step) * step) : whole
+}
+
+/** An entry's closed time cut at midnight, the pieces of each day apart. */
+const closedPiecesByDay = (entry: Entry): Map<string, Segment[]> => {
+  const days = new Map<string, Segment[]>()
+  for (const s of entry.segments.flatMap(closed => (closed.end === undefined ? [] : splitAtMidnight(closed, closed.end)))) {
+    const day = dayOf(s.start)
+    days.set(day, [...(days.get(day) ?? []), s])
+  }
+  return days
+}
+
+/** The milliseconds two lists of closed segments run at the same time. */
+export const sharedMs = (a: readonly Segment[], b: readonly Segment[]): number =>
+  a.reduce(
+    (sum, x) =>
+      sum + b.reduce((inner, y) => inner + Math.max(0, Math.min(x.end ?? x.start, y.end ?? y.start) - Math.max(x.start, y.start)), 0),
+    0,
+  )
+
 /**
  * One line per entry and day, oldest first, for whoever books the time (Claude,
  * through the timer's `entries` tool): whole minutes, the closed time only, so
  * a timer still open counts what it has done so far and says it is open. With
  * `withAgents` the minutes add the subagents' runs, always listed apart too.
+ * A line names the other timers that ran at the same time that day, so the
+ * same hours are not booked twice unseen. With `roundTo` the minutes are
+ * rounded for booking, and `exactMinutes` keeps the whole ones.
  */
 export const bookingLines = (
   entries: readonly Entry[],
   range: { from?: string; to?: string; includeBooked?: boolean },
   withAgents = false,
-): BookingLine[] =>
-  entries
+  roundTo = 0,
+): BookingLine[] => {
+  const pieces = new Map(entries.map(entry => [entry.id, closedPiecesByDay(entry)]))
+  const onDay = new Map<string, Entry[]>()
+  for (const entry of entries) {
+    for (const day of pieces.get(entry.id)?.keys() ?? []) onDay.set(day, [...(onDay.get(day) ?? []), entry])
+  }
+  const overlapsOf = (entry: Entry, day: string) =>
+    (onDay.get(day) ?? [])
+      .filter(other => other.id !== entry.id)
+      .map(other => ({
+        entryId: other.id,
+        title: titleOf(other),
+        minutes: Math.round(
+          sharedMs(pieces.get(entry.id)?.get(day) ?? [], pieces.get(other.id)?.get(day) ?? []) / MS_PER_MINUTE,
+        ),
+      }))
+      .filter(overlap => overlap.minutes > 0)
+  return entries
     .flatMap(entry =>
       [...minutesByDay(entry, withAgents)].map(([day, { minutes, firstStart }]) => {
         const booked = entry.booked?.[day]
         const agentMinutes = Math.round((entry.agentMs?.[day] ?? 0) / MS_PER_MINUTE)
+        const overlaps = overlapsOf(entry, day)
+        const rounded = roundMinutes(minutes, roundTo)
+        const costUsd = Math.round((entry.costUsd?.[day] ?? 0) * CENTS) / CENTS
         return {
           firstStart,
           line: {
             entryId: entry.id,
             day,
             start: timeOf(firstStart),
-            minutes: Math.round(minutes),
+            minutes: rounded,
+            ...(rounded === Math.round(minutes) ? {} : { exactMinutes: Math.round(minutes) }),
             title: titleOf(entry),
             note: entry.note,
+            ...(entry.tags === undefined || entry.tags.length === 0 ? {} : { tags: entry.tags }),
             repo: entry.repoName,
             ...(entry.repoKey.startsWith(PATH_KEY_PREFIX) ? {} : { remote: entry.repoKey }),
             ...(entry.branch === undefined ? {} : { branch: entry.branch }),
@@ -268,6 +458,8 @@ export const bookingLines = (
             state: stateOf(entry),
             ...(booked === undefined ? {} : { booked: String(booked) }),
             ...(agentMinutes > 0 ? { agentMinutes } : {}),
+            ...(overlaps.length > 0 ? { overlaps } : {}),
+            ...(costUsd > 0 ? { costUsd } : {}),
           },
         }
       }),
@@ -281,20 +473,32 @@ export const bookingLines = (
     )
     .sort((a, b) => a.firstStart - b.firstStart)
     .map(({ line }) => line)
-
-const DAY = /^\d{4}-\d{2}-\d{2}$/
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
+/** What the `entries` tool takes: the days to list, and whether to add booked days and commits. */
+export type BookingRange = {
+  from?: string
+  to?: string
+  includeBooked?: boolean
+  includeCommits?: boolean
+  includeSummary?: boolean
+}
+
 /** The `entries` tool's input, or why it is refused. */
-export const parseBookingRange = (input: unknown): { from?: string; to?: string; includeBooked?: boolean } | string => {
+export const parseBookingRange = (input: unknown): BookingRange | string => {
   if (!isRecord(input)) return 'The input must be an object.'
-  const { from, to, includeBooked } = input
+  const { from, to, includeBooked, includeCommits, includeSummary } = input
   for (const [name, value] of [['from', from], ['to', to]] as const) {
     if (value !== undefined && (typeof value !== 'string' || !DAY.test(value))) return `${name} must be a day, YYYY-MM-DD.`
   }
   if (includeBooked !== undefined && typeof includeBooked !== 'boolean') return 'includeBooked must be true or false.'
+  if (includeCommits !== undefined && typeof includeCommits !== 'boolean') return 'includeCommits must be true or false.'
+  if (includeSummary !== undefined && typeof includeSummary !== 'boolean') return 'includeSummary must be true or false.'
   return {
+    ...(includeSummary === undefined ? {} : { includeSummary }),
+    ...(includeCommits === undefined ? {} : { includeCommits }),
     ...(from === undefined ? {} : { from: from as string }),
     ...(to === undefined ? {} : { to: to as string }),
     ...(includeBooked === undefined ? {} : { includeBooked }),
@@ -311,6 +515,108 @@ export const parseMark = (input: unknown): { entryId: string; day: string; refer
   return { entryId, day, reference: reference.trim() }
 }
 
+/** What the `add_entry` tool takes: a stretch of one day, Italian time, and what it was. */
+export type NewEntry = { day: string; start: number; end: number; note: string; tags: string[] }
+
+/** What the `edit_entry` tool takes: one timer's day, and what to change of it. */
+export type EntryEdit = { entryId: string; day: string; start?: number; end?: number; note?: string; tags?: string[] }
+
+const optionalText = (value: unknown, name: string): string | undefined | Error =>
+  value === undefined || typeof value === 'string' ? value : new Error(`${name} must be text.`)
+
+const optionalTags = (value: unknown): string[] | undefined | Error => {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every(tag => typeof tag === 'string')) return new Error('tags must be a list of words.')
+  return parseTags(value.join(' '))
+}
+
+const optionalTime = (day: string, value: unknown, name: string): number | undefined | Error => {
+  if (value === undefined) return undefined
+  const instant = typeof value === 'string' ? instantOf(day, value) : undefined
+  return instant ?? new Error(`${name} must be a time of ${day}, HH:mm Italian time.`)
+}
+
+/** The `add_entry` tool's input, or why it is refused. */
+export const parseNewEntry = (input: unknown): NewEntry | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { day, note, tags } = input
+  if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
+  const start = optionalTime(day, input.start, 'start')
+  const end = optionalTime(day, input.end, 'end')
+  const text = optionalText(note, 'note')
+  const labels = optionalTags(tags)
+  for (const value of [start, end, text, labels]) if (value instanceof Error) return value.message
+  if (start === undefined || end === undefined) return 'start and end are both needed, HH:mm Italian time.'
+  if (end <= start) return 'end must come after start; time past midnight goes on the next day.'
+  return { day, start: start as number, end: end as number, note: ((text as string | undefined) ?? '').trim(), tags: (labels as string[] | undefined) ?? [] }
+}
+
+/** The `edit_entry` tool's input, or why it is refused. */
+export const parseEntryEdit = (input: unknown): EntryEdit | string => {
+  if (!isRecord(input)) return 'The input must be an object.'
+  const { entryId, day, note, tags } = input
+  if (typeof entryId !== 'string' || entryId === '') return 'entryId must be a line’s entryId from the entries tool.'
+  if (typeof day !== 'string' || !DAY.test(day)) return 'day must be a day, YYYY-MM-DD.'
+  const start = optionalTime(day, input.start, 'start')
+  const end = optionalTime(day, input.end, 'end')
+  const text = optionalText(note, 'note')
+  const labels = optionalTags(tags)
+  for (const value of [start, end, text, labels]) if (value instanceof Error) return value.message
+  if ([start, end, text, labels].every(value => value === undefined)) return 'Say what to change: start, end, note or tags.'
+  if (typeof start === 'number' && typeof end === 'number' && end <= start) return 'end must come after start.'
+  return {
+    entryId,
+    day,
+    ...(start === undefined ? {} : { start: start as number }),
+    ...(end === undefined ? {} : { end: end as number }),
+    ...(text === undefined ? {} : { note: (text as string).trim() }),
+    ...(labels === undefined ? {} : { tags: labels as string[] }),
+  }
+}
+
+/** Segments in order, those that touch or overlap joined into one. */
+const joined = (segments: readonly Segment[]): Segment[] =>
+  [...segments]
+    .sort((a, b) => a.start - b.start)
+    .reduce<Segment[]>((out, s) => {
+      const last = out.at(-1)
+      if (last === undefined || (last.end !== undefined && last.end < s.start)) return [...out, s]
+      const end = last.end === undefined || s.end === undefined ? undefined : Math.max(last.end, s.end)
+      return [...out.slice(0, -1), end === undefined ? { start: last.start } : { start: last.start, end }]
+    }, [])
+
+/**
+ * An entry with its time on `day` (from `dayStart` to `dayEnd`) made to begin
+ * at `start` and to end at `end`, either left as it is when absent: earlier
+ * than its first start, or later than its last end, widens the day's first or
+ * last segment; inside them, cuts the time before or after away. Refused when
+ * the entry has no time that day, when it would have none left, and for the
+ * end of a timer still running.
+ */
+export const reshapeDay = (
+  entry: Entry,
+  day: string,
+  { dayStart, dayEnd, start, end }: { dayStart: number; dayEnd: number; start?: number; end?: number },
+): Entry | string => {
+  const ofDay = entry.segments.filter(s => (s.end ?? Infinity) > dayStart && s.start < dayEnd)
+  const first = ofDay[0]
+  const last = ofDay.at(-1)
+  if (first === undefined || last === undefined) return `Timer ${entry.id} has no time on ${day}.`
+  if (end !== undefined && last.end === undefined) return 'The timer is still running: stop it before changing its end.'
+  let segments = entry.segments
+  if (start !== undefined && start < first.start) segments = segments.map(s => (s === first ? { ...s, start } : s))
+  if (end !== undefined && last.end !== undefined && end > last.end) segments = segments.map(s => (s === last ? { ...s, end } : s))
+  let reshaped: Entry = { ...entry, segments: joined(segments) }
+  if (start !== undefined && start > Math.max(first.start, dayStart)) reshaped = cutRange(reshaped, dayStart, start)
+  if (end !== undefined && end < Math.min(last.end ?? Infinity, dayEnd)) reshaped = cutRange(reshaped, end, dayEnd)
+  if (!hasTimeIn(reshaped, dayStart, dayEnd)) {
+    return `That leaves no time on ${day}: delete the timer in the panel instead.`
+  }
+  const lastEnd = reshaped.segments.at(-1)?.end
+  const isEndMoved = lastEnd !== entry.segments.at(-1)?.end
+  return reshaped.stoppedAt === undefined || lastEnd === undefined || !isEndMoved ? reshaped : { ...reshaped, stoppedAt: lastEnd }
+}
+
 /**
  * Records that `day` of an entry was booked, under whatever reference the
  * booking has (an activity id, say); refused for a day the entry has no time on.
@@ -320,7 +626,7 @@ export const markBooked = (entry: Entry, day: string, reference: string): Entry 
   return { ...entry, booked: { ...entry.booked, [day]: reference } }
 }
 
-const CSV_HEADER = ['entry', 'session', 'repo', 'note', 'day', 'start', 'end', 'minutes', 'state', 'booked']
+const CSV_HEADER = ['entry', 'session', 'repo', 'note', 'day', 'start', 'end', 'minutes', 'state', 'booked', 'tags']
 
 const FORMULA_LEAD = /^[=+\-@\t\r]/
 
@@ -348,6 +654,7 @@ export const toCsv = (entries: readonly Entry[], now: number): string => {
             Math.round(((s.end ?? now) - s.start) / MS_PER_MINUTE),
             stateOf(entry),
             entry.booked?.[day] === undefined ? '' : String(entry.booked[day]),
+            (entry.tags ?? []).join(' '),
           ],
         }
       }),
@@ -355,6 +662,23 @@ export const toCsv = (entries: readonly Entry[], now: number): string => {
     .sort((a, b) => a.start - b.start)
   return [CSV_HEADER, ...rows.map(r => r.cells)].map(cells => cells.map(csvCell).join(',')).join('\r\n') + '\r\n'
 }
+
+const MAX_TAGS = 10
+const MAX_TAG_LENGTH = 32
+
+/**
+ * The tags a person typed, split on spaces and commas, a leading `#` dropped,
+ * each kept once in the order given: at most ten, each cut to 32 characters.
+ */
+export const parseTags = (text: string): string[] =>
+  [
+    ...new Set(
+      text
+        .split(/[\s,]+/)
+        .map(tag => tag.replace(/^#+/, '').slice(0, MAX_TAG_LENGTH))
+        .filter(Boolean),
+    ),
+  ].slice(0, MAX_TAGS)
 
 /**
  * A work branch as words for a timer's name (`feat/login-sso` → `login sso`);
@@ -385,16 +709,22 @@ export const fileUrl = (path: string): string => {
 
 /**
  * Every entry with time on `day`, oldest first: from its first start that day
- * to its last end (`now` while it runs), the minutes worked that day, and the
- * repo it ran in.
+ * to its last end (`now` while it runs), the minutes worked that day, the
+ * repo it ran in, and the minutes it ran alongside the other timers that day.
  */
-export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] =>
-  entries
+export const todayRows = (entries: readonly Entry[], day: string, now: number, withAgents = false): TodayRow[] => {
+  const ofDay = entries
     .map(entry => ({
       entry,
       segments: entry.segments.flatMap(s => splitAtMidnight(s, now)).filter(s => dayOf(s.start) === day),
     }))
     .filter(({ segments }) => segments.length > 0)
+  const closed = new Map(ofDay.map(({ entry, segments }) => [entry.id, segments.map(s => ({ start: s.start, end: s.end ?? now }))]))
+  const sharedWithOthers = (id: string) =>
+    ofDay
+      .filter(({ entry }) => entry.id !== id)
+      .reduce((sum, { entry }) => sum + sharedMs(closed.get(id) ?? [], closed.get(entry.id) ?? []), 0)
+  return ofDay
     .map(({ entry, segments }) => {
       const first = Math.min(...segments.map(s => s.start))
       const isOpen = segments.some(s => s.end === undefined)
@@ -413,14 +743,46 @@ export const todayRows = (entries: readonly Entry[], day: string, now: number, w
           ),
           state: stateOf(entry),
           note: entry.note,
+          tags: entry.tags ?? [],
           name: titleOf(entry),
           repo: entry.location === undefined ? { name: entry.repoName } : { name: entry.repoName, path: entry.location },
           isBooked: entry.booked?.[day] !== undefined,
+          ...((entry.costUsd?.[day] ?? 0) > 0 ? { costUsd: entry.costUsd?.[day] } : {}),
+          overlapMinutes: Math.round(sharedWithOthers(entry.id) / MS_PER_MINUTE),
         },
       }
     })
     .sort((a, b) => a.first - b.first)
     .map(({ row }) => row)
+}
+
+/**
+ * The whole minutes worked on `day` by `entries` together. Summed, each
+ * timer's own minutes add up, so two timers run at once count twice; on the
+ * wall clock the time they ran at once counts once. Subagents' runs add on top
+ * when `withAgents`.
+ */
+export const dayMinutes = (
+  entries: readonly Entry[],
+  day: string,
+  now: number,
+  { withAgents, wallClock }: { withAgents: boolean; wallClock: boolean },
+): number => {
+  if (!wallClock) return todayRows(entries, day, now, withAgents).reduce((sum, r) => sum + r.minutes, 0)
+  const pieces = entries
+    .flatMap(entry => entry.segments.flatMap(s => splitAtMidnight(s, now)))
+    .filter(s => dayOf(s.start) === day)
+    .map(s => ({ start: s.start, end: s.end ?? now }))
+    .sort((a, b) => a.start - b.start)
+  let covered = 0
+  let reach = -Infinity
+  for (const { start, end } of pieces) {
+    covered += Math.max(0, end - Math.max(start, reach))
+    reach = Math.max(reach, end)
+  }
+  const agents = withAgents ? entries.reduce((sum, entry) => sum + (entry.agentMs?.[day] ?? 0), 0) : 0
+  return Math.round((covered + agents) / MS_PER_MINUTE)
+}
 
 /**
  * Takes a paused or stopped entry up again in `sessionId`: running from `now`,

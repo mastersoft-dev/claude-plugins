@@ -20,6 +20,8 @@ export type Entry = {
   location?: string
   branch?: string
   task?: Task
+  /** Free labels the person gives the timer (review, meeting, support), listed with its time. */
+  tags?: string[]
   /** Per day, the reference of the booking that took it (an activity id); 0.1.0 wrote numbers. */
   booked?: Record<string, string | number>
   /**
@@ -27,6 +29,11 @@ export type Entry = {
    * its own store key and joined on load, never written with the entry.
    */
   agentMs?: Record<string, number>
+  /**
+   * Per day, the US dollars Claude's work cost while the timer ran. Kept under
+   * its own store key and joined on load, never written with the entry.
+   */
+  costUsd?: Record<string, number>
 }
 
 /** One entry's time on one day, as the `entries` tool hands it to whoever books it. */
@@ -35,11 +42,14 @@ export type BookingLine = {
   day: string
   /** When the timer first started that day, HH:mm, Italian time. */
   start: string
-  /** Whole minutes, the closed time only. */
+  /** Whole minutes, the closed time only, rounded to the person's `roundTo` when set. */
   minutes: number
+  /** The whole minutes before rounding, when rounding changed them. */
+  exactMinutes?: number
   /** The note, else the orchestrator's task title, else the branch's words, else the repo's name. */
   title: string
   note: string
+  tags?: string[]
   repo: string
   /** The git remote as `host/path`, when the repo has one. */
   remote?: string
@@ -51,15 +61,28 @@ export type BookingLine = {
   booked?: string
   /** Whole minutes subagents worked that day while the timer ran; in `minutes` too when agent time is summed. */
   agentMinutes?: number
+  /** What Claude's work cost while the timer ran that day, US dollars to the cent. */
+  costUsd?: number
+  /** For a timer of the session asked, what the session did, written from its transcript, when asked for. */
+  summary?: string
+  /** The person's commits in the timer's folder while it ran that day, when asked for; null when git couldn't say. */
+  commits?: { hash: string; subject: string }[] | null
+  /** The other timers that ran at the same time that day, with the whole minutes they share with this one. */
+  overlaps?: { entryId: string; title: string; minutes: number }[]
 }
 
-export type TodayTab = 'session' | 'all'
+/** The panel's tabs: today's timers of this session, today's of every session, every day still to book, and the week. */
+export type TodayTab = 'session' | 'all' | 'book' | 'week'
 
 export type TodayView = {
   kind: 'today'
   tab: TodayTab
   selectedId: string | null
+  /** The day of the selected row in the To book tab; null for today's tabs. */
+  selectedDay: string | null
   confirmDeleteId: string | null
+  /** Whether the form that adds time worked with no timer running is open. */
+  isAdding: boolean
 }
 
 /** One timer of the day as the Today pane lists it. */
@@ -71,14 +94,25 @@ export type TodayRow = {
   minutes: number
   state: 'running' | 'paused' | 'stopped'
   note: string
+  tags: string[]
   /** The note, else the branch's words, else the repo's name (its git remote's, else its folder's). */
   name: string
   /** The repo it ran in; `path` is its folder. */
   repo: { name: string; path?: string }
   isBooked: boolean
+  /** What Claude's work cost while it ran that day, US dollars. */
+  costUsd?: number
+  /** Whole minutes it ran that day alongside other timers, a running one counted to now. */
+  overlapMinutes: number
 }
 
 export type View = TodayView
+
+/**
+ * Time the person was away while a timer ran: from `from`, until `to` once they
+ * are back (null while they are still away).
+ */
+export type Away = { entryId: string; from: number; to: number | null }
 
 export type Band = {
   state: 'idle' | 'running' | 'paused'
@@ -99,6 +133,8 @@ declare module 'claude-code' {
       band: Band | null
       /** The timer the band asks about after a /clear: keep it running or stop it. */
       askAfterClear: string | null
+      /** The away time the band asks about, or that waits for the person to be back. */
+      away: Away | null
     }
   }
 }
