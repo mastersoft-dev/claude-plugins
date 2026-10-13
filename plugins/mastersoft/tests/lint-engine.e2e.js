@@ -21,8 +21,8 @@ const VERBOSE = process.argv.includes('--verbose');
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2), stateDir, env = {} } = {}) {
-  const input = JSON.stringify({ session_id: sessionId, cwd });
+function runHook(cwd, { sessionId = 'test-' + Math.random().toString(36).slice(2), stateDir, env = {}, prompt } = {}) {
+  const input = JSON.stringify({ session_id: sessionId, cwd, ...(prompt === undefined ? {} : { prompt }) });
   const base = { ...process.env };
   delete base.CI;
   delete base.CLAUDE_CODE_REMOTE;
@@ -373,13 +373,64 @@ test('a disabled agents-md plugin in project settings is named in the signal', (
   assert(p1.ctx.includes('the built-in agents-md plugin is disabled'), 'signal should name the disabled plugin');
 });
 
-test('creating a rule file between prompts forces a rescan', () => {
-  const { p2, p3 } = tmpSession({
-    repoFiles: { 'AGENTS.md': '# rules\n' },
-    beforeThird: repoPath => fs.writeFileSync(path.join(repoPath, 'CLAUDE.md'), '# rules\n' + 'x\n'.repeat(260)),
-  });
-  assertNoSignal(p2.signals, 'rule-file-oversize');
-  assertHasSignal(p3.signals, 'rule-file-oversize', 'a new CLAUDE.md must invalidate the cached scan');
+test('an injected task-notification turn neither emits nor consumes the once-per-session signals', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-'));
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ms-repo-')));
+  try {
+    const g = args => cp.execFileSync('git', args, { cwd: repo, stdio: 'ignore' });
+    g(['init', '-q']);
+    g(['config', 'user.email', 't@t.test']);
+    g(['config', 'user.name', 'test']);
+    g(['config', 'commit.gpgsign', 'false']);
+    fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '# rules\n');
+    g(['add', '-A']);
+    g(['commit', '-q', '-m', 'init']);
+    const env = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0' };
+    const sessionId = 'e2e-inj-' + Math.random().toString(36).slice(2);
+    const notification = '<task-notification><task-id>x</task-id></task-notification>';
+    runHook(repo, { sessionId, stateDir, env, prompt: 'first user prompt' });
+    const injected = runHook(repo, { sessionId, stateDir, env, prompt: notification });
+    const second = runHook(repo, { sessionId, stateDir, env, prompt: 'second user prompt' });
+    assert(injected.signals.length === 0 && !injected.systemMessage, 'a task-notification turn must not emit anything');
+    assert(second.signals.length > 0, 'the next real user prompt must still carry the signals');
+  } finally {
+    for (const dir of [stateDir, home, repo]) fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('creating a rule file between sessions forces a rescan', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-lint-e2e-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ms-home-'));
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ms-repo-')));
+  try {
+    const g = args => cp.execFileSync('git', args, { cwd: repo, stdio: 'ignore' });
+    g(['init', '-q']);
+    g(['config', 'user.email', 't@t.test']);
+    g(['config', 'user.name', 'test']);
+    g(['config', 'commit.gpgsign', 'false']);
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# rules\n');
+    g(['add', '-A']);
+    g(['commit', '-q', '-m', 'init']);
+    const env = { HOME: home, MASTERSOFT_LINTS_ACK_HOURS: '0' };
+    const first = 'e2e-a-' + Math.random().toString(36).slice(2);
+    runHook(repo, { sessionId: first, stateDir, env });
+    const before = runHook(repo, { sessionId: first, stateDir, env });
+    fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '# rules\n' + 'x\n'.repeat(260));
+    const second = 'e2e-b-' + Math.random().toString(36).slice(2);
+    runHook(repo, { sessionId: second, stateDir, env });
+    const after = runHook(repo, { sessionId: second, stateDir, env });
+    assertNoSignal(before.signals, 'rule-file-oversize');
+    assertHasSignal(after.signals, 'rule-file-oversize', 'a new CLAUDE.md must invalidate the cached scan');
+  } finally {
+    for (const dir of [stateDir, home, repo]) fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('signals are emitted once per session, not on every prompt', () => {
+  const { p2, p3 } = tmpSession({ thirdPrompt: true });
+  assert(p2.signals.length > 0, 'prompt #2 must carry the signals');
+  assert(p3.signals.length === 0, `prompt #3 must not repeat them, got ${p3.signals.map(s => s.id).join(', ')}`);
 });
 
 test('a session at the home dir gets no lint signals', () => {
