@@ -8,8 +8,15 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [3.10.2] — 2026-10-14
+
 ### Fixed
 
+- Lint signals reach Claude once per session instead of on every prompt, and
+  background-task notifications no longer use up that one delivery. They come
+  back after `/clear` and `/compact`.
+- The prompt hooks have an explicit 15-second timeout, so a slow scan can't
+  silently drop their output.
 - The `mastersoft:ms` skill's frontmatter is valid YAML, so strict validation
   passes and Claude Code keeps its description and allowed tools.
 
