@@ -22,6 +22,7 @@ import {
   hasTimeIn,
   instantOf,
   isExpired,
+  isProjectStatus,
   markBooked,
   nextMidnight,
   parseByDay,
@@ -86,7 +87,10 @@ const PLAN_AGENT = 'booking-plan'
 const PLAN_PROMPT = [
   "You prepare a booking plan from the work timer's entries. You book nothing and change nothing.",
   'Load the mcp__timer__entries tool with ToolSearch if it is not loaded, then call it with includeCommits: true, and with from and to when you were given days (else it lists every day not booked yet).',
-  'Answer one line per timer and day: day, start, minutes, title, repo (or the Orca task), and one plain sentence on what was done, written from the line\'s commits, else its summary, else its note.',
+  'For each distinct folder run `ms project status --dir "<folder>"` with Bash, one at a time (for a line with a remote but no folder, `ms project status --remote <remote>`), and read the geweb field of its JSON. Run no other command.',
+  'Answer one line per timer and day: day, start, minutes, title, repo (or the Orca task), GEWEB project, and one plain sentence on what was done, written from the line\'s commits, else its summary, else its note.',
+  'The GEWEB project by geweb.state: linked, project.label, flagged when project.chiuso is true (closed); pending, "pending approval (request N)" with requests.project.id, else requests.customer.id; rejected, to_request or unlinked, the installed_at customers and a hint to run `ms project link` in that folder. Pass on its warnings.',
+  'If ms is missing, does not know `project status` (older than 0.8.0) or fails with HTTP 401 (GEWEB login missing or expired), say so once and leave the project out: never guess one.',
   'Flag the lines that overlap another timer and with which, the lines of timers still open, and the days whose total is far from a full working day.',
   'End with the total per day. Plain text, no preamble, in the language of the request.',
 ].join('\n')
@@ -1130,6 +1134,7 @@ const closePane = async ($: EngineInterface) => {
 }
 
 let ticker: Timer | undefined
+let planAgent: string | undefined
 
 export const register: Register = (on, options) => {
   const configured = String(options.reminderTime ?? '')
@@ -1190,14 +1195,15 @@ export const register: Register = (on, options) => {
         additionalProperties: false,
       },
     })
-    await $.agent.register({
+    const plan = await $.agent.register({
       name: PLAN_AGENT,
       description:
-        "Prepares a booking plan from the work timer's entries in its own context: one line per timer and day with a description from its commits, the overlaps and open timers flagged, and each day's total. Read-only: it books nothing, so book after the person confirms the plan.",
+        "Prepares a booking plan from the work timer's entries in its own context: one line per timer and day with its GEWEB project (from `ms project status`) and a description from its commits, the overlaps and open timers flagged, and each day's total. Read-only: it books nothing, so book after the person confirms the plan.",
       prompt: PLAN_PROMPT,
-      tools: ['ToolSearch', 'mcp__timer__entries'],
+      tools: ['ToolSearch', 'mcp__timer__entries', 'Bash'],
       model: 'haiku',
     })
+    planAgent = plan.agent
     await $.tool.register({
       name: ADD_TOOL,
       description:
@@ -1278,6 +1284,17 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: 'mcp__timer__add_entry' }, ($, e) => addEntry($, e.input))
 
   on('tool.call', { tool: 'mcp__timer__edit_entry' }, ($, e) => editEntry($, e.input))
+
+  on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
+    const verdict = await next(e)
+    if (e.agentId === undefined || planAgent === undefined || verdict.decision === 'deny') return verdict
+    const agent = (await $.agent.list()).find(a => a.id === e.agentId)
+    if (agent?.type !== planAgent) return verdict
+    const command = (e.input as { command?: unknown }).command
+    return typeof command === 'string' && isProjectStatus(command)
+      ? { decision: 'allow' }
+      : { decision: 'deny', reason: 'The booking plan runs only `ms project status --dir "<folder>"` or `--remote <host/path>`.' }
+  })
 
   on('prompt.edit', async ($, e, next) => {
     const edited = await next(e)
