@@ -15,6 +15,7 @@ import {
   fileUrl,
   instantOf,
   isExpired,
+  isProjectStatus,
   markBooked,
   minutesByDay,
   parseBookingRange,
@@ -65,6 +66,23 @@ describe('canonicalRemote', () => {
 
   test('refuses a local path', () => {
     expect(canonicalRemote('C:/repos/acme')).toBe(null)
+  })
+})
+
+describe('isProjectStatus', () => {
+  test('admits ms project status on one folder or one remote', () => {
+    expect(isProjectStatus('ms project status --dir "C:\\Users\\me\\repos\\acme site"')).toBe(true)
+    expect(isProjectStatus("ms project status --dir '/home/me/acme'")).toBe(true)
+    expect(isProjectStatus('ms project status --remote gitlab.sermix.com/mastersoft/acme')).toBe(true)
+  })
+
+  test('refuses other commands and anything the shell would expand or chain', () => {
+    expect(isProjectStatus('ms geweb raw GET hr/progetto/')).toBe(false)
+    expect(isProjectStatus('ms project link --dir C:/repos/acme')).toBe(false)
+    expect(isProjectStatus('ms project status --dir "$(rm -rf ~)"')).toBe(false)
+    expect(isProjectStatus('ms project status --dir C:/repos/acme; rm -rf ~')).toBe(false)
+    expect(isProjectStatus('ms project status --dir C:/repos/acme && ms geweb raw DELETE x')).toBe(false)
+    expect(isProjectStatus('ms project status --dir "a\nb"')).toBe(false)
   })
 })
 

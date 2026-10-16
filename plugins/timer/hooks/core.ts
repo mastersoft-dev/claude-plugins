@@ -327,6 +327,14 @@ export const canonicalRemote = (url: string): string | null => {
   return host && path ? `${host}/${path}` : null
 }
 
+const PROJECT_STATUS = /^ms project status --(dir|remote) ('[^'\n]+'|"[^"$`\n]+"|[\w./:@~+-]+)$/
+
+/**
+ * Whether a shell command is exactly `ms project status --dir <folder>` or
+ * `--remote <host/path>`, its one argument quoted so the shell expands nothing.
+ */
+export const isProjectStatus = (command: string): boolean => PROJECT_STATUS.test(command.trim())
+
 /** Minutes worked per day, closed segments cut at midnight so that each day holds only its own time. */
 export const minutesByDay = (entry: Entry, withAgents = false): Map<string, { minutes: number; firstStart: number }> => {
   const days = new Map<string, { minutes: number; firstStart: number }>()

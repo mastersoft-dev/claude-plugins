@@ -14,6 +14,10 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
   (one line per timer and day with a description from its commits, overlaps
   and open timers flagged, each day's total) and books nothing, so Claude
   books after you confirm.
+- The booking plan gives each line its GEWEB project from
+  `ms project status` (ms 0.8.0 or later): a closed project is flagged, a
+  pending link shows its request, an unlinked repo its customers and a hint
+  to run `ms project link`. The agent may run that command and no other.
 - Typing `/timer ` offers its subcommands, and `/timer tag ` the tags already
   in use.
 - Copy list (`c`) in the To book tab puts its lines on the clipboard,

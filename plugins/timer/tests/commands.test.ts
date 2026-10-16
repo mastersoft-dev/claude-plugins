@@ -300,7 +300,19 @@ test('mark_booked takes a day out of the entries tool and the band hint', async 
 test('the session registers a read-only booking-plan agent that reads the entries tool', async ($, on) => {
   const { agents } = world(on)
   await startSession($, on)
-  expect(agents).toEqual([{ name: 'booking-plan', tools: ['ToolSearch', 'mcp__timer__entries'] }])
+  expect(agents).toEqual([{ name: 'booking-plan', tools: ['ToolSearch', 'mcp__timer__entries', 'Bash'] }])
+})
+
+test('the booking-plan agent may run ms project status and no other command', async ($, on) => {
+  world(on)
+  on('agent.list', () => ({ value: [{ id: 'plan1', type: 'timer:booking-plan', description: 'plan', status: 'running' }] }) as never)
+  on('tool.check', () => ({ decision: 'ask' }))
+  await startSession($, on)
+  const check = (agentId: string, command: string) => $.tool.check({ tool: 'Bash', input: { command }, agentId } as never)
+  expect((await check('plan1', 'ms project status --dir "C:/repos/acme-site"')).decision).toBe('allow')
+  expect((await check('plan1', 'ms project status --remote gitlab.sermix.com/mastersoft/acme-site')).decision).toBe('allow')
+  expect((await check('plan1', 'ms geweb raw DELETE hr/lavoro/1/')).decision).toBe('deny')
+  expect((await check('other', 'ms project status --dir "C:/repos/acme-site"')).decision).not.toBe('allow')
 })
 
 test('add_entry adds a stopped timer for time worked with no timer running, overlaps named', async ($, on) => {
